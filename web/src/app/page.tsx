@@ -16,12 +16,12 @@ export default function Home() {
 
   if (!latestDate) {
     return (
-      <main className="max-w-6xl mx-auto p-8">
+      <div>
         <h1 className="text-3xl font-bold mb-4">모의 투자 시뮬레이션</h1>
         <p className="text-gray-400">
           아직 리포트가 없습니다. 시뮬레이션을 먼저 실행해주세요.
         </p>
-      </main>
+      </div>
     );
   }
 
@@ -40,7 +40,7 @@ export default function Home() {
   const totalReturnPct = (totalAsset / totalInvested - 1) * 100;
 
   return (
-    <main className="max-w-6xl mx-auto p-8 space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">모의 투자 시뮬레이션</h1>
@@ -130,6 +130,6 @@ export default function Home() {
       <div className="text-center text-gray-600 text-xs py-4">
         생성: {report.generated_at}
       </div>
-    </main>
+    </div>
   );
 }

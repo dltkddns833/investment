@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   getProfile,
   getPortfolio,
@@ -24,12 +23,9 @@ export default async function InvestorPage({ params }: Props) {
 
   if (!profile || !portfolio) {
     return (
-      <main className="max-w-4xl mx-auto p-8">
+      <div>
         <p className="text-gray-400">투자자를 찾을 수 없습니다.</p>
-        <Link href="/" className="text-blue-400 hover:underline mt-4 block">
-          돌아가기
-        </Link>
-      </main>
+      </div>
     );
   }
 
@@ -38,13 +34,10 @@ export default async function InvestorPage({ params }: Props) {
   const allocation = latestDate ? getAllocation(id, latestDate) : null;
 
   return (
-    <main className="max-w-4xl mx-auto p-8 space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <Link href="/" className="text-blue-400 hover:underline text-sm">
-          &larr; 대시보드
-        </Link>
-        <h1 className="text-3xl font-bold mt-2">{profile.name}</h1>
+        <h1 className="text-3xl font-bold">{profile.name}</h1>
         <p className="text-gray-400">{profile.strategy}</p>
         <p className="text-gray-500 text-sm mt-1">{profile.description}</p>
       </div>
@@ -200,6 +193,6 @@ export default async function InvestorPage({ params }: Props) {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }
