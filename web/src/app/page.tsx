@@ -3,10 +3,12 @@ import {
   getDailyReport,
   getConfig,
   getNews,
+  getAllAssetHistory,
 } from "@/lib/data";
 import { krw, pct, signColor } from "@/lib/format";
 import RankingTable from "@/components/RankingTable";
 import MarketTable from "@/components/MarketTable";
+import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +29,12 @@ export default async function Home() {
     );
   }
 
-  const [report, news] = await Promise.all([
+  const investorNames = config.investors.map((inv) => inv.name);
+
+  const [report, news, assetHistory] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(latestDate),
+    getAllAssetHistory(investorNames),
   ]);
 
   const investorIds: Record<string, string> = {};
@@ -103,6 +108,18 @@ export default async function Home() {
       <section className="glass-card overflow-hidden animate-in">
         <RankingTable rankings={report.rankings} investorIds={investorIds} />
       </section>
+
+      {/* All Investors Asset History */}
+      {assetHistory.length >= 1 && (
+        <section className="glass-card p-5 animate-in">
+          <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
+          <AllInvestorsAssetChart
+            data={assetHistory}
+            investorNames={investorNames}
+            initialCapital={config.simulation.initial_capital}
+          />
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Market */}

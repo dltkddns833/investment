@@ -4,11 +4,13 @@ import {
   getLatestReportDate,
   getDailyReport,
   getAllocation,
+  getAssetHistory,
 } from "@/lib/data";
 import { krw, pct, signColor } from "@/lib/format";
 import HoldingsTable from "@/components/HoldingsTable";
 import TransactionTable from "@/components/TransactionTable";
 import PortfolioChart from "@/components/PortfolioChart";
+import AssetChart from "@/components/AssetChart";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +34,10 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation] = await Promise.all([
+  const [report, allocation, assetHistory] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
+    getAssetHistory(profile.name),
   ]);
   const detail = report?.investor_details[profile.name];
 
@@ -87,6 +90,17 @@ export default async function InvestorPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Asset History Chart */}
+      {assetHistory.length >= 1 && (
+        <section className="glass-card p-5 animate-in">
+          <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
+          <AssetChart
+            data={assetHistory}
+            initialCapital={portfolio.initial_capital}
+          />
+        </section>
+      )}
 
       {/* Profile Info */}
       <section className="glass-card p-5 animate-in">

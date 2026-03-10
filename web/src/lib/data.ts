@@ -302,6 +302,53 @@ export async function getAvailableReportDates(): Promise<string[]> {
   return (data ?? []).map((r) => r.date);
 }
 
+export interface AssetSnapshot {
+  date: string;
+  total_asset: number;
+}
+
+export interface AllAssetSnapshot {
+  date: string;
+  [investorName: string]: number | string;
+}
+
+export async function getAllAssetHistory(
+  investorNames: string[]
+): Promise<AllAssetSnapshot[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, investor_details")
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  return data.map((row) => {
+    const snapshot: AllAssetSnapshot = { date: row.date };
+    for (const name of investorNames) {
+      snapshot[name] = row.investor_details?.[name]?.total_asset ?? 0;
+    }
+    return snapshot;
+  });
+}
+
+export async function getAssetHistory(
+  investorName: string
+): Promise<AssetSnapshot[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, investor_details")
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  return data
+    .filter((row) => row.investor_details?.[investorName]?.total_asset != null)
+    .map((row) => ({
+      date: row.date,
+      total_asset: row.investor_details[investorName].total_asset,
+    }));
+}
+
 export async function getLatestReportDate(): Promise<string | null> {
   const { data } = await supabase
     .from("daily_reports")
