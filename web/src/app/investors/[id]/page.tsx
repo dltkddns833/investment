@@ -18,9 +18,11 @@ interface Props {
 
 export default async function InvestorPage({ params }: Props) {
   const { id } = await params;
-  const profile = await getProfile(id);
-  const portfolio = await getPortfolio(id);
-  const latestDate = await getLatestReportDate();
+  const [profile, portfolio, latestDate] = await Promise.all([
+    getProfile(id),
+    getPortfolio(id),
+    getLatestReportDate(),
+  ]);
 
   if (!profile || !portfolio) {
     return (
@@ -30,9 +32,11 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const report = latestDate ? await getDailyReport(latestDate) : null;
+  const [report, allocation] = await Promise.all([
+    latestDate ? getDailyReport(latestDate) : null,
+    latestDate ? getAllocation(id, latestDate) : null,
+  ]);
   const detail = report?.investor_details[profile.name];
-  const allocation = latestDate ? await getAllocation(id, latestDate) : null;
 
   return (
     <div className="space-y-8">
@@ -122,8 +126,10 @@ export default async function InvestorPage({ params }: Props) {
                   {Object.entries(allocation.allocation).map(
                     ([ticker, ratio]) => (
                       <div key={ticker} className="flex items-center gap-2">
-                        <div className="flex-1 text-sm">{ticker}</div>
-                        <div className="w-32 bg-gray-700/50 rounded-full h-2">
+                        <div className="w-20 text-sm truncate shrink-0">
+                          {report!.market_prices[ticker]?.name ?? ticker}
+                        </div>
+                        <div className="flex-1 bg-gray-700/50 rounded-full h-2">
                           <div
                             className="bar-fill h-2"
                             style={{ width: `${ratio * 100}%` }}

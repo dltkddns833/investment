@@ -101,7 +101,9 @@ simulate.py 실행
 
 ## Web Dashboard
 
-`web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인.
+**배포 URL**: https://investment-phi-six.vercel.app/
+
+`web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위, 시장 현황, 뉴스
 - 투자자 상세(`/investors/[id]`): 포트폴리오 차트, 보유종목, 거래내역
 - Supabase에서 데이터를 읽어 서버 컴포넌트에서 렌더링 (DB 직접 쿼리)

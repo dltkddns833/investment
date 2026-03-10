@@ -11,8 +11,10 @@ import MarketTable from "@/components/MarketTable";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const config = await getConfig();
-  const latestDate = await getLatestReportDate();
+  const [config, latestDate] = await Promise.all([
+    getConfig(),
+    getLatestReportDate(),
+  ]);
 
   if (!latestDate) {
     return (
@@ -25,8 +27,10 @@ export default async function Home() {
     );
   }
 
-  const report = (await getDailyReport(latestDate))!;
-  const news = await getNews(latestDate);
+  const [report, news] = await Promise.all([
+    getDailyReport(latestDate).then((r) => r!),
+    getNews(latestDate),
+  ]);
 
   const investorIds: Record<string, string> = {};
   for (const inv of config.investors) {
