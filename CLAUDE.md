@@ -70,7 +70,6 @@ simulate.py 실행
 - `scripts/portfolio.py` — 매수/매도/평가/리밸런싱 (Supabase 읽기/쓰기)
 - `scripts/simulate.py` — 일일 시뮬레이션 오케스트레이터 (Supabase 읽기/쓰기)
 - `scripts/daily_pipeline.py` — 뉴스 저장, 배분 저장, 상태 확인 (Supabase 쓰기)
-- `scripts/migrate_to_supabase.py` — JSON → Supabase 1회성 마이그레이션
 
 **Supabase 테이블 (8개):**
 
@@ -85,8 +84,6 @@ simulate.py 실행
 | `news` | date | collected_at, count, articles(jsonb) | 수집된 뉴스 |
 | `daily_reports` | date | generated_at, market_prices(jsonb), rankings(jsonb), investor_details(jsonb) | 일간 리포트 |
 
-- 테이블 생성 SQL: `supabase_schema.sql`
-- 마이그레이션 스크립트: `scripts/migrate_to_supabase.py` (JSON → Supabase 1회성, 완료됨)
 
 **환경변수:**
 - `/.env` — Python용 (`SUPABASE_URL`, `SUPABASE_KEY`)

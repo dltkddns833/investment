@@ -54,15 +54,13 @@ cd web && pnpm install && pnpm dev
 ## 프로젝트 구조
 
 ```
-├── supabase_schema.sql         # DB 테이블 생성 SQL
 ├── .env                        # Supabase 인증 (Python용)
 ├── scripts/
 │   ├── supabase_client.py      # Supabase 클라이언트
 │   ├── market.py               # 주가 조회 (yfinance)
 │   ├── portfolio.py            # 매수/매도/평가/리밸런싱
 │   ├── simulate.py             # 시뮬레이션 오케스트레이터
-│   ├── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
-│   └── migrate_to_supabase.py  # JSON→Supabase 마이그레이션 (1회성)
+│   └── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
 └── web/                        # Next.js 대시보드
     ├── .env.local              # Supabase 인증 (Next.js용)
     └── src/lib/
