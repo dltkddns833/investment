@@ -1,0 +1,494 @@
+{
+  "date": "2026-03-10",
+  "generated_at": "2026-03-10T11:54:02.543304",
+  "market_prices": {
+    "005930.KS": {
+      "name": "삼성전자",
+      "price": 189500,
+      "change_pct": 9.22
+    },
+    "000660.KS": {
+      "name": "SK하이닉스",
+      "price": 942000,
+      "change_pct": 12.68
+    },
+    "373220.KS": {
+      "name": "LG에너지솔루션",
+      "price": 368000,
+      "change_pct": 2.36
+    },
+    "005380.KS": {
+      "name": "현대자동차",
+      "price": 534000,
+      "change_pct": 5.33
+    },
+    "035420.KS": {
+      "name": "NAVER",
+      "price": 221500,
+      "change_pct": 1.37
+    },
+    "035720.KS": {
+      "name": "카카오",
+      "price": 51600,
+      "change_pct": 2.38
+    },
+    "068270.KS": {
+      "name": "셀트리온",
+      "price": 208000,
+      "change_pct": 1.96
+    },
+    "005490.KS": {
+      "name": "POSCO홀딩스",
+      "price": 346000,
+      "change_pct": 2.98
+    },
+    "105560.KS": {
+      "name": "KB금융",
+      "price": 148000,
+      "change_pct": 3.79
+    },
+    "207940.KS": {
+      "name": "삼성바이오로직스",
+      "price": 1600000,
+      "change_pct": 1.33
+    },
+    "012450.KS": {
+      "name": "한화에어로스페이스",
+      "price": 1414000,
+      "change_pct": -1.39
+    },
+    "047810.KS": {
+      "name": "한국항공우주",
+      "price": 172450,
+      "change_pct": -0.95
+    },
+    "009540.KS": {
+      "name": "HD한국조선해양",
+      "price": 398000,
+      "change_pct": -0.5
+    },
+    "329180.KS": {
+      "name": "HD현대중공업",
+      "price": 573000,
+      "change_pct": -0.52
+    },
+    "352820.KS": {
+      "name": "하이브",
+      "price": 355500,
+      "change_pct": 2.75
+    },
+    "259960.KS": {
+      "name": "크래프톤",
+      "price": 227500,
+      "change_pct": 4.12
+    },
+    "036570.KS": {
+      "name": "엔씨소프트",
+      "price": 222500,
+      "change_pct": 4.22
+    },
+    "247540.KQ": {
+      "name": "에코프로비엠",
+      "price": 208500,
+      "change_pct": 2.96
+    },
+    "263750.KQ": {
+      "name": "펄어비스",
+      "price": 66600,
+      "change_pct": 0.76
+    },
+    "034020.KS": {
+      "name": "두산에너빌리티",
+      "price": 102700,
+      "change_pct": 6.76
+    }
+  },
+  "rankings": [
+    {
+      "rank": 1,
+      "investor": "투자자 A",
+      "strategy": "공격적 모멘텀",
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "num_holdings": 4,
+      "cash_ratio": 41.2,
+      "rebalance_frequency_days": 1,
+      "rebalanced_today": true,
+      "total_rebalances": 1
+    },
+    {
+      "rank": 2,
+      "investor": "투자자 C",
+      "strategy": "보수적 우량주",
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "num_holdings": 6,
+      "cash_ratio": 17.7,
+      "rebalance_frequency_days": 30,
+      "rebalanced_today": true,
+      "total_rebalances": 1
+    },
+    {
+      "rank": 3,
+      "investor": "투자자 B",
+      "strategy": "균형 분산",
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "num_holdings": 8,
+      "cash_ratio": 57.8,
+      "rebalance_frequency_days": 7,
+      "rebalanced_today": true,
+      "total_rebalances": 1
+    }
+  ],
+  "investor_details": {
+    "투자자 A": {
+      "investor": "투자자 A",
+      "strategy": "공격적 모멘텀",
+      "initial_capital": 5000000,
+      "cash": 2061000,
+      "holdings_value": 2939000,
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "holdings": {
+        "005930.KS": {
+          "name": "삼성전자",
+          "shares": 6,
+          "avg_price": 189500,
+          "current_price": 189500,
+          "invested": 1137000,
+          "value": 1137000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "000660.KS": {
+          "name": "SK하이닉스",
+          "shares": 1,
+          "avg_price": 942000,
+          "current_price": 942000,
+          "invested": 942000,
+          "value": 942000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "035420.KS": {
+          "name": "NAVER",
+          "shares": 2,
+          "avg_price": 221500,
+          "current_price": 221500,
+          "invested": 443000,
+          "value": 443000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "247540.KQ": {
+          "name": "에코프로비엠",
+          "shares": 2,
+          "avg_price": 208500,
+          "current_price": 208500,
+          "invested": 417000,
+          "value": 417000,
+          "profit": 0,
+          "profit_pct": 0.0
+        }
+      },
+      "num_holdings": 4,
+      "cash_ratio": 41.2,
+      "rebalance_frequency_days": 1,
+      "rebalanced_today": true,
+      "total_rebalances": 1,
+      "trades_today": [
+        {
+          "type": "buy",
+          "ticker": "005930.KS",
+          "shares": 6,
+          "price": 189500
+        },
+        {
+          "type": "buy",
+          "ticker": "000660.KS",
+          "shares": 1,
+          "price": 942000
+        },
+        {
+          "type": "buy",
+          "ticker": "035420.KS",
+          "shares": 2,
+          "price": 221500
+        },
+        {
+          "type": "buy",
+          "ticker": "247540.KQ",
+          "shares": 2,
+          "price": 208500
+        }
+      ]
+    },
+    "투자자 C": {
+      "investor": "투자자 C",
+      "strategy": "보수적 우량주",
+      "initial_capital": 5000000,
+      "cash": 885000,
+      "holdings_value": 4115000,
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "holdings": {
+        "005930.KS": {
+          "name": "삼성전자",
+          "shares": 6,
+          "avg_price": 189500,
+          "current_price": 189500,
+          "invested": 1137000,
+          "value": 1137000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "000660.KS": {
+          "name": "SK하이닉스",
+          "shares": 1,
+          "avg_price": 942000,
+          "current_price": 942000,
+          "invested": 942000,
+          "value": 942000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "005380.KS": {
+          "name": "현대자동차",
+          "shares": 1,
+          "avg_price": 534000,
+          "current_price": 534000,
+          "invested": 534000,
+          "value": 534000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "105560.KS": {
+          "name": "KB금융",
+          "shares": 5,
+          "avg_price": 148000,
+          "current_price": 148000,
+          "invested": 740000,
+          "value": 740000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "068270.KS": {
+          "name": "셀트리온",
+          "shares": 2,
+          "avg_price": 208000,
+          "current_price": 208000,
+          "invested": 416000,
+          "value": 416000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "005490.KS": {
+          "name": "POSCO홀딩스",
+          "shares": 1,
+          "avg_price": 346000,
+          "current_price": 346000,
+          "invested": 346000,
+          "value": 346000,
+          "profit": 0,
+          "profit_pct": 0.0
+        }
+      },
+      "num_holdings": 6,
+      "cash_ratio": 17.7,
+      "rebalance_frequency_days": 30,
+      "rebalanced_today": true,
+      "total_rebalances": 1,
+      "trades_today": [
+        {
+          "type": "buy",
+          "ticker": "005930.KS",
+          "shares": 6,
+          "price": 189500
+        },
+        {
+          "type": "buy",
+          "ticker": "000660.KS",
+          "shares": 1,
+          "price": 942000
+        },
+        {
+          "type": "buy",
+          "ticker": "005380.KS",
+          "shares": 1,
+          "price": 534000
+        },
+        {
+          "type": "buy",
+          "ticker": "105560.KS",
+          "shares": 5,
+          "price": 148000
+        },
+        {
+          "type": "buy",
+          "ticker": "068270.KS",
+          "shares": 2,
+          "price": 208000
+        },
+        {
+          "type": "buy",
+          "ticker": "005490.KS",
+          "shares": 1,
+          "price": 346000
+        }
+      ]
+    },
+    "투자자 B": {
+      "investor": "투자자 B",
+      "strategy": "균형 분산",
+      "initial_capital": 5000000,
+      "cash": 2888200,
+      "holdings_value": 2111800,
+      "total_asset": 5000000,
+      "total_return": 0,
+      "total_return_pct": 0.0,
+      "holdings": {
+        "005930.KS": {
+          "name": "삼성전자",
+          "shares": 2,
+          "avg_price": 189500,
+          "current_price": 189500,
+          "invested": 379000,
+          "value": 379000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "373220.KS": {
+          "name": "LG에너지솔루션",
+          "shares": 1,
+          "avg_price": 368000,
+          "current_price": 368000,
+          "invested": 368000,
+          "value": 368000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "035420.KS": {
+          "name": "NAVER",
+          "shares": 1,
+          "avg_price": 221500,
+          "current_price": 221500,
+          "invested": 221500,
+          "value": 221500,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "035720.KS": {
+          "name": "카카오",
+          "shares": 4,
+          "avg_price": 51600,
+          "current_price": 51600,
+          "invested": 206400,
+          "value": 206400,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "068270.KS": {
+          "name": "셀트리온",
+          "shares": 1,
+          "avg_price": 208000,
+          "current_price": 208000,
+          "invested": 208000,
+          "value": 208000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "105560.KS": {
+          "name": "KB금융",
+          "shares": 2,
+          "avg_price": 148000,
+          "current_price": 148000,
+          "invested": 296000,
+          "value": 296000,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "259960.KS": {
+          "name": "크래프톤",
+          "shares": 1,
+          "avg_price": 227500,
+          "current_price": 227500,
+          "invested": 227500,
+          "value": 227500,
+          "profit": 0,
+          "profit_pct": 0.0
+        },
+        "034020.KS": {
+          "name": "두산에너빌리티",
+          "shares": 2,
+          "avg_price": 102700,
+          "current_price": 102700,
+          "invested": 205400,
+          "value": 205400,
+          "profit": 0,
+          "profit_pct": 0.0
+        }
+      },
+      "num_holdings": 8,
+      "cash_ratio": 57.8,
+      "rebalance_frequency_days": 7,
+      "rebalanced_today": true,
+      "total_rebalances": 1,
+      "trades_today": [
+        {
+          "type": "buy",
+          "ticker": "005930.KS",
+          "shares": 2,
+          "price": 189500
+        },
+        {
+          "type": "buy",
+          "ticker": "373220.KS",
+          "shares": 1,
+          "price": 368000
+        },
+        {
+          "type": "buy",
+          "ticker": "035420.KS",
+          "shares": 1,
+          "price": 221500
+        },
+        {
+          "type": "buy",
+          "ticker": "035720.KS",
+          "shares": 4,
+          "price": 51600
+        },
+        {
+          "type": "buy",
+          "ticker": "068270.KS",
+          "shares": 1,
+          "price": 208000
+        },
+        {
+          "type": "buy",
+          "ticker": "105560.KS",
+          "shares": 2,
+          "price": 148000
+        },
+        {
+          "type": "buy",
+          "ticker": "259960.KS",
+          "shares": 1,
+          "price": 227500
+        },
+        {
+          "type": "buy",
+          "ticker": "034020.KS",
+          "shares": 2,
+          "price": 102700
+        }
+      ]
+    }
+  }
+}

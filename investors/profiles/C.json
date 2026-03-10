@@ -1,0 +1,21 @@
+{
+  "name": "투자자 C",
+  "strategy": "보수적 우량주",
+  "description": "대형 우량주 위주의 보수적 투자자. 시가총액 상위, 안정적 실적, 배당 매력이 있는 종목을 선호한다. 변동성을 최소화.",
+  "rebalance_frequency_days": 30,
+  "risk_tolerance": "low",
+  "analysis_criteria": [
+    "시가총액 상위 대형주 선호",
+    "안정적 실적과 배당",
+    "변동성 낮은 종목 우선",
+    "경기 방어주 비중 확보",
+    "급등/급락 테마 회피"
+  ],
+  "investment_style": {
+    "holding_period": "장기 (월간 조정)",
+    "rebalancing": "매월",
+    "allocation": "100% 한국주식",
+    "concentration": "우량주 집중 (5~10종목)",
+    "preferred_sectors": ["대형주", "배당주", "방어주"]
+  }
+}

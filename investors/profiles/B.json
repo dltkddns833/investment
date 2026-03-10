@@ -1,0 +1,21 @@
+{
+  "name": "투자자 B",
+  "strategy": "균형 분산",
+  "description": "섹터 분산을 중시하는 균형형 투자자. 다양한 업종에 골고루 배분하며, 특정 섹터 편중을 피한다. 리스크 대비 수익을 최적화.",
+  "rebalance_frequency_days": 7,
+  "risk_tolerance": "medium",
+  "analysis_criteria": [
+    "섹터 간 균형 배분",
+    "업종별 뉴스 영향도 분석",
+    "과도한 쏠림 방지",
+    "안정적 실적 + 적정 성장",
+    "10종목 이상 분산"
+  ],
+  "investment_style": {
+    "holding_period": "중기 (주간 조정)",
+    "rebalancing": "매주",
+    "allocation": "100% 한국주식",
+    "concentration": "분산형 (10~15종목)",
+    "preferred_sectors": ["전 섹터 균등"]
+  }
+}

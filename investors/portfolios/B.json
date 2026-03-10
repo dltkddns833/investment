@@ -1,0 +1,179 @@
+{
+  "investor": "투자자 B",
+  "strategy": "균형 분산",
+  "initial_capital": 5000000,
+  "cash": 2888200,
+  "holdings": {
+    "005930.KS": {
+      "name": "삼성전자",
+      "shares": 2,
+      "avg_price": 189500
+    },
+    "373220.KS": {
+      "name": "LG에너지솔루션",
+      "shares": 1,
+      "avg_price": 368000
+    },
+    "035420.KS": {
+      "name": "NAVER",
+      "shares": 1,
+      "avg_price": 221500
+    },
+    "035720.KS": {
+      "name": "카카오",
+      "shares": 4,
+      "avg_price": 51600
+    },
+    "068270.KS": {
+      "name": "셀트리온",
+      "shares": 1,
+      "avg_price": 208000
+    },
+    "105560.KS": {
+      "name": "KB금융",
+      "shares": 2,
+      "avg_price": 148000
+    },
+    "259960.KS": {
+      "name": "크래프톤",
+      "shares": 1,
+      "avg_price": 227500
+    },
+    "034020.KS": {
+      "name": "두산에너빌리티",
+      "shares": 2,
+      "avg_price": 102700
+    }
+  },
+  "transactions": [
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "005930.KS",
+      "name": "삼성전자",
+      "shares": 2,
+      "price": 189500,
+      "amount": 379000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "373220.KS",
+      "name": "LG에너지솔루션",
+      "shares": 1,
+      "price": 368000,
+      "amount": 368000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "035420.KS",
+      "name": "NAVER",
+      "shares": 1,
+      "price": 221500,
+      "amount": 221500
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "035720.KS",
+      "name": "카카오",
+      "shares": 4,
+      "price": 51600,
+      "amount": 206400
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "068270.KS",
+      "name": "셀트리온",
+      "shares": 1,
+      "price": 208000,
+      "amount": 208000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "105560.KS",
+      "name": "KB금융",
+      "shares": 2,
+      "price": 148000,
+      "amount": 296000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "259960.KS",
+      "name": "크래프톤",
+      "shares": 1,
+      "price": 227500,
+      "amount": 227500
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "034020.KS",
+      "name": "두산에너빌리티",
+      "shares": 2,
+      "price": 102700,
+      "amount": 205400
+    }
+  ],
+  "last_rebalanced": "2026-03-10",
+  "rebalance_history": [
+    {
+      "date": "2026-03-10",
+      "trades": [
+        {
+          "type": "buy",
+          "ticker": "005930.KS",
+          "shares": 2,
+          "price": 189500
+        },
+        {
+          "type": "buy",
+          "ticker": "373220.KS",
+          "shares": 1,
+          "price": 368000
+        },
+        {
+          "type": "buy",
+          "ticker": "035420.KS",
+          "shares": 1,
+          "price": 221500
+        },
+        {
+          "type": "buy",
+          "ticker": "035720.KS",
+          "shares": 4,
+          "price": 51600
+        },
+        {
+          "type": "buy",
+          "ticker": "068270.KS",
+          "shares": 1,
+          "price": 208000
+        },
+        {
+          "type": "buy",
+          "ticker": "105560.KS",
+          "shares": 2,
+          "price": 148000
+        },
+        {
+          "type": "buy",
+          "ticker": "259960.KS",
+          "shares": 1,
+          "price": 227500
+        },
+        {
+          "type": "buy",
+          "ticker": "034020.KS",
+          "shares": 2,
+          "price": 102700
+        }
+      ],
+      "total_asset_after": 5000000
+    }
+  ]
+}

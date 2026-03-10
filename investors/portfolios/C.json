@@ -1,0 +1,139 @@
+{
+  "investor": "투자자 C",
+  "strategy": "보수적 우량주",
+  "initial_capital": 5000000,
+  "cash": 885000,
+  "holdings": {
+    "005930.KS": {
+      "name": "삼성전자",
+      "shares": 6,
+      "avg_price": 189500
+    },
+    "000660.KS": {
+      "name": "SK하이닉스",
+      "shares": 1,
+      "avg_price": 942000
+    },
+    "005380.KS": {
+      "name": "현대자동차",
+      "shares": 1,
+      "avg_price": 534000
+    },
+    "105560.KS": {
+      "name": "KB금융",
+      "shares": 5,
+      "avg_price": 148000
+    },
+    "068270.KS": {
+      "name": "셀트리온",
+      "shares": 2,
+      "avg_price": 208000
+    },
+    "005490.KS": {
+      "name": "POSCO홀딩스",
+      "shares": 1,
+      "avg_price": 346000
+    }
+  },
+  "transactions": [
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "005930.KS",
+      "name": "삼성전자",
+      "shares": 6,
+      "price": 189500,
+      "amount": 1137000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "000660.KS",
+      "name": "SK하이닉스",
+      "shares": 1,
+      "price": 942000,
+      "amount": 942000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "005380.KS",
+      "name": "현대자동차",
+      "shares": 1,
+      "price": 534000,
+      "amount": 534000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "105560.KS",
+      "name": "KB금융",
+      "shares": 5,
+      "price": 148000,
+      "amount": 740000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "068270.KS",
+      "name": "셀트리온",
+      "shares": 2,
+      "price": 208000,
+      "amount": 416000
+    },
+    {
+      "date": "2026-03-10",
+      "type": "buy",
+      "ticker": "005490.KS",
+      "name": "POSCO홀딩스",
+      "shares": 1,
+      "price": 346000,
+      "amount": 346000
+    }
+  ],
+  "last_rebalanced": "2026-03-10",
+  "rebalance_history": [
+    {
+      "date": "2026-03-10",
+      "trades": [
+        {
+          "type": "buy",
+          "ticker": "005930.KS",
+          "shares": 6,
+          "price": 189500
+        },
+        {
+          "type": "buy",
+          "ticker": "000660.KS",
+          "shares": 1,
+          "price": 942000
+        },
+        {
+          "type": "buy",
+          "ticker": "005380.KS",
+          "shares": 1,
+          "price": 534000
+        },
+        {
+          "type": "buy",
+          "ticker": "105560.KS",
+          "shares": 5,
+          "price": 148000
+        },
+        {
+          "type": "buy",
+          "ticker": "068270.KS",
+          "shares": 2,
+          "price": 208000
+        },
+        {
+          "type": "buy",
+          "ticker": "005490.KS",
+          "shares": 1,
+          "price": 346000
+        }
+      ],
+      "total_asset_after": 5000000
+    }
+  ]
+}
