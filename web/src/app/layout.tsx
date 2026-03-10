@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   description: "한국 주식 모의 투자 시뮬레이션 대시보드",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const config = getConfig();
+  const config = await getConfig();
   const investors = config.investors.map((inv) => ({
     id: inv.id,
     name: inv.name,

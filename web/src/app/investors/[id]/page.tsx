@@ -17,9 +17,9 @@ interface Props {
 
 export default async function InvestorPage({ params }: Props) {
   const { id } = await params;
-  const profile = getProfile(id);
-  const portfolio = getPortfolio(id);
-  const latestDate = getLatestReportDate();
+  const profile = await getProfile(id);
+  const portfolio = await getPortfolio(id);
+  const latestDate = await getLatestReportDate();
 
   if (!profile || !portfolio) {
     return (
@@ -29,9 +29,9 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const report = latestDate ? getDailyReport(latestDate) : null;
+  const report = latestDate ? await getDailyReport(latestDate) : null;
   const detail = report?.investor_details[profile.name];
-  const allocation = latestDate ? getAllocation(id, latestDate) : null;
+  const allocation = latestDate ? await getAllocation(id, latestDate) : null;
 
   return (
     <div className="space-y-8">

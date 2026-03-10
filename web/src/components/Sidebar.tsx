@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { getConfig } from "@/lib/data";
 
-export default function Sidebar() {
-  const config = getConfig();
+export default async function Sidebar() {
+  const config = await getConfig();
 
   return (
     <aside className="hidden md:flex w-56 shrink-0 flex-col bg-gray-900 border-r border-gray-800 h-screen sticky top-0">

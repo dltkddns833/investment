@@ -1,5 +1,4 @@
 """일일 시뮬레이션 오케스트레이터"""
-import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -7,6 +6,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
+from supabase_client import supabase
 from market import get_stock_prices
 from portfolio import (
     get_all_investors,
@@ -18,16 +18,12 @@ from portfolio import (
 )
 
 
-ALLOCATIONS_DIR = BASE_DIR / "investors" / "allocations"
-
-
 def load_investor_allocation(investor_id, date_str):
-    """투자자별 개별 배분 로드: investors/allocations/{id}/{date}.json"""
-    path = ALLOCATIONS_DIR / investor_id / f"{date_str}.json"
-    if not path.exists():
+    """투자자별 개별 배분 로드 (Supabase)"""
+    result = supabase.table("allocations").select("*").eq("investor_id", investor_id).eq("date", date_str).execute()
+    if not result.data:
         return None
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return result.data[0]
 
 
 def run_simulation(date_str=None):
@@ -96,14 +92,14 @@ def run_simulation(date_str=None):
     # 4. 일간 리포트 생성
     report = generate_daily_report_with_rebalance(current_prices, date_str, rebalance_results)
 
-    print(f"\n 리포트 저장 완료: report/daily/{date_str}.json")
+    print(f"\n 리포트 저장 완료: daily_reports/{date_str}")
     print(f"{'='*60}\n")
 
     return report
 
 
 def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_results):
-    """리밸런싱 정보가 포함된 일간 리포트 생성"""
+    """리밸런싱 정보가 포함된 일간 리포트 생성 (Supabase)"""
     investors = get_all_investors()
     results = []
 
@@ -150,12 +146,14 @@ def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_res
         "investor_details": {r["investor"]: r for r in results},
     }
 
-    daily_dir = Path(BASE_DIR / "report" / "daily")
-    daily_dir.mkdir(parents=True, exist_ok=True)
-
-    path = daily_dir / f"{date_str}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2, default=str)
+    # Supabase에 upsert
+    supabase.table("daily_reports").upsert({
+        "date": date_str,
+        "generated_at": report["generated_at"],
+        "market_prices": report["market_prices"],
+        "rankings": report["rankings"],
+        "investor_details": report["investor_details"],
+    }).execute()
 
     return report
 

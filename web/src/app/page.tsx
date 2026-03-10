@@ -10,9 +10,9 @@ import MarketTable from "@/components/MarketTable";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const config = getConfig();
-  const latestDate = getLatestReportDate();
+export default async function Home() {
+  const config = await getConfig();
+  const latestDate = await getLatestReportDate();
 
   if (!latestDate) {
     return (
@@ -25,8 +25,8 @@ export default function Home() {
     );
   }
 
-  const report = getDailyReport(latestDate)!;
-  const news = getNews(latestDate);
+  const report = (await getDailyReport(latestDate))!;
+  const news = await getNews(latestDate);
 
   const investorIds: Record<string, string> = {};
   for (const inv of config.investors) {
@@ -94,16 +94,18 @@ export default function Home() {
         </section>
 
         {/* News */}
-        <section className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden">
+        <section className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
           <div className="p-5 border-b border-gray-700">
-            <h2 className="text-xl font-bold">오늘의 뉴스</h2>
-            {news && (
-              <span className="text-gray-400 text-sm ml-2">
-                {news.count}건
-              </span>
-            )}
+            <h2 className="text-xl font-bold">
+              오늘의 뉴스
+              {news && (
+                <span className="text-gray-400 text-sm font-normal ml-2">
+                  {news.count}건
+                </span>
+              )}
+            </h2>
           </div>
-          <div className="p-5 space-y-3 max-h-[500px] overflow-y-auto">
+          <div className="p-5 space-y-3 overflow-y-auto flex-1 min-h-0">
             {news ? (
               news.articles.map((article, i) => (
                 <div

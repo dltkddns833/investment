@@ -1,7 +1,4 @@
-import fs from "fs";
-import path from "path";
-
-const BASE_DIR = path.resolve(process.cwd(), "..");
+import { supabase } from "./supabase";
 
 // --- Types ---
 
@@ -153,67 +150,163 @@ export interface News {
   articles: NewsArticle[];
 }
 
-// --- Data Loading ---
+// --- Data Loading (Supabase) ---
 
-function readJson<T>(filePath: string): T | null {
-  try {
-    const raw = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
+export async function getConfig(): Promise<Config> {
+  const { data } = await supabase
+    .from("config")
+    .select("*")
+    .eq("id", 1)
+    .single();
+  return {
+    simulation: data!.simulation,
+    investors: data!.investors,
+    stock_universe: data!.stock_universe,
+  } as Config;
 }
 
-export function getConfig(): Config {
-  return readJson<Config>(path.join(BASE_DIR, "config.json"))!;
+export async function getProfile(
+  investorId: string
+): Promise<InvestorProfile | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", investorId)
+    .single();
+  if (!data) return null;
+  return {
+    name: data.name,
+    strategy: data.strategy,
+    description: data.description,
+    rebalance_frequency_days: data.rebalance_frequency_days,
+    risk_tolerance: data.risk_tolerance,
+    analysis_criteria: data.analysis_criteria ?? [],
+    investment_style: data.investment_style ?? {},
+  };
 }
 
-export function getProfile(investorId: string): InvestorProfile | null {
-  return readJson<InvestorProfile>(
-    path.join(BASE_DIR, "investors", "profiles", `${investorId}.json`)
-  );
+export async function getPortfolio(
+  investorId: string
+): Promise<Portfolio | null> {
+  const { data: row } = await supabase
+    .from("portfolios")
+    .select("*")
+    .eq("investor_id", investorId)
+    .single();
+  if (!row) return null;
+
+  const { data: txns } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("investor_id", investorId)
+    .order("id");
+
+  const { data: rebs } = await supabase
+    .from("rebalance_history")
+    .select("*")
+    .eq("investor_id", investorId)
+    .order("id");
+
+  const transactions: Transaction[] = (txns ?? []).map((t) => {
+    const entry: Transaction = {
+      date: t.date,
+      type: t.type,
+      ticker: t.ticker,
+      name: t.name,
+      shares: t.shares,
+      price: t.price,
+      amount: t.amount,
+    };
+    if (t.profit !== null) entry.profit = t.profit;
+    return entry;
+  });
+
+  const rebalance_history: RebalanceRecord[] = (rebs ?? []).map((r) => ({
+    date: r.date,
+    trades: r.trades,
+    total_asset_after: r.total_asset_after,
+  }));
+
+  return {
+    investor: row.investor,
+    strategy: row.strategy,
+    initial_capital: row.initial_capital,
+    cash: row.cash,
+    holdings: row.holdings ?? {},
+    transactions,
+    last_rebalanced: row.last_rebalanced,
+    rebalance_history,
+  };
 }
 
-export function getPortfolio(investorId: string): Portfolio | null {
-  return readJson<Portfolio>(
-    path.join(BASE_DIR, "investors", "portfolios", `${investorId}.json`)
-  );
-}
-
-export function getAllocation(
+export async function getAllocation(
   investorId: string,
   date: string
-): Allocation | null {
-  return readJson<Allocation>(
-    path.join(BASE_DIR, "investors", "allocations", investorId, `${date}.json`)
-  );
+): Promise<Allocation | null> {
+  const { data } = await supabase
+    .from("allocations")
+    .select("*")
+    .eq("investor_id", investorId)
+    .eq("date", date)
+    .single();
+  if (!data) return null;
+  return {
+    date: data.date,
+    investor: data.investor,
+    strategy: data.strategy,
+    rationale: data.rationale,
+    allocation: data.allocation,
+    allocation_sum: data.allocation_sum,
+    num_stocks: data.num_stocks,
+  };
 }
 
-export function getDailyReport(date: string): DailyReport | null {
-  return readJson<DailyReport>(
-    path.join(BASE_DIR, "report", "daily", `${date}.json`)
-  );
+export async function getDailyReport(
+  date: string
+): Promise<DailyReport | null> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("*")
+    .eq("date", date)
+    .single();
+  if (!data) return null;
+  return {
+    date: data.date,
+    generated_at: data.generated_at,
+    market_prices: data.market_prices,
+    rankings: data.rankings,
+    investor_details: data.investor_details,
+  };
 }
 
-export function getNews(date: string): News | null {
-  return readJson<News>(path.join(BASE_DIR, "news", `${date}.json`));
+export async function getNews(date: string): Promise<News | null> {
+  const { data } = await supabase
+    .from("news")
+    .select("*")
+    .eq("date", date)
+    .single();
+  if (!data) return null;
+  return {
+    date: data.date,
+    collected_at: data.collected_at,
+    count: data.count,
+    articles: data.articles,
+  };
 }
 
-export function getAvailableReportDates(): string[] {
-  const dir = path.join(BASE_DIR, "report", "daily");
-  try {
-    return fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith(".json"))
-      .map((f) => f.replace(".json", ""))
-      .sort()
-      .reverse();
-  } catch {
-    return [];
-  }
+export async function getAvailableReportDates(): Promise<string[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date")
+    .order("date", { ascending: false });
+  return (data ?? []).map((r) => r.date);
 }
 
-export function getLatestReportDate(): string | null {
-  const dates = getAvailableReportDates();
-  return dates.length > 0 ? dates[0] : null;
+export async function getLatestReportDate(): Promise<string | null> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date")
+    .order("date", { ascending: false })
+    .limit(1);
+  return data && data.length > 0 ? data[0].date : null;
 }

@@ -1,13 +1,18 @@
 """주식 시장 데이터 조회 모듈"""
-import json
 import yfinance as yf
-from pathlib import Path
+from supabase_client import supabase
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 def load_config():
-    with open(BASE_DIR / "config.json", "r", encoding="utf-8") as f:
-        return json.load(f)
+    """config 로드 (Supabase)"""
+    row = supabase.table("config").select("*").eq("id", 1).single().execute().data
+    return {
+        "simulation": row["simulation"],
+        "investors": row["investors"],
+        "stock_universe": row["stock_universe"],
+        "news_categories": row["news_categories"],
+    }
+
 
 def get_stock_prices(tickers=None):
     """투자 유니버스 종목들의 현재가 조회"""
@@ -42,10 +47,12 @@ def get_stock_prices(tickers=None):
 
     return prices
 
+
 def get_stock_history(ticker, period="3mo"):
     """종목 히스토리 데이터 조회"""
     stock = yf.Ticker(ticker)
     return stock.history(period=period)
+
 
 def print_market_summary(prices=None):
     """시장 현황 요약 출력"""
@@ -67,6 +74,7 @@ def print_market_summary(prices=None):
         )
     print(f"{'='*70}\n")
     return prices
+
 
 if __name__ == "__main__":
     print("주식 시장 데이터를 조회합니다...")

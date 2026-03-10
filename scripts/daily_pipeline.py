@@ -1,40 +1,30 @@
 """일일 시뮬레이션 파이프라인 헬퍼"""
-import json
 import sys
 from datetime import datetime
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-NEWS_DIR = BASE_DIR / "news"
-ALLOCATIONS_DIR = BASE_DIR / "investors" / "allocations"
-PROFILES_DIR = BASE_DIR / "investors" / "profiles"
+from supabase_client import supabase
 
 
 def save_news(date_str, articles):
-    """뉴스 기사 저장
+    """뉴스 기사 저장 (Supabase)
 
     Args:
         date_str: "2026-03-10" 형식
         articles: [{"title": ..., "summary": ..., "category": ..., "source": ...}, ...]
     """
-    NEWS_DIR.mkdir(parents=True, exist_ok=True)
-
-    path = NEWS_DIR / f"{date_str}.json"
     data = {
         "date": date_str,
         "collected_at": datetime.now().isoformat(),
         "count": len(articles),
         "articles": articles,
     }
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    supabase.table("news").upsert(data).execute()
 
-    print(f"뉴스 {len(articles)}건 저장 완료: {path}")
-    return path
+    print(f"뉴스 {len(articles)}건 저장 완료: news/{date_str}")
+    return data
 
 
 def save_allocation(investor_id, date_str, allocation, rationale=""):
-    """투자자별 배분 결정 저장
+    """투자자별 배분 결정 저장 (Supabase)
 
     Args:
         investor_id: "A", "B", "C"
@@ -42,16 +32,12 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
         allocation: {"005930.KS": 0.25, ...} (합계 = 1.0)
         rationale: 배분 근거 설명
     """
-    alloc_dir = ALLOCATIONS_DIR / investor_id
-    alloc_dir.mkdir(parents=True, exist_ok=True)
-
     # 프로필 로드
-    profile_path = PROFILES_DIR / f"{investor_id}.json"
-    with open(profile_path, "r", encoding="utf-8") as f:
-        profile = json.load(f)
+    profile = supabase.table("profiles").select("name, strategy").eq("id", investor_id).single().execute().data
 
     total = sum(allocation.values())
     data = {
+        "investor_id": investor_id,
         "date": date_str,
         "investor": profile["name"],
         "strategy": profile["strategy"],
@@ -62,25 +48,27 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
         "generated_at": datetime.now().isoformat(),
     }
 
-    path = alloc_dir / f"{date_str}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    supabase.table("allocations").upsert(data).execute()
 
-    print(f"{profile['name']} 배분 저장 완료: {path}")
-    return path
+    print(f"{profile['name']} 배분 저장 완료: allocations/{investor_id}/{date_str}")
+    return data
 
 
 def check_pipeline_status(date_str):
-    """파이프라인 진행 상태 확인"""
+    """파이프라인 진행 상태 확인 (Supabase)"""
+    news_result = supabase.table("news").select("date").eq("date", date_str).execute()
+    report_result = supabase.table("daily_reports").select("date").eq("date", date_str).execute()
+
     status = {
         "date": date_str,
-        "news_collected": (NEWS_DIR / f"{date_str}.json").exists(),
+        "news_collected": len(news_result.data) > 0,
         "allocations": {},
-        "report_generated": (BASE_DIR / "report" / "daily" / f"{date_str}.json").exists(),
+        "report_generated": len(report_result.data) > 0,
     }
 
     for inv_id in ["A", "B", "C"]:
-        status["allocations"][inv_id] = (ALLOCATIONS_DIR / inv_id / f"{date_str}.json").exists()
+        alloc_result = supabase.table("allocations").select("investor_id").eq("investor_id", inv_id).eq("date", date_str).execute()
+        status["allocations"][inv_id] = len(alloc_result.data) > 0
 
     return status
 

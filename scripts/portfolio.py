@@ -1,29 +1,70 @@
 """포트폴리오 관리 모듈"""
-import json
 from datetime import datetime, date
-from pathlib import Path
+from supabase_client import supabase
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-PORTFOLIOS_DIR = BASE_DIR / "investors" / "portfolios"
-PROFILES_DIR = BASE_DIR / "investors" / "profiles"
 
 def load_portfolio(investor_id):
-    """투자자 포트폴리오 로드"""
-    path = PORTFOLIOS_DIR / f"{investor_id}.json"
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """투자자 포트폴리오 로드 (Supabase)"""
+    row = supabase.table("portfolios").select("*").eq("investor_id", investor_id).single().execute().data
+
+    # transactions 로드
+    txns = supabase.table("transactions").select("*").eq("investor_id", investor_id).order("id").execute().data
+    transactions = []
+    for t in txns:
+        entry = {
+            "date": t["date"],
+            "type": t["type"],
+            "ticker": t["ticker"],
+            "name": t["name"],
+            "shares": t["shares"],
+            "price": t["price"],
+            "amount": t["amount"],
+        }
+        if t["profit"] is not None:
+            entry["profit"] = t["profit"]
+        transactions.append(entry)
+
+    # rebalance_history 로드
+    rebs = supabase.table("rebalance_history").select("*").eq("investor_id", investor_id).order("id").execute().data
+    rebalance_history = [
+        {"date": r["date"], "trades": r["trades"], "total_asset_after": r["total_asset_after"]}
+        for r in rebs
+    ]
+
+    return {
+        "investor": row["investor"],
+        "strategy": row["strategy"],
+        "initial_capital": row["initial_capital"],
+        "cash": row["cash"],
+        "holdings": row["holdings"] or {},
+        "transactions": transactions,
+        "last_rebalanced": row["last_rebalanced"],
+        "rebalance_history": rebalance_history,
+    }
+
 
 def save_portfolio(investor_id, portfolio):
-    """투자자 포트폴리오 저장"""
-    path = PORTFOLIOS_DIR / f"{investor_id}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(portfolio, f, ensure_ascii=False, indent=2)
+    """투자자 포트폴리오 저장 (Supabase) - holdings, cash, last_rebalanced만 업데이트"""
+    supabase.table("portfolios").update({
+        "cash": portfolio["cash"],
+        "holdings": portfolio["holdings"],
+        "last_rebalanced": portfolio["last_rebalanced"],
+    }).eq("investor_id", investor_id).execute()
+
 
 def load_profile(investor_id):
-    """투자자 프로필 로드"""
-    path = PROFILES_DIR / f"{investor_id}.json"
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """투자자 프로필 로드 (Supabase)"""
+    row = supabase.table("profiles").select("*").eq("id", investor_id).single().execute().data
+    return {
+        "name": row["name"],
+        "strategy": row["strategy"],
+        "description": row["description"],
+        "rebalance_frequency_days": row["rebalance_frequency_days"],
+        "risk_tolerance": row["risk_tolerance"],
+        "analysis_criteria": row["analysis_criteria"] or [],
+        "investment_style": row["investment_style"] or {},
+    }
+
 
 def buy(investor_id, ticker, name, shares, price):
     """주식 매수"""
@@ -47,18 +88,22 @@ def buy(investor_id, ticker, name, shares, price):
             "avg_price": price,
         }
 
-    portfolio["transactions"].append({
-        "date": datetime.now().strftime("%Y-%m-%d"),
+    # transactions 테이블에 INSERT
+    today = datetime.now().strftime("%Y-%m-%d")
+    supabase.table("transactions").insert({
+        "investor_id": investor_id,
+        "date": today,
         "type": "buy",
         "ticker": ticker,
         "name": name,
         "shares": shares,
         "price": price,
         "amount": cost,
-    })
+    }).execute()
 
     save_portfolio(investor_id, portfolio)
     return True, f"{name} {shares}주 매수 완료 ({price:,}원 x {shares} = {cost:,}원)"
+
 
 def sell(investor_id, ticker, shares, price):
     """주식 매도"""
@@ -81,8 +126,11 @@ def sell(investor_id, ticker, shares, price):
     if h["shares"] == 0:
         del portfolio["holdings"][ticker]
 
-    portfolio["transactions"].append({
-        "date": datetime.now().strftime("%Y-%m-%d"),
+    # transactions 테이블에 INSERT
+    today = datetime.now().strftime("%Y-%m-%d")
+    supabase.table("transactions").insert({
+        "investor_id": investor_id,
+        "date": today,
         "type": "sell",
         "ticker": ticker,
         "name": name,
@@ -90,11 +138,12 @@ def sell(investor_id, ticker, shares, price):
         "price": price,
         "amount": revenue,
         "profit": profit,
-    })
+    }).execute()
 
     save_portfolio(investor_id, portfolio)
     sign = "+" if profit >= 0 else ""
     return True, f"{name} {shares}주 매도 완료 (수익: {sign}{profit:,}원)"
+
 
 def evaluate(investor_id, current_prices):
     """포트폴리오 평가"""
@@ -146,6 +195,7 @@ def evaluate(investor_id, current_prices):
         "cash_ratio": round(portfolio["cash"] / total_asset * 100, 1),
     }
 
+
 def print_portfolio(investor_id, current_prices):
     """포트폴리오 상세 출력"""
     result = evaluate(investor_id, current_prices)
@@ -174,9 +224,11 @@ def print_portfolio(investor_id, current_prices):
     print(f"{'='*70}\n")
     return result
 
+
 def get_all_investors():
     """모든 투자자 ID 목록"""
-    return [p.stem for p in PROFILES_DIR.glob("*.json")]
+    rows = supabase.table("profiles").select("id").execute().data
+    return [r["id"] for r in rows]
 
 
 def is_rebalance_due(investor_id, current_date):
@@ -268,17 +320,22 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                 if success:
                     trades.append({"type": "buy", "ticker": ticker, "shares": buy_shares, "price": price})
 
-    # 3) last_rebalanced 업데이트
+    # 3) last_rebalanced 업데이트 + rebalance_history INSERT
     portfolio = load_portfolio(investor_id)
     portfolio["last_rebalanced"] = date_str
-    portfolio["rebalance_history"].append({
+
+    total_asset_after = portfolio["cash"] + sum(
+        h["shares"] * current_prices.get(t, {}).get("price", 0)
+        for t, h in portfolio["holdings"].items()
+    )
+
+    supabase.table("rebalance_history").insert({
+        "investor_id": investor_id,
         "date": date_str,
         "trades": trades,
-        "total_asset_after": portfolio["cash"] + sum(
-            h["shares"] * current_prices.get(t, {}).get("price", 0)
-            for t, h in portfolio["holdings"].items()
-        ),
-    })
+        "total_asset_after": total_asset_after,
+    }).execute()
+
     save_portfolio(investor_id, portfolio)
 
     return trades
