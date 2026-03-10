@@ -99,7 +99,20 @@ def run_simulation(date_str=None):
 
 
 def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_results):
-    """리밸런싱 정보가 포함된 일간 리포트 생성 (Supabase)"""
+    """리밸런싱 정보가 포함된 일간 리포트 생성 (Supabase)
+
+    같은 날 재실행 시 기존 리포트의 rebalanced_today를 병합(OR)한다.
+    """
+    # 기존 리포트에서 rebalanced_today 상태 로드 (같은 날 재실행 대비)
+    prev_rebalanced = {}
+    prev_trades = {}
+    existing = supabase.table("daily_reports").select("rankings, investor_details").eq("date", date_str).execute().data
+    if existing:
+        for r in existing[0]["rankings"]:
+            prev_rebalanced[r["investor"]] = r.get("rebalanced_today", False)
+        for name, detail in existing[0]["investor_details"].items():
+            prev_trades[name] = detail.get("trades_today", [])
+
     investors = get_all_investors()
     results = []
 
@@ -109,9 +122,15 @@ def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_res
         portfolio = load_portfolio(inv_id)
 
         result["rebalance_frequency_days"] = profile["rebalance_frequency_days"]
-        result["rebalanced_today"] = rebalance_results.get(inv_id, {}).get("rebalanced", False)
+        rebalanced_now = rebalance_results.get(inv_id, {}).get("rebalanced", False)
+        rebalanced_prev = prev_rebalanced.get(result["investor"], False)
+        result["rebalanced_today"] = rebalanced_now or rebalanced_prev
         result["total_rebalances"] = len(portfolio.get("rebalance_history", []))
-        result["trades_today"] = rebalance_results.get(inv_id, {}).get("trades", [])
+        trades_now = rebalance_results.get(inv_id, {}).get("trades", [])
+        if rebalanced_now:
+            result["trades_today"] = trades_now
+        else:
+            result["trades_today"] = prev_trades.get(result["investor"], [])
         results.append(result)
 
     results.sort(key=lambda x: x["total_return_pct"], reverse=True)

@@ -171,7 +171,17 @@ export default async function Home() {
       <div>
         <div className="gradient-separator" />
         <div className="text-center text-gray-600 text-xs py-4">
-          생성: {report.generated_at}
+          {new Date(report.generated_at).toLocaleDateString("ko-KR", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}{" "}
+          {new Date(report.generated_at).toLocaleTimeString("ko-KR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          })}{" "}
+          기준 · 모의투자 시뮬레이션
         </div>
       </div>
     </div>
