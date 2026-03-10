@@ -62,13 +62,22 @@ cd web && pnpm install && pnpm dev
 │   ├── market.py               # 주가 조회 (yfinance)
 │   ├── portfolio.py            # 매수/매도/평가/리밸런싱
 │   ├── simulate.py             # 시뮬레이션 오케스트레이터
-│   └── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
+│   ├── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
+│   ├── daily_cron.sh           # cron 자동 실행 래퍼
+│   └── send_email.py           # 결과 이메일 발송
 └── web/                        # Next.js 대시보드
     ├── .env.local              # Supabase 인증 (Next.js용)
     └── src/lib/
         ├── supabase.ts         # Supabase 클라이언트
         └── data.ts             # 데이터 조회 (async)
 ```
+
+## 자동 실행
+
+매일 오후 4:00 (월~금, 장 마감 후) cron으로 Claude Code CLI가 시뮬레이션을 자동 실행한다.
+
+- macOS 알림 + 이메일로 결과 통보
+- 로그: `logs/simulation_YYYY-MM-DD.log` (로컬 전용, git 제외)
 
 ## 웹 대시보드
 

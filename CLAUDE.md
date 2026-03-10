@@ -36,12 +36,19 @@ python3 scripts/simulate.py 2026-03-10   # 특정 날짜
 # 파이프라인 상태 확인
 python3 scripts/daily_pipeline.py 2026-03-10
 
-# 기존 JSON → Supabase 마이그레이션 (1회성)
-python3 scripts/migrate_to_supabase.py
-
 # 의존성 설치
 pip3 install -r requirements.txt
 ```
+
+## 자동 실행 (cron)
+
+매일 오후 4:00 (월~금, 장 마감 후) 자동으로 시뮬레이션을 실행한다.
+- crontab: `0 16 * * 1-5 /Users/isang-un/Desktop/personal/investment/scripts/daily_cron.sh`
+- `scripts/daily_cron.sh` — Claude CLI로 시뮬레이션 실행, 로그 저장
+- `scripts/send_email.py` — Gmail SMTP로 결과 이메일 발송
+- 알림: macOS 알림 + 이메일 (dltkddns833@gmail.com)
+- 로그: `logs/simulation_YYYY-MM-DD.log`
+- 환경변수: `.env`에 `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` 필요
 
 ## Architecture
 
