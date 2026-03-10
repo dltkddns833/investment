@@ -96,13 +96,15 @@ cd web && npm run build  # 빌드
 - 10~15건 수집 후 `daily_pipeline.py`의 `save_news()`로 저장
 - 저장 위치: `news/{date}.json`
 
-### Step 2: 투자자별 배분 결정
-각 투자자 프로필(`investors/profiles/{id}.json`)의 성향/기준으로 뉴스를 분석하여 배분 결정.
+### Step 2: 투자자별 배분 결정 (3개 독립 AI 에이전트 병렬 실행)
+**반드시 3개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
+- 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
+- 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
+- 에이전트는 분석 후 `save_allocation()`으로 저장 → `investors/allocations/{A,B,C}/{date}.json`
+- allocation 합계 = 1.0, stock_universe 종목만 사용
 - A (공격적 모멘텀): 모멘텀/테마주 집중, 5~8종목
 - B (균형 분산): 섹터별 골고루, 10~15종목
 - C (보수적 우량주): 대형주/배당주 위주, 5~10종목
-- 각각 `save_allocation()`으로 저장 → `investors/allocations/{A,B,C}/{date}.json`
-- allocation 합계 = 1.0, stock_universe 종목만 사용
 
 ### Step 3: 시뮬레이션 실행
 - `python3 scripts/simulate.py {date}` 실행
