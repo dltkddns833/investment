@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-모의 투자 시뮬레이션 대시보드. Next.js 16 + TypeScript + Tailwind CSS + Recharts.
+모의 투자 시뮬레이션 대시보드. Next.js 15 + TypeScript + Tailwind CSS + Recharts.
 프로젝트 루트(`../`)의 JSON 데이터를 서버 컴포넌트에서 `fs`로 직접 읽어 렌더링한다.
 
 ## Commands
 
 ```bash
-npm run dev     # 개발 서버 (localhost:3000)
-npm run build   # 프로덕션 빌드
-npm run start   # 프로덕션 서버
-npm run lint    # ESLint
+pnpm dev     # 개발 서버 (localhost:4000)
+pnpm build   # 프로덕션 빌드
+pnpm start   # 프로덕션 서버
+pnpm lint    # ESLint
 ```
 
-Node 20+ 필요. nvm 사용 시: `nvm use 22`
+Node 18+ 필요. nvm 사용 시: `nvm use 18`
 
 ## Architecture
 

@@ -12,6 +12,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 투자자 B: 균형 분산 / 매주 리밸런싱 / 10~15종목 분산
 - 투자자 C: 보수적 우량주 / 매월 리밸런싱 / 5~10종목
 
+## Session Start Check
+
+대화 시작 시 `report/daily/{오늘 날짜}.json` 파일 존재 여부를 확인한다.
+- 파일이 **없으면**: 사용자에게 "오늘 시뮬레이션이 아직 진행되지 않았습니다. '시뮬레이션 진행해줘'를 입력해주세요." 라고 안내한다.
+- 파일이 **있으면**: 별도 안내 없이 사용자의 요청을 기다린다.
+- 주말/공휴일(한국 증시 휴장일)은 체크하지 않는다.
+
 ## Commands
 
 ```bash
@@ -77,8 +84,8 @@ simulate.py 실행
 - Node 20+ 필요, 상세 내용은 `web/CLAUDE.md` 참조
 
 ```bash
-cd web && npm run dev    # 개발 서버 (localhost:3000)
-cd web && npm run build  # 빌드
+cd web && pnpm dev    # 개발 서버 (localhost:4000)
+cd web && pnpm build  # 빌드
 ```
 
 ## Key Preferences
