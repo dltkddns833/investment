@@ -7,6 +7,7 @@ import {
 } from "@/lib/data";
 import { krw, pct, signColor } from "@/lib/format";
 import HoldingsTable from "@/components/HoldingsTable";
+import TransactionTable from "@/components/TransactionTable";
 import PortfolioChart from "@/components/PortfolioChart";
 
 export const dynamic = "force-dynamic";
@@ -35,35 +36,45 @@ export default async function InvestorPage({ params }: Props) {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
+      {/* Header Hero */}
+      <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-6 lg:p-8 border border-white/5">
         <h1 className="text-3xl font-bold">{profile.name}</h1>
-        <p className="text-gray-400">{profile.strategy}</p>
-        <p className="text-gray-500 text-sm mt-1">{profile.description}</p>
+        <p className="text-gray-400 mt-1">{profile.strategy}</p>
+        <p className="text-gray-500 text-sm mt-2">{profile.description}</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <div className="text-gray-400 text-xs">총 자산</div>
-          <div className="text-lg font-bold mt-1">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
+        <div className="glass-card card-shine animate-in p-4">
+          <div className="text-gray-400 text-xs uppercase tracking-wider">
+            총 자산
+          </div>
+          <div className="text-lg font-bold mt-1 tabular-nums">
             {detail ? krw(detail.total_asset) : krw(portfolio.initial_capital)}
           </div>
         </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <div className="text-gray-400 text-xs">수익률</div>
+        <div className="glass-card card-shine animate-in p-4">
+          <div className="text-gray-400 text-xs uppercase tracking-wider">
+            수익률
+          </div>
           <div
-            className={`text-lg font-bold mt-1 ${detail ? signColor(detail.total_return_pct) : "text-gray-500"}`}
+            className={`text-lg font-bold mt-1 tabular-nums ${detail ? signColor(detail.total_return_pct) : "text-gray-500"}`}
           >
             {detail ? pct(detail.total_return_pct) : "0.00%"}
           </div>
         </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <div className="text-gray-400 text-xs">현금</div>
-          <div className="text-lg font-bold mt-1">{krw(portfolio.cash)}</div>
+        <div className="glass-card card-shine animate-in p-4">
+          <div className="text-gray-400 text-xs uppercase tracking-wider">
+            현금
+          </div>
+          <div className="text-lg font-bold mt-1 tabular-nums">
+            {krw(portfolio.cash)}
+          </div>
         </div>
-        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-          <div className="text-gray-400 text-xs">리밸런싱</div>
+        <div className="glass-card card-shine animate-in p-4">
+          <div className="text-gray-400 text-xs uppercase tracking-wider">
+            리밸런싱
+          </div>
           <div className="text-lg font-bold mt-1">
             {profile.rebalance_frequency_days}일마다
           </div>
@@ -74,13 +85,13 @@ export default async function InvestorPage({ params }: Props) {
       </div>
 
       {/* Profile Info */}
-      <section className="bg-gray-800/30 rounded-xl border border-gray-700 p-5">
-        <h2 className="text-lg font-bold mb-3">분석 기준</h2>
+      <section className="glass-card p-5 animate-in">
+        <h2 className="text-lg font-bold mb-3 section-header">분석 기준</h2>
         <div className="flex flex-wrap gap-2">
           {profile.analysis_criteria.map((c, i) => (
             <span
               key={i}
-              className="bg-gray-700/50 text-gray-300 text-xs px-3 py-1 rounded-full"
+              className="badge-glow text-xs px-3 py-1 rounded-full"
             >
               {c}
             </span>
@@ -92,14 +103,18 @@ export default async function InvestorPage({ params }: Props) {
       {detail && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="bg-gray-800/30 rounded-xl border border-gray-700 p-5">
-              <h2 className="text-lg font-bold mb-3">포트폴리오 구성</h2>
+            <section className="glass-card p-5 animate-in">
+              <h2 className="text-lg font-bold mb-3 section-header">
+                포트폴리오 구성
+              </h2>
               <PortfolioChart detail={detail} />
             </section>
 
             {allocation && (
-              <section className="bg-gray-800/30 rounded-xl border border-gray-700 p-5">
-                <h2 className="text-lg font-bold mb-3">목표 배분</h2>
+              <section className="glass-card p-5 animate-in">
+                <h2 className="text-lg font-bold mb-3 section-header">
+                  목표 배분
+                </h2>
                 <p className="text-xs text-gray-400 mb-3">
                   {allocation.rationale}
                 </p>
@@ -108,13 +123,13 @@ export default async function InvestorPage({ params }: Props) {
                     ([ticker, ratio]) => (
                       <div key={ticker} className="flex items-center gap-2">
                         <div className="flex-1 text-sm">{ticker}</div>
-                        <div className="w-32 bg-gray-700 rounded-full h-2">
+                        <div className="w-32 bg-gray-700/50 rounded-full h-2">
                           <div
-                            className="bg-blue-500 h-2 rounded-full"
+                            className="bar-fill h-2"
                             style={{ width: `${ratio * 100}%` }}
                           />
                         </div>
-                        <div className="text-sm text-gray-400 w-12 text-right">
+                        <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
                           {(ratio * 100).toFixed(0)}%
                         </div>
                       </div>
@@ -125,10 +140,7 @@ export default async function InvestorPage({ params }: Props) {
             )}
           </div>
 
-          <section className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden">
-            <div className="p-5 border-b border-gray-700">
-              <h2 className="text-lg font-bold">보유 종목</h2>
-            </div>
+          <section className="glass-card overflow-hidden animate-in">
             <HoldingsTable holdings={detail.holdings} />
           </section>
         </>
@@ -136,61 +148,8 @@ export default async function InvestorPage({ params }: Props) {
 
       {/* Transaction History */}
       {portfolio.transactions.length > 0 && (
-        <section className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden">
-          <div className="p-5 border-b border-gray-700">
-            <h2 className="text-lg font-bold">거래 내역</h2>
-            <span className="text-gray-400 text-sm ml-2">
-              {portfolio.transactions.length}건
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-700 text-gray-400">
-                  <th className="py-2 px-3 text-left">날짜</th>
-                  <th className="py-2 px-3 text-center">유형</th>
-                  <th className="py-2 px-3 text-left">종목</th>
-                  <th className="py-2 px-3 text-right">수량</th>
-                  <th className="py-2 px-3 text-right">단가</th>
-                  <th className="py-2 px-3 text-right">금액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.transactions
-                  .slice()
-                  .reverse()
-                  .map((t, i) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-800/50 hover:bg-gray-800/30"
-                    >
-                      <td className="py-2 px-3 text-gray-400">{t.date}</td>
-                      <td className="py-2 px-3 text-center">
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded ${
-                            t.type === "buy"
-                              ? "bg-red-900/30 text-red-400"
-                              : "bg-blue-900/30 text-blue-400"
-                          }`}
-                        >
-                          {t.type === "buy" ? "매수" : "매도"}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">{t.name}</td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {t.shares}주
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {krw(t.price)}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono">
-                        {krw(t.amount)}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+        <section className="glass-card overflow-hidden animate-in">
+          <TransactionTable transactions={portfolio.transactions} />
         </section>
       )}
     </div>

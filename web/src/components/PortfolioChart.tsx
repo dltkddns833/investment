@@ -55,7 +55,9 @@ export default function PortfolioChart({ detail }: Props) {
           data={data}
           cx="50%"
           cy="50%"
+          innerRadius={60}
           outerRadius={100}
+          paddingAngle={2}
           dataKey="value"
           label={(props: PieLabelRenderProps) =>
             `${props.name ?? ""} ${(((props.percent as number | undefined) ?? 0) * 100).toFixed(1)}%`
@@ -69,9 +71,11 @@ export default function PortfolioChart({ detail }: Props) {
         <Tooltip
           formatter={(value) => krw(Number(value))}
           contentStyle={{
-            background: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: "8px",
+            background: "rgba(15, 23, 42, 0.9)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "10px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
           }}
         />
         <Legend />

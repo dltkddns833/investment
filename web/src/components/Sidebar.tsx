@@ -1,15 +1,15 @@
-import Link from "next/link";
 import { getConfig } from "@/lib/data";
+import SidebarLink from "./SidebarLink";
 
 export default async function Sidebar() {
   const config = await getConfig();
 
   return (
-    <aside className="hidden md:flex w-56 shrink-0 flex-col bg-gray-900 border-r border-gray-800 h-screen sticky top-0">
-      <div className="p-5 border-b border-gray-800">
-        <Link href="/" className="text-lg font-bold">
+    <aside className="hidden md:flex w-56 shrink-0 flex-col bg-gray-900/80 backdrop-blur-xl border-r border-white/5 h-screen sticky top-0">
+      <div className="p-5 border-b border-white/5">
+        <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
           모의 투자
-        </Link>
+        </span>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         <SidebarLink href="/" label="대시보드" />
@@ -24,17 +24,10 @@ export default async function Sidebar() {
           />
         ))}
       </nav>
+      <div className="gradient-separator mx-4" />
+      <div className="p-4 text-xs text-gray-600 text-center">
+        Investment Simulator
+      </div>
     </aside>
-  );
-}
-
-function SidebarLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="block px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-    >
-      {label}
-    </Link>
   );
 }

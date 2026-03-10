@@ -1,61 +1,89 @@
 "use client";
 
+import { createColumnHelper } from "@tanstack/react-table";
 import { HoldingDetail } from "@/lib/data";
-import { krw, pct, signColor } from "@/lib/format";
+import { krw, pct } from "@/lib/format";
+import DataTable from "./DataTable";
 
 interface Props {
   holdings: Record<string, HoldingDetail>;
 }
 
-export default function HoldingsTable({ holdings }: Props) {
-  const entries = Object.entries(holdings);
+type HoldingRow = HoldingDetail & { ticker: string };
 
-  if (entries.length === 0) {
-    return <div className="text-gray-500 text-center py-4">보유 종목 없음</div>;
+const col = createColumnHelper<HoldingRow>();
+
+const columns = [
+  col.accessor("name", {
+    header: "종목",
+    cell: (info) => (
+      <div>
+        <div className="font-medium">{info.getValue()}</div>
+        <div className="text-xs text-gray-500">{info.row.original.ticker}</div>
+      </div>
+    ),
+  }),
+  col.accessor("shares", {
+    header: "수량",
+    meta: { className: "text-right" },
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{info.getValue()}주</span>
+    ),
+  }),
+  col.accessor("avg_price", {
+    header: "평균단가",
+    meta: { className: "text-right" },
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
+    ),
+  }),
+  col.accessor("current_price", {
+    header: "현재가",
+    meta: { className: "text-right" },
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
+    ),
+  }),
+  col.accessor("value", {
+    header: "평가금",
+    meta: { className: "text-right" },
+    cell: (info) => (
+      <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
+    ),
+  }),
+  col.accessor("profit_pct", {
+    header: "수익률",
+    meta: { className: "text-right" },
+    cell: (info) => {
+      const v = info.getValue();
+      const cls =
+        v > 0
+          ? "bg-red-500/10 text-red-400"
+          : v < 0
+            ? "bg-blue-500/10 text-blue-400"
+            : "bg-gray-500/10 text-gray-400";
+      return (
+        <span
+          className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold font-mono tabular-nums ${cls}`}
+        >
+          {pct(v)}
+        </span>
+      );
+    },
+  }),
+];
+
+export default function HoldingsTable({ holdings }: Props) {
+  const data: HoldingRow[] = Object.entries(holdings).map(([ticker, h]) => ({
+    ...h,
+    ticker,
+  }));
+
+  if (data.length === 0) {
+    return (
+      <div className="text-gray-500 text-center py-4">보유 종목 없음</div>
+    );
   }
 
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-700 text-gray-400">
-            <th className="py-2 px-3 text-left">종목</th>
-            <th className="py-2 px-3 text-right">수량</th>
-            <th className="py-2 px-3 text-right">평균단가</th>
-            <th className="py-2 px-3 text-right">현재가</th>
-            <th className="py-2 px-3 text-right">평가금</th>
-            <th className="py-2 px-3 text-right">수익률</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map(([ticker, h]) => (
-            <tr
-              key={ticker}
-              className="border-b border-gray-800/50 hover:bg-gray-800/30"
-            >
-              <td className="py-2 px-3">
-                <div className="font-medium">{h.name}</div>
-                <div className="text-xs text-gray-500">{ticker}</div>
-              </td>
-              <td className="py-2 px-3 text-right font-mono">{h.shares}주</td>
-              <td className="py-2 px-3 text-right font-mono">
-                {krw(h.avg_price)}
-              </td>
-              <td className="py-2 px-3 text-right font-mono">
-                {krw(h.current_price)}
-              </td>
-              <td className="py-2 px-3 text-right font-mono">
-                {krw(h.value)}
-              </td>
-              <td
-                className={`py-2 px-3 text-right font-mono font-bold ${signColor(h.profit_pct)}`}
-              >
-                {pct(h.profit_pct)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <DataTable columns={columns} data={data} />;
 }

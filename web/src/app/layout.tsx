@@ -36,11 +36,12 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="flex min-h-screen">
+        <div className="flex min-h-screen relative">
           <Sidebar />
           <div className="flex-1 flex flex-col">
             <MobileHeader investors={investors} />
-            <main className="flex-1 p-6">{children}</main>
+            <div className="gradient-separator" />
+            <main className="flex-1 p-6 lg:p-8">{children}</main>
           </div>
         </div>
       </body>

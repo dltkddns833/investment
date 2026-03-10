@@ -1,6 +1,6 @@
 # 모의 투자 시뮬레이션
 
-3명의 가상 투자자(A/B/C)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식에 투자하여 성과를 비교하는 시뮬레이션.
+7명의 가상 투자자(A~G)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식에 투자하여 성과를 비교하는 시뮬레이션.
 
 ## 투자자
 
@@ -9,18 +9,23 @@
 | A | 공격적 모멘텀 | 매일 | 5~8 | 성장주/테마주 집중 |
 | B | 균형 분산 | 매주 | 10~15 | 섹터 균등 분산 |
 | C | 보수적 우량주 | 매월 | 5~10 | 대형주/배당주 위주 |
+| D | 역발상 투자 | 3일마다 | 5~8 | 하락 종목 매수, 과열 종목 매도 |
+| E | 동일 가중 벤치마크 | 격주 | 전 종목 | AI 판단 없이 균등 분배 (기준선) |
+| F | 섹터 로테이션 | 격주 | 6~9 | 유망 섹터 집중 후 전환 |
+| G | 뉴스 감성 기반 | 매일 | 5~10 | 뉴스 긍정/부정 점수로만 판단 |
 
 - 시드머니: 각 500만원 (KRW)
 - 시장: KOSPI + KOSDAQ 20종목 (yfinance 기반 실시간 시세)
+- 데이터 저장소: Supabase (PostgreSQL)
 
 ## 시뮬레이션 흐름
 
 ```
-1. 뉴스 수집 → news/{date}.json
-2. 투자자별 독립 분석/배분 결정 → investors/allocations/{A,B,C}/{date}.json
+1. 뉴스 수집 → Supabase news 테이블
+2. 투자자별 독립 분석/배분 결정 (7개 AI 에이전트 병렬) → allocations 테이블
 3. python3 scripts/simulate.py 실행
    → 주가 조회 → 리밸런싱 due 체크 → 매매 → 리포트 생성
-4. 결과 확인 → report/daily/{date}.json 또는 웹 대시보드
+4. 결과 확인 → daily_reports 테이블 또는 웹 대시보드
 ```
 
 ## 설치 및 실행
@@ -29,33 +34,40 @@
 # Python 의존성
 pip3 install -r requirements.txt
 
+# 환경변수 설정 (.env.example 참고)
+cp .env.example .env
+# SUPABASE_URL, SUPABASE_KEY 입력
+
+# Supabase 테이블 생성 (SQL Editor에서 실행)
+# supabase_schema.sql
+
 # 시세 조회
 python3 scripts/market.py
 
 # 시뮬레이션 실행
-python3 scripts/simulate.py 2026-03-10
+python3 scripts/simulate.py 2026-03-11
 
 # 웹 대시보드 (Node 20+ 필요)
-cd web && npm install && npm run dev
+cd web && pnpm install && pnpm dev
 ```
 
 ## 프로젝트 구조
 
 ```
-├── config.json              # 설정 (종목 유니버스, 투자자 목록)
+├── supabase_schema.sql         # DB 테이블 생성 SQL
+├── .env                        # Supabase 인증 (Python용)
 ├── scripts/
-│   ├── market.py            # 주가 조회 (yfinance)
-│   ├── portfolio.py         # 매수/매도/평가/리밸런싱
-│   ├── report.py            # 리포트 생성
-│   ├── simulate.py          # 시뮬레이션 오케스트레이터
-│   └── daily_pipeline.py    # 뉴스/배분 저장 헬퍼
-├── investors/
-│   ├── profiles/            # 투자자 성향 (읽기 전용)
-│   ├── portfolios/          # 보유 현황 (매매 시 갱신)
-│   └── allocations/         # 일별 목표 배분 비율
-├── news/                    # 일별 뉴스 수집
-├── report/daily/            # 일간 성과 리포트
-└── web/                     # Next.js 대시보드
+│   ├── supabase_client.py      # Supabase 클라이언트
+│   ├── market.py               # 주가 조회 (yfinance)
+│   ├── portfolio.py            # 매수/매도/평가/리밸런싱
+│   ├── simulate.py             # 시뮬레이션 오케스트레이터
+│   ├── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
+│   └── migrate_to_supabase.py  # JSON→Supabase 마이그레이션 (1회성)
+└── web/                        # Next.js 대시보드
+    ├── .env.local              # Supabase 인증 (Next.js용)
+    └── src/lib/
+        ├── supabase.ts         # Supabase 클라이언트
+        └── data.ts             # 데이터 조회 (async)
 ```
 
 ## 웹 대시보드

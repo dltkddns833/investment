@@ -23,8 +23,11 @@ export default function MobileHeader({
 
   return (
     <div className="md:hidden">
-      <header className="sticky top-0 z-40 flex items-center justify-between bg-gray-900 border-b border-gray-800 px-4 h-14">
-        <Link href="/" className="text-lg font-bold">
+      <header className="sticky top-0 z-40 flex items-center justify-between bg-gray-900/80 backdrop-blur-xl border-b border-white/5 shadow-lg px-4 h-14">
+        <Link
+          href="/"
+          className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+        >
           모의 투자
         </Link>
         <button
@@ -60,12 +63,14 @@ export default function MobileHeader({
       {open && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/50"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <nav className="fixed top-0 left-0 z-50 w-64 h-full bg-gray-900 border-r border-gray-800 p-4 space-y-1">
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
-              <span className="text-lg font-bold">모의 투자</span>
+          <nav className="fixed top-0 left-0 z-50 w-64 h-full bg-gray-900/95 backdrop-blur-xl border-r border-white/5 p-4 space-y-1">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
+              <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                모의 투자
+              </span>
               <button
                 onClick={() => setOpen(false)}
                 className="p-1 text-gray-400 hover:text-white"
@@ -89,8 +94,8 @@ export default function MobileHeader({
               href="/"
               className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
                 pathname === "/"
-                  ? "bg-gray-800 text-white"
-                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                  ? "nav-active text-white font-medium"
+                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
               }`}
             >
               대시보드
@@ -104,8 +109,8 @@ export default function MobileHeader({
                 href={`/investors/${inv.id}`}
                 className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
                   pathname === `/investors/${inv.id}`
-                    ? "bg-gray-800 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                    ? "nav-active text-white font-medium"
+                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                 }`}
               >
                 {inv.name}
