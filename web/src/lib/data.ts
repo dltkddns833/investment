@@ -150,6 +150,20 @@ export interface News {
   articles: NewsArticle[];
 }
 
+export interface DailyReturn {
+  date: string;
+  return_pct: number;
+}
+
+export interface PeriodSummary {
+  investor: string;
+  strategy: string;
+  period_return_pct: number;
+  total_return_pct: number;
+  total_asset: number;
+  trading_days: number;
+}
+
 export interface DailyStories {
   date: string;
   generated_at: string;
@@ -371,6 +385,86 @@ export async function getAssetHistory(
       date: row.date,
       total_asset: row.investor_details[investorName].total_asset,
     }));
+}
+
+export async function getDailyReturns(
+  investorName: string | null,
+  year: number,
+  month: number
+): Promise<DailyReturn[]> {
+  const startDate = new Date(year, month - 2, 1).toISOString().slice(0, 10);
+  const endDate = new Date(year, month, 0).toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, investor_details")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
+
+  if (!data || data.length < 2) return [];
+
+  const monthStart = `${year}-${String(month).padStart(2, "0")}`;
+  const results: DailyReturn[] = [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i].date.startsWith(monthStart)) continue;
+
+    let prevTotal = 0;
+    let currTotal = 0;
+
+    if (investorName) {
+      prevTotal = data[i - 1].investor_details?.[investorName]?.total_asset ?? 0;
+      currTotal = data[i].investor_details?.[investorName]?.total_asset ?? 0;
+    } else {
+      for (const name of Object.keys(data[i].investor_details ?? {})) {
+        prevTotal += data[i - 1].investor_details?.[name]?.total_asset ?? 0;
+        currTotal += data[i].investor_details?.[name]?.total_asset ?? 0;
+      }
+    }
+
+    const returnPct = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : 0;
+    results.push({ date: data[i].date, return_pct: returnPct });
+  }
+
+  return results;
+}
+
+export async function getPeriodSummary(
+  startDate: string,
+  endDate: string
+): Promise<PeriodSummary[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, investor_details")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
+
+  if (!data || data.length === 0) return [];
+
+  const first = data[0];
+  const last = data[data.length - 1];
+  const results: PeriodSummary[] = [];
+
+  for (const [name, detail] of Object.entries(last.investor_details ?? {})) {
+    const d = detail as InvestorDetail;
+    const firstDetail = first.investor_details?.[name] as InvestorDetail | undefined;
+    const startAsset = firstDetail?.total_asset ?? d.initial_capital;
+    const periodReturn = startAsset > 0 ? ((d.total_asset - startAsset) / startAsset) * 100 : 0;
+
+    results.push({
+      investor: name,
+      strategy: d.strategy,
+      period_return_pct: periodReturn,
+      total_return_pct: d.total_return_pct,
+      total_asset: d.total_asset,
+      trading_days: data.length,
+    });
+  }
+
+  results.sort((a, b) => b.period_return_pct - a.period_return_pct);
+  return results;
 }
 
 export async function getLatestReportDate(): Promise<string | null> {
