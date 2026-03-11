@@ -150,6 +150,13 @@ export interface News {
   articles: NewsArticle[];
 }
 
+export interface DailyStories {
+  date: string;
+  generated_at: string;
+  commentary: string;
+  diaries: Record<string, string>;
+}
+
 // --- Data Loading (Supabase) ---
 
 export async function getConfig(): Promise<Config> {
@@ -291,6 +298,23 @@ export async function getNews(date: string): Promise<News | null> {
     collected_at: data.collected_at,
     count: data.count,
     articles: data.articles,
+  };
+}
+
+export async function getDailyStories(
+  date: string
+): Promise<DailyStories | null> {
+  const { data } = await supabase
+    .from("daily_stories")
+    .select("*")
+    .eq("date", date)
+    .single();
+  if (!data) return null;
+  return {
+    date: data.date,
+    generated_at: data.generated_at,
+    commentary: data.commentary,
+    diaries: data.diaries,
   };
 }
 

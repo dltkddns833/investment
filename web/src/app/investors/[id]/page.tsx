@@ -6,6 +6,7 @@ import {
   getAllocation,
   getAssetHistory,
   getConfig,
+  getDailyStories,
 } from "@/lib/data";
 import TransactionTable from "@/components/TransactionTable";
 import AssetChart from "@/components/AssetChart";
@@ -35,12 +36,14 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation, assetHistory] = await Promise.all([
+  const [report, allocation, assetHistory, stories] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
     getAssetHistory(profile.name),
+    latestDate ? getDailyStories(latestDate) : null,
   ]);
   const detail = report?.investor_details[profile.name];
+  const diary = stories?.diaries?.[profile.name];
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -50,6 +53,19 @@ export default async function InvestorPage({ params }: Props) {
         <p className="text-gray-400 mt-1">{profile.strategy}</p>
         <p className="text-gray-500 text-sm mt-2">{profile.description}</p>
       </div>
+
+      {/* Diary */}
+      {diary && (
+        <section className="glass-card animate-in p-4 md:p-5 border-l-2 border-l-purple-400/50">
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-sm font-bold text-purple-300">오늘의 일기</h2>
+            <span className="text-xs text-gray-500">{latestDate}</span>
+          </div>
+          <p className="text-sm text-gray-300 leading-relaxed italic">
+            &ldquo;{diary}&rdquo;
+          </p>
+        </section>
+      )}
 
       {/* Summary Cards */}
       <LiveInvestorSummary

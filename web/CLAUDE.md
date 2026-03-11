@@ -23,9 +23,9 @@ Node 18+ 필요. nvm 사용 시: `nvm use 18`
 ```
 src/
   app/
-    page.tsx                 ← 메인 대시보드 (순위, 시장현황, 뉴스)
+    page.tsx                 ← 메인 대시보드 (순위, 코멘터리, 시장현황, 뉴스)
     layout.tsx               ← 루트 레이아웃 (다크 테마)
-    investors/[id]/page.tsx  ← 투자자 상세 (차트, 보유종목, 거래내역)
+    investors/[id]/page.tsx  ← 투자자 상세 (일기, 차트, 보유종목, 거래내역)
   components/
     RankingTable.tsx          ← 투자자 순위표
     MarketTable.tsx           ← 시장 현황 테이블
@@ -46,6 +46,7 @@ src/
 - `getAllocation(id, date)` → `allocations` 테이블
 - `getDailyReport(date)` → `daily_reports` 테이블
 - `getNews(date)` → `news` 테이블
+- `getDailyStories(date)` → `daily_stories` 테이블 (코멘터리 & 투자자 일기)
 - `getLatestReportDate()` → `daily_reports` 최신 date
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.

@@ -88,7 +88,7 @@ simulate.py 실행
 - `scripts/weekly_report.py` — 주간 성과 리포트 (첫 영업일에만 텔레그램 발송)
 - `scripts/morning_cron.sh` — 오전 9시 launchd (뉴스 수집 + 주간 리포트)
 
-**Supabase 테이블 (8개):**
+**Supabase 테이블 (9개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
@@ -100,6 +100,7 @@ simulate.py 실행
 | `allocations` | (investor_id, date) | investor, strategy, rationale, allocation(jsonb), allocation_sum, num_stocks | 일별 목표 배분 |
 | `news` | date | collected_at, count, articles(jsonb) | 수집된 뉴스 |
 | `daily_reports` | date | generated_at, market_prices(jsonb), rankings(jsonb), investor_details(jsonb) | 일간 리포트 |
+| `daily_stories` | date | generated_at, commentary(text), diaries(jsonb) | 데일리 코멘터리 & 투자자 일기 |
 
 
 **환경변수:**
@@ -164,7 +165,26 @@ cd web && pnpm build  # 빌드
 - `python3 scripts/simulate.py {date}` 실행
 - 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
 
-### Step 4: 결과 요약
+### Step 4: 스토리텔링
+시뮬레이션 완료 후 `daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
+
+**데일리 코멘터리** (2~4문장)
+- rankings, market_prices, investor_details를 분석하여 한국어 마켓 코멘터리 생성
+- 오늘의 승자/패자, 주요 시장 동향, 눈에 띄는 거래
+
+**투자자 일기** (캐릭터별 어투, 각 2~3문장)
+- A 강돌진: 자신감 넘치는 공격적 ("확신한다", "올인했다")
+- B 김균형: 차분하고 분석적 ("분산 효과가 나타나고 있다")
+- C 이든든: 보수적이고 신중한 ("급할 것 없다", "안정적으로 유지")
+- D 장반대: 역발상적 ("모두가 팔 때 샀다", "시장이 틀렸다")
+- E 정기준: 기계적, 무감정 ("규칙대로 균등 분배", "감정 개입 없음")
+- F 윤순환: 섹터 전문가 ("이번 주기에는 바이오가 유망하다")
+- G 문여론: 뉴스/여론 민감 ("기사 톤이 긍정적이었다")
+
+**저장**: `daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
+- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ...}` 형태 (투자자 이름 키)
+
+### Step 5: 결과 요약
 - 각 투자자별 총자산, 수익률, 오늘 거래 내역 보고
 
 ### 주의사항

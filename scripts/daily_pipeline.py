@@ -54,19 +54,34 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
     return data
 
 
+def save_stories(date_str, commentary, diaries):
+    """데일리 코멘터리 & 투자자 일기 저장 (Supabase)"""
+    data = {
+        "date": date_str,
+        "generated_at": datetime.now().isoformat(),
+        "commentary": commentary,
+        "diaries": diaries,
+    }
+    supabase.table("daily_stories").upsert(data).execute()
+    print(f"데일리 스토리 저장 완료: daily_stories/{date_str}")
+    return data
+
+
 def check_pipeline_status(date_str):
     """파이프라인 진행 상태 확인 (Supabase)"""
     news_result = supabase.table("news").select("date").eq("date", date_str).execute()
     report_result = supabase.table("daily_reports").select("date").eq("date", date_str).execute()
+    stories_result = supabase.table("daily_stories").select("date").eq("date", date_str).execute()
 
     status = {
         "date": date_str,
         "news_collected": len(news_result.data) > 0,
         "allocations": {},
         "report_generated": len(report_result.data) > 0,
+        "stories_generated": len(stories_result.data) > 0,
     }
 
-    for inv_id in ["A", "B", "C"]:
+    for inv_id in ["A", "B", "C", "D", "E", "F", "G"]:
         alloc_result = supabase.table("allocations").select("investor_id").eq("investor_id", inv_id).eq("date", date_str).execute()
         status["allocations"][inv_id] = len(alloc_result.data) > 0
 
@@ -84,6 +99,7 @@ def print_status(date_str):
     for inv_id, done in s["allocations"].items():
         print(f"       투자자 {inv_id}: {ok(done)}")
     print(f"  [3] 시뮬레이션:   {ok(s['report_generated'])}")
+    print(f"  [4] 스토리텔링:   {ok(s['stories_generated'])}")
     print()
     return s
 

@@ -4,6 +4,7 @@ import {
   getConfig,
   getNews,
   getAllAssetHistory,
+  getDailyStories,
 } from "@/lib/data";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
@@ -67,11 +68,12 @@ export default async function Home() {
   const today = new Date()
     .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-  const [report, todayNews, reportNews, assetHistory] = await Promise.all([
+  const [report, todayNews, reportNews, assetHistory, stories] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(today),
     today !== latestDate ? getNews(latestDate) : null,
     getAllAssetHistory(investorNames),
+    getDailyStories(latestDate),
   ]);
   const news = todayNews ?? reportNews;
 
@@ -128,6 +130,15 @@ export default async function Home() {
       />
     </section>
   );
+
+  const commentarySection = stories?.commentary ? (
+    <section className="glass-card p-4 md:p-5 animate-in">
+      <h2 className="text-lg font-bold mb-3 section-header">오늘의 마켓 코멘터리</h2>
+      <p className="text-sm md:text-base text-gray-300 leading-relaxed">
+        {stories.commentary}
+      </p>
+    </section>
+  ) : null;
 
   const chartSection = assetHistory.length >= 1 ? (
     <section className="glass-card p-4 md:p-5 animate-in">
@@ -222,6 +233,7 @@ export default async function Home() {
         {newsSection}
         {marketSection}
         {rankingsSection}
+        {commentarySection}
         {chartSection}
         {summarySection}
         {footerSection}
@@ -240,6 +252,7 @@ export default async function Home() {
         </div>
         {summarySection}
         {rankingsSection}
+        {commentarySection}
         {chartSection}
         {footerSection}
       </div>
@@ -252,6 +265,7 @@ export default async function Home() {
       {headerSection}
       {summarySection}
       {rankingsSection}
+      {commentarySection}
       {chartSection}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {marketSection}
