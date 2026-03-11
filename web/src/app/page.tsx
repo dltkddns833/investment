@@ -192,17 +192,7 @@ export default async function Home() {
           )}
         </h2>
         {news && (
-          <span className="text-xs text-gray-500">
-            {new Date(news.collected_at).toLocaleString("ko-KR", {
-              month: "numeric",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-              timeZone: "Asia/Seoul",
-            })}{" "}
-            수집
-          </span>
+          <span className="text-xs text-gray-500">{news.date} 수집</span>
         )}
       </div>
       <ShowMore maxHeight="max-h-[380px]" remaining={newsArticles.length > 5 ? newsArticles.length - 5 : undefined}>
