@@ -1,12 +1,14 @@
 import { getConfig } from "@/lib/data";
 import SidebarLink from "./SidebarLink";
+import LogoIcon from "./LogoIcon";
 
 export default async function Sidebar() {
   const config = await getConfig();
 
   return (
     <aside className="hidden md:flex w-56 shrink-0 flex-col bg-gray-900/80 backdrop-blur-xl border-r border-white/5 h-screen sticky top-0">
-      <div className="p-5 border-b border-white/5">
+      <div className="p-5 border-b border-white/5 flex items-center gap-2.5">
+        <LogoIcon size={28} />
         <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
           모의 투자
         </span>

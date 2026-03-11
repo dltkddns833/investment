@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import LogoIcon from "./LogoIcon";
 
 interface Investor {
   id: string;
@@ -26,9 +27,12 @@ export default function MobileHeader({
       <header className="sticky top-0 z-40 flex items-center justify-between bg-gray-900/80 backdrop-blur-xl border-b border-white/5 shadow-lg px-4 h-14">
         <Link
           href="/"
-          className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+          className="flex items-center gap-2"
         >
-          모의 투자
+          <LogoIcon size={24} />
+          <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            모의 투자
+          </span>
         </Link>
         <button
           onClick={() => setOpen(!open)}
@@ -68,9 +72,12 @@ export default function MobileHeader({
           />
           <nav className="fixed top-0 right-0 z-50 w-56 sm:w-64 h-full bg-gray-900/95 backdrop-blur-xl border-l border-white/5 p-4 space-y-1">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
-              <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                모의 투자
-              </span>
+              <div className="flex items-center gap-2">
+                <LogoIcon size={24} />
+                <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  모의 투자
+                </span>
+              </div>
               <button
                 onClick={() => setOpen(false)}
                 className="p-1 text-gray-400 hover:text-white"
