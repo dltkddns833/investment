@@ -124,6 +124,9 @@ simulate.py 실행
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위, 시장 현황, 뉴스
 - 투자자 상세(`/investors/[id]`): 포트폴리오 차트, 보유종목, 거래내역
+- 리포트(`/reports`): 달력 히트맵, 월간 수익률
+- 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 종목 리스트
+- 종목 상세(`/stocks/[ticker]`): 가격 차트, 보유 투자자, 거래내역
 - Supabase에서 데이터를 읽어 서버 컴포넌트에서 렌더링 (DB 직접 쿼리)
 - Node 20+ 필요, 상세 내용은 `web/CLAUDE.md` 참조
 

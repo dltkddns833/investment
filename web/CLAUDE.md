@@ -27,6 +27,8 @@ src/
     layout.tsx               ← 루트 레이아웃 (다크 테마)
     investors/[id]/page.tsx  ← 투자자 상세 (일기, 차트, 보유종목, 거래내역)
     reports/page.tsx         ← 리포트 (달력 히트맵, 월간 수익률)
+    stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 종목 리스트)
+    stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, 보유자, 거래내역)
   components/
     RankingTable.tsx          ← 투자자 순위표
     MarketTable.tsx           ← 시장 현황 테이블
@@ -34,6 +36,9 @@ src/
     HoldingsTable.tsx         ← 보유종목 테이블
     CalendarHeatmap.tsx       ← 달력 히트맵 (수익률 색상)
     PeriodSelector.tsx        ← 투자자 탭 + 월 이동
+    SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
+    SectorWeights.tsx         ← 투자자별 섹터 비중 바
+    StockPriceChart.tsx       ← 종목 가격 라인 차트
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -52,6 +57,8 @@ src/
 - `getDailyStories(date)` → `daily_stories` 테이블 (코멘터리 & 투자자 일기)
 - `getDailyReturns(investorName, year, month)` → 히트맵용 일별 수익률
 - `getPeriodSummary(startDate, endDate)` → 기간별 투자자 성과 요약
+- `getStockPriceHistory(ticker)` → 종목 가격 추이
+- `getStockTransactions(ticker)` → 종목별 거래내역
 - `getLatestReportDate()` → `daily_reports` 최신 date
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.

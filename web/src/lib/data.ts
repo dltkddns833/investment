@@ -164,6 +164,22 @@ export interface PeriodSummary {
   trading_days: number;
 }
 
+export interface StockPriceSnapshot {
+  date: string;
+  price: number;
+  change_pct: number;
+}
+
+export interface StockTransaction {
+  date: string;
+  investor_id: string;
+  type: "buy" | "sell";
+  shares: number;
+  price: number;
+  amount: number;
+  profit?: number;
+}
+
 export interface DailyStories {
   date: string;
   generated_at: string;
@@ -465,6 +481,50 @@ export async function getPeriodSummary(
 
   results.sort((a, b) => b.period_return_pct - a.period_return_pct);
   return results;
+}
+
+export async function getStockPriceHistory(
+  ticker: string
+): Promise<StockPriceSnapshot[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, market_prices")
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  return data
+    .filter((row) => row.market_prices?.[ticker])
+    .map((row) => ({
+      date: row.date,
+      price: row.market_prices[ticker].price,
+      change_pct: row.market_prices[ticker].change_pct,
+    }));
+}
+
+export async function getStockTransactions(
+  ticker: string
+): Promise<StockTransaction[]> {
+  const { data } = await supabase
+    .from("transactions")
+    .select("date, investor_id, type, shares, price, amount, profit")
+    .eq("ticker", ticker)
+    .order("id", { ascending: false });
+
+  if (!data) return [];
+
+  return data.map((t) => {
+    const entry: StockTransaction = {
+      date: t.date,
+      investor_id: t.investor_id,
+      type: t.type,
+      shares: t.shares,
+      price: t.price,
+      amount: t.amount,
+    };
+    if (t.profit !== null) entry.profit = t.profit;
+    return entry;
+  });
 }
 
 export async function getLatestReportDate(): Promise<string | null> {
