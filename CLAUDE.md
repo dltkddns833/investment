@@ -40,16 +40,18 @@ python3 scripts/daily_pipeline.py 2026-03-10
 pip3 install -r requirements.txt
 ```
 
-## 자동 실행 (cron)
+## 자동 실행 (launchd)
+
+macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사용).
 
 ### 오전 9시 — 뉴스 수집 + 주간 리포트
-- crontab: `0 9 * * 1-5 /Users/isang-un/Desktop/personal/investment/scripts/morning_cron.sh`
+- plist: `~/Library/LaunchAgents/com.investment.morning.plist`
 - `scripts/morning_cron.sh` — Claude CLI로 뉴스 수집 → Supabase news 테이블 저장
 - `scripts/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - 로그: `logs/morning_YYYY-MM-DD.log`
 
 ### 오후 4시 — 시뮬레이션 실행
-- crontab: `0 16 * * 1-5 /Users/isang-un/Desktop/personal/investment/scripts/daily_cron.sh`
+- plist: `~/Library/LaunchAgents/com.investment.daily.plist`
 - `scripts/daily_cron.sh` — Claude CLI로 시뮬레이션 실행 (뉴스 수집은 오전에 완료된 상태)
 - `scripts/send_telegram.py` — 텔레그램 봇으로 결과 알림 발송
 - 알림: macOS 알림 + 텔레그램
@@ -84,7 +86,7 @@ simulate.py 실행
 - `scripts/simulate.py` — 일일 시뮬레이션 오케스트레이터 (Supabase 읽기/쓰기)
 - `scripts/daily_pipeline.py` — 뉴스 저장, 배분 저장, 상태 확인 (Supabase 쓰기)
 - `scripts/weekly_report.py` — 주간 성과 리포트 (첫 영업일에만 텔레그램 발송)
-- `scripts/morning_cron.sh` — 오전 9시 cron (뉴스 수집 + 주간 리포트)
+- `scripts/morning_cron.sh` — 오전 9시 launchd (뉴스 수집 + 주간 리포트)
 
 **Supabase 테이블 (8개):**
 

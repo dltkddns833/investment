@@ -63,8 +63,8 @@ cd web && pnpm install && pnpm dev
 │   ├── portfolio.py            # 매수/매도/평가/리밸런싱
 │   ├── simulate.py             # 시뮬레이션 오케스트레이터
 │   ├── daily_pipeline.py       # 뉴스/배분 저장 헬퍼
-│   ├── daily_cron.sh           # 오후 4시 시뮬레이션 cron
-│   ├── morning_cron.sh         # 오전 9시 뉴스 수집 cron
+│   ├── daily_cron.sh           # 오후 4시 시뮬레이션 (launchd)
+│   ├── morning_cron.sh         # 오전 9시 뉴스 수집 (launchd)
 │   ├── send_telegram.py        # 텔레그램 알림 발송
 │   └── weekly_report.py        # 주간 성과 리포트
 └── web/                        # Next.js 대시보드
@@ -76,7 +76,7 @@ cd web && pnpm install && pnpm dev
 
 ## 자동 실행
 
-매일 2개의 cron이 자동 실행된다 (월~금).
+macOS launchd로 2개의 스케줄이 자동 실행된다 (월~금).
 
 - **오전 9시**: 뉴스 수집 + 주간 리포트 (`morning_cron.sh`)
 - **오후 4시**: 시뮬레이션 실행 + 텔레그램 알림 (`daily_cron.sh`)

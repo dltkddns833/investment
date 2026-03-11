@@ -1,6 +1,7 @@
 #!/bin/bash
 # 오전 9시 — 뉴스 수집 + 주간 리포트 (cron용)
 
+export HOME="/Users/isang-un"
 export PATH="/Users/isang-un/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 PROJECT_DIR="/Users/isang-un/Desktop/personal/investment"
 LOG_DIR="$PROJECT_DIR/logs"
@@ -22,7 +23,7 @@ echo "=== 오전 파이프라인 시작: $(date) ===" >> "$LOG_FILE"
 cd "$PROJECT_DIR"
 /Users/isang-un/.local/bin/claude -p "오늘($DATE) 한국 증시 관련 뉴스를 수집해서 Supabase에 저장해줘. daily_pipeline.py의 save_news()를 사용해." \
     --allowedTools "WebSearch,Bash,Read,Write,Edit,Glob,Grep" \
-    -y >> "$LOG_FILE" 2>&1
+    --dangerously-skip-permissions >> "$LOG_FILE" 2>&1
 
 NEWS_EXIT=$?
 echo "뉴스 수집 종료코드: $NEWS_EXIT" >> "$LOG_FILE"
