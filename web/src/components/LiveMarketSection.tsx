@@ -1,74 +1,35 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import { MarketPrice } from "@/lib/data";
+import { useLivePrices } from "@/lib/live-prices";
 import MarketTable from "./MarketTable";
 import ShowMore from "./ShowMore";
 
 interface Props {
   storedPrices: Record<string, MarketPrice>;
   storedFetchedAt: string;
-  isMarketOpen: boolean;
 }
 
 export default function LiveMarketSection({
   storedPrices,
   storedFetchedAt,
-  isMarketOpen,
 }: Props) {
-  const [livePrices, setLivePrices] = useState<Record<
-    string,
-    MarketPrice
-  > | null>(null);
-  const [liveFetchedAt, setLiveFetchedAt] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { prices: livePrices, fetchedAt: liveFetchedAt, isLive, isMarketOpen, isRefreshing, refresh } =
+    useLivePrices();
 
-  const tickers = Object.keys(storedPrices);
-  const marketRows = tickers.length;
-
-  const fetchLive = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const res = await fetch(
-        `/api/live-prices?tickers=${tickers.join(",")}`
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-
-      // Merge: live price/change_pct + stored name
-      const merged: Record<string, MarketPrice> = {};
-      for (const ticker of tickers) {
-        const live = data.prices[ticker];
-        const stored = storedPrices[ticker];
-        if (live && stored) {
-          merged[ticker] = {
-            name: stored.name,
-            price: live.price,
-            change_pct: live.change_pct,
-          };
-        } else if (stored) {
-          merged[ticker] = stored;
-        }
-      }
-      setLivePrices(merged);
-      setLiveFetchedAt(data.fetchedAt);
-    } catch {
-      // Silently fall back to stored prices
-    } finally {
-      setIsRefreshing(false);
+  // Merge live prices with stored names
+  const prices: Record<string, MarketPrice> = {};
+  for (const [ticker, stored] of Object.entries(storedPrices)) {
+    const live = livePrices?.[ticker];
+    if (isLive && live) {
+      prices[ticker] = { name: stored.name, price: live.price, change_pct: live.change_pct };
+    } else {
+      prices[ticker] = stored;
     }
-  }, [tickers, storedPrices]);
+  }
 
-  useEffect(() => {
-    if (isMarketOpen) {
-      fetchLive();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMarketOpen]);
-
-  const prices = livePrices ?? storedPrices;
-  const fetchedAt = liveFetchedAt ?? storedFetchedAt;
-  const isLive = isMarketOpen && livePrices !== null;
+  const fetchedAt = isLive && liveFetchedAt ? liveFetchedAt : storedFetchedAt;
+  const marketRows = Object.keys(prices).length;
 
   return (
     <section className="glass-card overflow-hidden animate-in order-2 lg:order-1">
@@ -79,7 +40,7 @@ export default function LiveMarketSection({
         <MarketTable
           prices={prices}
           fetchedAt={fetchedAt}
-          onRefresh={isMarketOpen ? fetchLive : undefined}
+          onRefresh={isMarketOpen ? refresh : undefined}
           isRefreshing={isRefreshing}
           isLive={isLive}
         />

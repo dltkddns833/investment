@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import MobileHeader from "@/components/MobileHeader";
 import { getConfig } from "@/lib/data";
+import { LivePriceProvider } from "@/lib/live-prices";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,9 @@ export default async function RootLayout({
     id: inv.id,
     name: inv.name,
   }));
+  const tickers = config.stock_universe.map(
+    (s: { ticker: string }) => s.ticker
+  );
 
   return (
     <html lang="ko">
@@ -51,7 +55,11 @@ export default async function RootLayout({
           <div className="flex-1 flex flex-col">
             <MobileHeader investors={investors} />
             <div className="gradient-separator" />
-            <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+            <main className="flex-1 p-4 md:p-6 lg:p-8">
+              <LivePriceProvider tickers={tickers}>
+                {children}
+              </LivePriceProvider>
+            </main>
           </div>
         </div>
       </body>

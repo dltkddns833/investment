@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
-import { RankingEntry } from "@/lib/data";
+import { RankingEntry, InvestorDetail } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
+import { useLiveRankings } from "@/lib/use-live-portfolio";
 import DataTable from "./DataTable";
 
 interface Props {
   rankings: RankingEntry[];
   investorIds: Record<string, string>;
+  investorDetails?: Record<string, InvestorDetail>;
+  initialCapital?: number;
 }
 
 function rankClass(rank: number): string {
@@ -110,8 +113,19 @@ function getColumns() {
   ];
 }
 
-export default function RankingTable({ rankings, investorIds }: Props) {
-  const data = rankings.map((r) => ({
+export default function RankingTable({
+  rankings,
+  investorIds,
+  investorDetails,
+  initialCapital,
+}: Props) {
+  const liveRankings = useLiveRankings(
+    rankings,
+    investorDetails ?? {},
+    initialCapital ?? 5_000_000
+  );
+
+  const data = liveRankings.map((r) => ({
     ...r,
     _investorId: investorIds[r.investor] || "",
   }));

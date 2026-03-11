@@ -5,11 +5,11 @@ import {
   getNews,
   getAllAssetHistory,
 } from "@/lib/data";
-import { krw, pct, signColor } from "@/lib/format";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
 import ShowMore from "@/components/ShowMore";
 import LiveMarketSection from "@/components/LiveMarketSection";
+import LiveSummaryCards from "@/components/LiveSummaryCards";
 
 export const dynamic = "force-dynamic";
 
@@ -77,15 +77,6 @@ export default async function Home() {
   const totalInvested =
     config.simulation.initial_capital * config.investors.length;
   const totalAsset = report.rankings.reduce((s, r) => s + r.total_asset, 0);
-  const totalReturn = totalAsset - totalInvested;
-  const totalReturnPct = (totalAsset / totalInvested - 1) * 100;
-
-  const returnBorderColor =
-    totalReturn > 0
-      ? "border-t-2 border-t-red-400/50"
-      : totalReturn < 0
-        ? "border-t-2 border-t-blue-400/50"
-        : "";
 
   const status = getMarketStatus();
   const statusCfg = STATUS_CONFIG[status];
@@ -113,50 +104,22 @@ export default async function Home() {
   );
 
   const summarySection = (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
-      <div className="glass-card card-shine animate-in p-3 md:p-5">
-        <div className="text-gray-400 text-xs uppercase tracking-wider">
-          총 투자금
-        </div>
-        <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
-          {krw(totalInvested)}
-        </div>
-      </div>
-      <div className="glass-card card-shine animate-in p-3 md:p-5">
-        <div className="text-gray-400 text-xs uppercase tracking-wider">
-          총 자산
-        </div>
-        <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
-          {krw(totalAsset)}
-        </div>
-      </div>
-      <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
-        <div className="text-gray-400 text-xs uppercase tracking-wider">
-          총 수익
-        </div>
-        <div
-          className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturn)}`}
-        >
-          {totalReturn >= 0 ? "+" : ""}
-          {krw(totalReturn)}
-        </div>
-      </div>
-      <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
-        <div className="text-gray-400 text-xs uppercase tracking-wider">
-          평균 수익률
-        </div>
-        <div
-          className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturnPct)}`}
-        >
-          {pct(totalReturnPct)}
-        </div>
-      </div>
-    </div>
+    <LiveSummaryCards
+      totalInvested={totalInvested}
+      storedTotalAsset={totalAsset}
+      initialCapital={config.simulation.initial_capital}
+      investorDetails={report.investor_details}
+    />
   );
 
   const rankingsSection = (
     <section className="glass-card overflow-hidden animate-in">
-      <RankingTable rankings={report.rankings} investorIds={investorIds} />
+      <RankingTable
+        rankings={report.rankings}
+        investorIds={investorIds}
+        investorDetails={report.investor_details}
+        initialCapital={config.simulation.initial_capital}
+      />
     </section>
   );
 
@@ -175,7 +138,6 @@ export default async function Home() {
     <LiveMarketSection
       storedPrices={report.market_prices}
       storedFetchedAt={report.generated_at}
-      isMarketOpen={status === "open"}
     />
   );
 
