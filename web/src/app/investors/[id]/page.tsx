@@ -5,12 +5,12 @@ import {
   getDailyReport,
   getAllocation,
   getAssetHistory,
+  getConfig,
 } from "@/lib/data";
-import { krw, pct, signColor } from "@/lib/format";
-import HoldingsTable from "@/components/HoldingsTable";
 import TransactionTable from "@/components/TransactionTable";
-import PortfolioChart from "@/components/PortfolioChart";
 import AssetChart from "@/components/AssetChart";
+import LiveInvestorSummary from "@/components/LiveInvestorSummary";
+import LiveInvestorDetail from "@/components/LiveInvestorDetail";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +20,11 @@ interface Props {
 
 export default async function InvestorPage({ params }: Props) {
   const { id } = await params;
-  const [profile, portfolio, latestDate] = await Promise.all([
+  const [profile, portfolio, latestDate, config] = await Promise.all([
     getProfile(id),
     getPortfolio(id),
     getLatestReportDate(),
+    getConfig(),
   ]);
 
   if (!profile || !portfolio) {
@@ -51,45 +52,13 @@ export default async function InvestorPage({ params }: Props) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
-        <div className="glass-card card-shine animate-in p-4">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            총 자산
-          </div>
-          <div className="text-base md:text-lg font-bold mt-1 tabular-nums">
-            {detail ? krw(detail.total_asset) : krw(portfolio.initial_capital)}
-          </div>
-        </div>
-        <div className="glass-card card-shine animate-in p-4">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            수익률
-          </div>
-          <div
-            className={`text-base md:text-lg font-bold mt-1 tabular-nums ${detail ? signColor(detail.total_return_pct) : "text-gray-500"}`}
-          >
-            {detail ? pct(detail.total_return_pct) : "0.00%"}
-          </div>
-        </div>
-        <div className="glass-card card-shine animate-in p-4">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            현금
-          </div>
-          <div className="text-base md:text-lg font-bold mt-1 tabular-nums">
-            {krw(portfolio.cash)}
-          </div>
-        </div>
-        <div className="glass-card card-shine animate-in p-4">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            리밸런싱
-          </div>
-          <div className="text-base md:text-lg font-bold mt-1">
-            {profile.rebalance_frequency_days}일마다
-          </div>
-          <div className="text-xs text-gray-500">
-            총 {portfolio.rebalance_history.length}회
-          </div>
-        </div>
-      </div>
+      <LiveInvestorSummary
+        detail={detail}
+        initialCapital={config.simulation.initial_capital}
+        cash={portfolio.cash}
+        rebalanceFrequency={profile.rebalance_frequency_days}
+        rebalanceCount={portfolio.rebalance_history.length}
+      />
 
       {/* Asset History Chart */}
       {assetHistory.length >= 1 && (
@@ -117,52 +86,44 @@ export default async function InvestorPage({ params }: Props) {
         </div>
       </section>
 
-      {/* Portfolio Chart + Holdings */}
+      {/* Portfolio Chart + Holdings + Allocation */}
       {detail && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <LiveInvestorDetail
+            detail={detail}
+            initialCapital={config.simulation.initial_capital}
+          />
+
+          {allocation && (
             <section className="glass-card p-4 md:p-5 animate-in">
               <h2 className="text-lg font-bold mb-3 section-header">
-                포트폴리오 구성
+                목표 배분
               </h2>
-              <PortfolioChart detail={detail} />
-            </section>
-
-            {allocation && (
-              <section className="glass-card p-4 md:p-5 animate-in">
-                <h2 className="text-lg font-bold mb-3 section-header">
-                  목표 배분
-                </h2>
-                <p className="text-xs text-gray-400 mb-3">
-                  {allocation.rationale}
-                </p>
-                <div className="space-y-2">
-                  {Object.entries(allocation.allocation).map(
-                    ([ticker, ratio]) => (
-                      <div key={ticker} className="flex items-center gap-2">
-                        <div className="w-16 md:w-20 text-sm truncate shrink-0">
-                          {report!.market_prices[ticker]?.name ?? ticker}
-                        </div>
-                        <div className="flex-1 bg-gray-700/50 rounded-full h-2">
-                          <div
-                            className="bar-fill h-2"
-                            style={{ width: `${ratio * 100}%` }}
-                          />
-                        </div>
-                        <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
-                          {(ratio * 100).toFixed(0)}%
-                        </div>
+              <p className="text-xs text-gray-400 mb-3">
+                {allocation.rationale}
+              </p>
+              <div className="space-y-2">
+                {Object.entries(allocation.allocation).map(
+                  ([ticker, ratio]) => (
+                    <div key={ticker} className="flex items-center gap-2">
+                      <div className="w-16 md:w-20 text-sm truncate shrink-0">
+                        {report!.market_prices[ticker]?.name ?? ticker}
                       </div>
-                    )
-                  )}
-                </div>
-              </section>
-            )}
-          </div>
-
-          <section className="glass-card overflow-hidden animate-in">
-            <HoldingsTable holdings={detail.holdings} />
-          </section>
+                      <div className="flex-1 bg-gray-700/50 rounded-full h-2">
+                        <div
+                          className="bar-fill h-2"
+                          style={{ width: `${ratio * 100}%` }}
+                        />
+                      </div>
+                      <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
+                        {(ratio * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            </section>
+          )}
         </>
       )}
 

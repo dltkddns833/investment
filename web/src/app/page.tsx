@@ -10,6 +10,7 @@ import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
 import ShowMore from "@/components/ShowMore";
 import LiveMarketSection from "@/components/LiveMarketSection";
 import LiveSummaryCards from "@/components/LiveSummaryCards";
+import LiveDateLabel from "@/components/LiveDateLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -63,11 +64,16 @@ export default async function Home() {
 
   const investorNames = config.investors.map((inv) => inv.name);
 
-  const [report, news, assetHistory] = await Promise.all([
+  const today = new Date()
+    .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+
+  const [report, todayNews, reportNews, assetHistory] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
-    getNews(latestDate),
+    getNews(today),
+    today !== latestDate ? getNews(latestDate) : null,
     getAllAssetHistory(investorNames),
   ]);
+  const news = todayNews ?? reportNews;
 
   const investorIds: Record<string, string> = {};
   for (const inv of config.investors) {
@@ -99,7 +105,7 @@ export default async function Home() {
           {statusCfg.label}
         </span>
       </h1>
-      <p className="text-gray-400 mt-1">{report.date} 기준</p>
+      <LiveDateLabel storedDate={report.date} />
     </div>
   );
 
