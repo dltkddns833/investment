@@ -12,6 +12,37 @@ import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
 
 export const dynamic = "force-dynamic";
 
+type MarketStatus = "pre" | "open" | "closed";
+
+function getMarketStatus(): MarketStatus {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+  const day = now.getDay();
+  if (day === 0 || day === 6) return "closed";
+  const t = now.getHours() * 60 + now.getMinutes();
+  if (t < 540) return "pre"; // < 09:00
+  if (t < 960) return "open"; // < 16:00
+  return "closed";
+}
+
+const STATUS_CONFIG = {
+  pre: {
+    label: "장 시작 전",
+    className:
+      "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  },
+  open: {
+    label: "장 진행 중",
+    className: "bg-green-500/10 text-green-400 border border-green-500/20",
+    pulse: true,
+  },
+  closed: {
+    label: "장 마감",
+    className: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
+  },
+};
+
 export default async function Home() {
   const [config, latestDate] = await Promise.all([
     getConfig(),
@@ -55,135 +86,199 @@ export default async function Home() {
         ? "border-t-2 border-t-blue-400/50"
         : "";
 
-  return (
-    <div className="space-y-6 md:space-y-8">
-      {/* Header */}
-      <div className="animate-in">
+  const status = getMarketStatus();
+  const statusCfg = STATUS_CONFIG[status];
+
+  /* ── 섹션 정의 ── */
+
+  const headerSection = (
+    <div className="animate-in flex flex-wrap items-center gap-3">
+      <div>
         <h1 className="text-2xl md:text-3xl font-bold">모의 투자 시뮬레이션</h1>
         <p className="text-gray-400 mt-1">{report.date} 기준</p>
       </div>
+      <span
+        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${statusCfg.className}`}
+      >
+        {"pulse" in statusCfg && statusCfg.pulse && (
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+          </span>
+        )}
+        {statusCfg.label}
+      </span>
+    </div>
+  );
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
-        <div className="glass-card card-shine animate-in p-3 md:p-5">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            총 투자금
-          </div>
-          <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
-            {krw(totalInvested)}
-          </div>
+  const summarySection = (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
+      <div className="glass-card card-shine animate-in p-3 md:p-5">
+        <div className="text-gray-400 text-xs uppercase tracking-wider">
+          총 투자금
         </div>
-        <div className="glass-card card-shine animate-in p-3 md:p-5">
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            총 자산
-          </div>
-          <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
-            {krw(totalAsset)}
-          </div>
-        </div>
-        <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            총 수익
-          </div>
-          <div
-            className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturn)}`}
-          >
-            {totalReturn >= 0 ? "+" : ""}
-            {krw(totalReturn)}
-          </div>
-        </div>
-        <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
-          <div className="text-gray-400 text-xs uppercase tracking-wider">
-            평균 수익률
-          </div>
-          <div
-            className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturnPct)}`}
-          >
-            {pct(totalReturnPct)}
-          </div>
+        <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
+          {krw(totalInvested)}
         </div>
       </div>
+      <div className="glass-card card-shine animate-in p-3 md:p-5">
+        <div className="text-gray-400 text-xs uppercase tracking-wider">
+          총 자산
+        </div>
+        <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
+          {krw(totalAsset)}
+        </div>
+      </div>
+      <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
+        <div className="text-gray-400 text-xs uppercase tracking-wider">
+          총 수익
+        </div>
+        <div
+          className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturn)}`}
+        >
+          {totalReturn >= 0 ? "+" : ""}
+          {krw(totalReturn)}
+        </div>
+      </div>
+      <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
+        <div className="text-gray-400 text-xs uppercase tracking-wider">
+          평균 수익률
+        </div>
+        <div
+          className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturnPct)}`}
+        >
+          {pct(totalReturnPct)}
+        </div>
+      </div>
+    </div>
+  );
 
-      {/* Rankings */}
-      <section className="glass-card overflow-hidden animate-in">
-        <RankingTable rankings={report.rankings} investorIds={investorIds} />
-      </section>
+  const rankingsSection = (
+    <section className="glass-card overflow-hidden animate-in">
+      <RankingTable rankings={report.rankings} investorIds={investorIds} />
+    </section>
+  );
 
-      {/* All Investors Asset History */}
-      {assetHistory.length >= 1 && (
-        <section className="glass-card p-4 md:p-5 animate-in">
-          <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
-          <AllInvestorsAssetChart
-            data={assetHistory}
-            investorNames={investorNames}
-            initialCapital={config.simulation.initial_capital}
-          />
-        </section>
-      )}
+  const chartSection = assetHistory.length >= 1 ? (
+    <section className="glass-card p-4 md:p-5 animate-in">
+      <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
+      <AllInvestorsAssetChart
+        data={assetHistory}
+        investorNames={investorNames}
+        initialCapital={config.simulation.initial_capital}
+      />
+    </section>
+  ) : null;
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        {/* Market */}
-        <section className="glass-card overflow-hidden animate-in">
-          <MarketTable prices={report.market_prices} />
-        </section>
+  const marketSection = (
+    <section className="glass-card overflow-hidden animate-in">
+      <MarketTable prices={report.market_prices} />
+    </section>
+  );
 
-        {/* News */}
-        <section className="glass-card overflow-hidden animate-in">
-          <div className="py-4 px-4 border-b border-white/5">
-            <h2 className="text-xl font-bold section-header">
-              오늘의 뉴스
-              {news && (
-                <span className="text-gray-400 text-sm font-normal ml-2">
-                  {news.count}건
+  const newsSection = (
+    <section className="glass-card overflow-hidden animate-in">
+      <div className="py-4 px-4 border-b border-white/5">
+        <h2 className="text-xl font-bold section-header">
+          오늘의 뉴스
+          {news && (
+            <span className="text-gray-400 text-sm font-normal ml-2">
+              {news.count}건
+            </span>
+          )}
+        </h2>
+      </div>
+      <div className="p-4 md:p-5 space-y-2">
+        {news ? (
+          news.articles.map((article, i) => (
+            <div
+              key={i}
+              className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <div className="font-medium text-sm">{article.title}</div>
+              <div className="text-xs text-gray-400 mt-1">
+                {article.summary}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                  {article.category}
                 </span>
-              )}
-            </h2>
-          </div>
-          <div className="p-4 md:p-5 space-y-2">
-            {news ? (
-              news.articles.map((article, i) => (
-                <div
-                  key={i}
-                  className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
-                >
-                  <div className="font-medium text-sm">{article.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {article.summary}
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                      {article.category}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {article.source}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500">뉴스 없음</div>
-            )}
-          </div>
-        </section>
+                <span className="text-xs text-gray-500">
+                  {article.source}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-gray-500">뉴스 없음</div>
+        )}
       </div>
+    </section>
+  );
 
-      {/* Footer */}
-      <div>
-        <div className="gradient-separator" />
-        <div className="text-center text-gray-600 text-xs py-4">
-          {new Date(report.generated_at).toLocaleDateString("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}{" "}
-          {new Date(report.generated_at).toLocaleTimeString("ko-KR", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}{" "}
-          기준 · 모의투자 시뮬레이션
-        </div>
+  const footerSection = (
+    <div>
+      <div className="gradient-separator" />
+      <div className="text-center text-gray-600 text-xs py-4">
+        {new Date(report.generated_at).toLocaleDateString("ko-KR", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })}{" "}
+        {new Date(report.generated_at).toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}{" "}
+        기준 · 모의투자 시뮬레이션
       </div>
+    </div>
+  );
+
+  /* ── 시간대별 섹션 배치 ── */
+
+  // 장 시작 전: 뉴스 → 시장현황 → 순위표 → 자산추이 → 요약카드
+  if (status === "pre") {
+    return (
+      <div className="space-y-6 md:space-y-8">
+        {headerSection}
+        {newsSection}
+        {marketSection}
+        {rankingsSection}
+        {chartSection}
+        {summarySection}
+        {footerSection}
+      </div>
+    );
+  }
+
+  // 장 진행 중: 시장현황 → 요약카드 → 순위표 → 자산추이 → 뉴스
+  if (status === "open") {
+    return (
+      <div className="space-y-6 md:space-y-8">
+        {headerSection}
+        {marketSection}
+        {summarySection}
+        {rankingsSection}
+        {chartSection}
+        {newsSection}
+        {footerSection}
+      </div>
+    );
+  }
+
+  // 장 마감 후: 요약카드 → 순위표 → 자산추이 → 시장현황+뉴스(그리드)
+  return (
+    <div className="space-y-6 md:space-y-8">
+      {headerSection}
+      {summarySection}
+      {rankingsSection}
+      {chartSection}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        {marketSection}
+        {newsSection}
+      </div>
+      {footerSection}
     </div>
   );
 }
