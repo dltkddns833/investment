@@ -40,9 +40,10 @@ else
     osascript -e 'display notification "시뮬레이션이 실패했습니다!" with title "모의 투자" sound name "Basso"'
 fi
 
-# 로그 마지막 50줄을 이메일 본문으로
-BODY=$(tail -50 "$LOG_FILE")
+# 로그 마지막 30줄을 본문으로
+BODY=$(tail -30 "$LOG_FILE")
 
-# 이메일 발송
+# 텔레그램 발송
 cd "$PROJECT_DIR/scripts"
-/usr/bin/python3 send_email.py "$SUBJECT" "$BODY"
+/usr/bin/python3 send_telegram.py "$SUBJECT
+$BODY"

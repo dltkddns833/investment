@@ -45,10 +45,10 @@ pip3 install -r requirements.txt
 매일 오후 4:00 (월~금, 장 마감 후) 자동으로 시뮬레이션을 실행한다.
 - crontab: `0 16 * * 1-5 /Users/isang-un/Desktop/personal/investment/scripts/daily_cron.sh`
 - `scripts/daily_cron.sh` — Claude CLI로 시뮬레이션 실행, 로그 저장
-- `scripts/send_email.py` — Gmail SMTP로 결과 이메일 발송
-- 알림: macOS 알림 + 이메일 (dltkddns833@gmail.com)
+- `scripts/send_telegram.py` — 텔레그램 봇으로 결과 알림 발송
+- 알림: macOS 알림 + 텔레그램
 - 로그: `logs/simulation_YYYY-MM-DD.log`
-- 환경변수: `.env`에 `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` 필요
+- 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
 
 ## Architecture
 
