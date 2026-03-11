@@ -7,8 +7,9 @@ import {
 } from "@/lib/data";
 import { krw, pct, signColor } from "@/lib/format";
 import RankingTable from "@/components/RankingTable";
-import MarketTable from "@/components/MarketTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
+import ShowMore from "@/components/ShowMore";
+import LiveMarketSection from "@/components/LiveMarketSection";
 
 export const dynamic = "force-dynamic";
 
@@ -92,22 +93,22 @@ export default async function Home() {
   /* ── 섹션 정의 ── */
 
   const headerSection = (
-    <div className="animate-in flex flex-wrap items-center gap-3">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">모의 투자 시뮬레이션</h1>
-        <p className="text-gray-400 mt-1">{report.date} 기준</p>
-      </div>
-      <span
-        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${statusCfg.className}`}
-      >
-        {"pulse" in statusCfg && statusCfg.pulse && (
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
-          </span>
-        )}
-        {statusCfg.label}
-      </span>
+    <div className="animate-in">
+      <h1 className="text-2xl md:text-3xl font-bold inline-flex items-center gap-2.5">
+        모의 투자 시뮬레이션
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full align-middle ${statusCfg.className}`}
+        >
+          {"pulse" in statusCfg && statusCfg.pulse && (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+          )}
+          {statusCfg.label}
+        </span>
+      </h1>
+      <p className="text-gray-400 mt-1">{report.date} 기준</p>
     </div>
   );
 
@@ -171,14 +172,17 @@ export default async function Home() {
   ) : null;
 
   const marketSection = (
-    <section className="glass-card overflow-hidden animate-in">
-      <MarketTable prices={report.market_prices} />
-    </section>
+    <LiveMarketSection
+      storedPrices={report.market_prices}
+      storedFetchedAt={report.generated_at}
+      isMarketOpen={status === "open"}
+    />
   );
 
+  const newsArticles = news?.articles ?? [];
   const newsSection = (
-    <section className="glass-card overflow-hidden animate-in">
-      <div className="py-4 px-4 border-b border-white/5">
+    <section className="glass-card overflow-hidden animate-in order-1 lg:order-2">
+      <div className="py-4 px-4 border-b border-white/5 flex items-center justify-between">
         <h2 className="text-xl font-bold section-header">
           오늘의 뉴스
           {news && (
@@ -187,32 +191,47 @@ export default async function Home() {
             </span>
           )}
         </h2>
-      </div>
-      <div className="p-4 md:p-5 space-y-2">
-        {news ? (
-          news.articles.map((article, i) => (
-            <div
-              key={i}
-              className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
-            >
-              <div className="font-medium text-sm">{article.title}</div>
-              <div className="text-xs text-gray-400 mt-1">
-                {article.summary}
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                  {article.category}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {article.source}
-                </span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-gray-500">뉴스 없음</div>
+        {news && (
+          <span className="text-xs text-gray-500">
+            {new Date(news.collected_at).toLocaleString("ko-KR", {
+              month: "numeric",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+              timeZone: "Asia/Seoul",
+            })}{" "}
+            수집
+          </span>
         )}
       </div>
+      <ShowMore maxHeight="max-h-[380px]" remaining={newsArticles.length > 5 ? newsArticles.length - 5 : undefined}>
+        <div className="p-4 md:p-5 space-y-2">
+          {newsArticles.length > 0 ? (
+            newsArticles.map((article, i) => (
+              <div
+                key={i}
+                className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
+              >
+                <div className="font-medium text-sm">{article.title}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {article.summary}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                    {article.category}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {article.source}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-gray-500">뉴스 없음</div>
+          )}
+        </div>
+      </ShowMore>
     </section>
   );
 
@@ -252,16 +271,18 @@ export default async function Home() {
     );
   }
 
-  // 장 진행 중: 시장현황 → 요약카드 → 순위표 → 자산추이 → 뉴스
+  // 장 진행 중: 뉴스+시장(그리드) → 요약카드 → 순위표 → 자산추이
   if (status === "open") {
     return (
       <div className="space-y-6 md:space-y-8">
         {headerSection}
-        {marketSection}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          {marketSection}
+          {newsSection}
+        </div>
         {summarySection}
         {rankingsSection}
         {chartSection}
-        {newsSection}
         {footerSection}
       </div>
     );
