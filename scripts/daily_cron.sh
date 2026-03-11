@@ -21,9 +21,9 @@ osascript -e 'display notification "시뮬레이션을 시작합니다..." with 
 
 echo "=== 시뮬레이션 시작: $(date) ===" >> "$LOG_FILE"
 
-# Claude CLI 실행
+# Claude CLI 실행 (뉴스는 오전 9시에 이미 수집됨)
 cd "$PROJECT_DIR"
-/Users/isang-un/.local/bin/claude -p "오늘 시뮬레이션 진행해줘" \
+/Users/isang-un/.local/bin/claude -p "오늘 시뮬레이션 진행해줘. 뉴스는 이미 오전에 수집했으니 Step 1(뉴스 수집)은 건너뛰고 Step 2(배분 결정)부터 시작해." \
     --allowedTools "WebSearch,Agent,Bash,Read,Write,Edit,Glob,Grep" \
     -y >> "$LOG_FILE" 2>&1
 
