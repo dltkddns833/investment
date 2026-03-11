@@ -66,7 +66,7 @@ export default function MobileHeader({
             className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <nav className="fixed top-0 left-0 z-50 w-64 h-full bg-gray-900/95 backdrop-blur-xl border-r border-white/5 p-4 space-y-1">
+          <nav className="fixed top-0 left-0 z-50 w-56 sm:w-64 h-full bg-gray-900/95 backdrop-blur-xl border-r border-white/5 p-4 space-y-1">
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
               <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 모의 투자

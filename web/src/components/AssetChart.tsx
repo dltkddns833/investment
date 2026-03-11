@@ -42,7 +42,8 @@ export default function AssetChart({ data, initialCapital }: Props) {
   const fillId = "assetGradient";
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <div className="h-[200px] md:h-[300px]">
+    <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
@@ -89,5 +90,6 @@ export default function AssetChart({ data, initialCapital }: Props) {
         />
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
 }

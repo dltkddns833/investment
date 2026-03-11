@@ -22,7 +22,7 @@ export default function DataTable<T>({ columns, data }: Props<T>) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-xs sm:text-sm">
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr
@@ -32,7 +32,7 @@ export default function DataTable<T>({ columns, data }: Props<T>) {
               {hg.headers.map((header) => (
                 <th
                   key={header.id}
-                  className={`py-3 px-4 ${header.column.columnDef.meta?.className ?? "text-left"}`}
+                  className={`py-2.5 px-3 md:py-3 md:px-4 ${header.column.columnDef.meta?.className ?? "text-left"}`}
                 >
                   {header.isPlaceholder
                     ? null
@@ -54,7 +54,7 @@ export default function DataTable<T>({ columns, data }: Props<T>) {
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
-                  className={`py-3 px-4 ${cell.column.columnDef.meta?.className ?? ""}`}
+                  className={`py-2.5 px-3 md:py-3 md:px-4 ${cell.column.columnDef.meta?.className ?? ""}`}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>

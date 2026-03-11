@@ -82,7 +82,7 @@ export default function PortfolioChart({ detail }: Props) {
               className="w-2.5 h-2.5 rounded-full shrink-0"
               style={{ backgroundColor: COLORS[i % COLORS.length] }}
             />
-            <span className="text-sm text-gray-300 truncate">{d.name}</span>
+            <span className="text-xs md:text-sm text-gray-300 truncate">{d.name}</span>
             <span className="text-xs text-gray-500 tabular-nums ml-auto shrink-0">
               {((d.value / total) * 100).toFixed(1)}%
             </span>

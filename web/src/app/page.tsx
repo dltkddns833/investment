@@ -21,7 +21,7 @@ export default async function Home() {
   if (!latestDate) {
     return (
       <div>
-        <h1 className="text-3xl font-bold mb-4">모의 투자 시뮬레이션</h1>
+        <h1 className="text-2xl md:text-3xl font-bold mb-4">모의 투자 시뮬레이션</h1>
         <p className="text-gray-400">
           아직 리포트가 없습니다. 시뮬레이션을 먼저 실행해주세요.
         </p>
@@ -56,48 +56,48 @@ export default async function Home() {
         : "";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Header */}
       <div className="animate-in">
-        <h1 className="text-3xl font-bold">모의 투자 시뮬레이션</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">모의 투자 시뮬레이션</h1>
         <p className="text-gray-400 mt-1">{report.date} 기준</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger">
-        <div className="glass-card card-shine animate-in p-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
+        <div className="glass-card card-shine animate-in p-3 md:p-5">
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             총 투자금
           </div>
-          <div className="text-2xl font-bold mt-1 tabular-nums">
+          <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
             {krw(totalInvested)}
           </div>
         </div>
-        <div className="glass-card card-shine animate-in p-5">
+        <div className="glass-card card-shine animate-in p-3 md:p-5">
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             총 자산
           </div>
-          <div className="text-2xl font-bold mt-1 tabular-nums">
+          <div className="text-lg md:text-2xl font-bold mt-1 tabular-nums">
             {krw(totalAsset)}
           </div>
         </div>
-        <div className={`glass-card card-shine animate-in p-5 ${returnBorderColor}`}>
+        <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             총 수익
           </div>
           <div
-            className={`text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturn)}`}
+            className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturn)}`}
           >
             {totalReturn >= 0 ? "+" : ""}
             {krw(totalReturn)}
           </div>
         </div>
-        <div className={`glass-card card-shine animate-in p-5 ${returnBorderColor}`}>
+        <div className={`glass-card card-shine animate-in p-3 md:p-5 ${returnBorderColor}`}>
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             평균 수익률
           </div>
           <div
-            className={`text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturnPct)}`}
+            className={`text-lg md:text-2xl font-bold mt-1 tabular-nums ${signColor(totalReturnPct)}`}
           >
             {pct(totalReturnPct)}
           </div>
@@ -111,7 +111,7 @@ export default async function Home() {
 
       {/* All Investors Asset History */}
       {assetHistory.length >= 1 && (
-        <section className="glass-card p-5 animate-in">
+        <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
           <AllInvestorsAssetChart
             data={assetHistory}
@@ -121,7 +121,7 @@ export default async function Home() {
         </section>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Market */}
         <section className="glass-card overflow-hidden animate-in">
           <MarketTable prices={report.market_prices} />
@@ -139,7 +139,7 @@ export default async function Home() {
               )}
             </h2>
           </div>
-          <div className="p-5 space-y-2">
+          <div className="p-4 md:p-5 space-y-2">
             {news ? (
               news.articles.map((article, i) => (
                 <div

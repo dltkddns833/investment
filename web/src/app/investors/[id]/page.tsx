@@ -42,21 +42,21 @@ export default async function InvestorPage({ params }: Props) {
   const detail = report?.investor_details[profile.name];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Header Hero */}
-      <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-6 lg:p-8 border border-white/5">
-        <h1 className="text-3xl font-bold">{profile.name}</h1>
+      <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
+        <h1 className="text-2xl md:text-3xl font-bold">{profile.name}</h1>
         <p className="text-gray-400 mt-1">{profile.strategy}</p>
         <p className="text-gray-500 text-sm mt-2">{profile.description}</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 stagger">
         <div className="glass-card card-shine animate-in p-4">
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             총 자산
           </div>
-          <div className="text-lg font-bold mt-1 tabular-nums">
+          <div className="text-base md:text-lg font-bold mt-1 tabular-nums">
             {detail ? krw(detail.total_asset) : krw(portfolio.initial_capital)}
           </div>
         </div>
@@ -65,7 +65,7 @@ export default async function InvestorPage({ params }: Props) {
             수익률
           </div>
           <div
-            className={`text-lg font-bold mt-1 tabular-nums ${detail ? signColor(detail.total_return_pct) : "text-gray-500"}`}
+            className={`text-base md:text-lg font-bold mt-1 tabular-nums ${detail ? signColor(detail.total_return_pct) : "text-gray-500"}`}
           >
             {detail ? pct(detail.total_return_pct) : "0.00%"}
           </div>
@@ -74,7 +74,7 @@ export default async function InvestorPage({ params }: Props) {
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             현금
           </div>
-          <div className="text-lg font-bold mt-1 tabular-nums">
+          <div className="text-base md:text-lg font-bold mt-1 tabular-nums">
             {krw(portfolio.cash)}
           </div>
         </div>
@@ -82,7 +82,7 @@ export default async function InvestorPage({ params }: Props) {
           <div className="text-gray-400 text-xs uppercase tracking-wider">
             리밸런싱
           </div>
-          <div className="text-lg font-bold mt-1">
+          <div className="text-base md:text-lg font-bold mt-1">
             {profile.rebalance_frequency_days}일마다
           </div>
           <div className="text-xs text-gray-500">
@@ -93,7 +93,7 @@ export default async function InvestorPage({ params }: Props) {
 
       {/* Asset History Chart */}
       {assetHistory.length >= 1 && (
-        <section className="glass-card p-5 animate-in">
+        <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-3 section-header">자산 추이</h2>
           <AssetChart
             data={assetHistory}
@@ -103,7 +103,7 @@ export default async function InvestorPage({ params }: Props) {
       )}
 
       {/* Profile Info */}
-      <section className="glass-card p-5 animate-in">
+      <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-3 section-header">분석 기준</h2>
         <div className="flex flex-wrap gap-2">
           {profile.analysis_criteria.map((c, i) => (
@@ -120,8 +120,8 @@ export default async function InvestorPage({ params }: Props) {
       {/* Portfolio Chart + Holdings */}
       {detail && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="glass-card p-5 animate-in">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <section className="glass-card p-4 md:p-5 animate-in">
               <h2 className="text-lg font-bold mb-3 section-header">
                 포트폴리오 구성
               </h2>
@@ -129,7 +129,7 @@ export default async function InvestorPage({ params }: Props) {
             </section>
 
             {allocation && (
-              <section className="glass-card p-5 animate-in">
+              <section className="glass-card p-4 md:p-5 animate-in">
                 <h2 className="text-lg font-bold mb-3 section-header">
                   목표 배분
                 </h2>
@@ -140,7 +140,7 @@ export default async function InvestorPage({ params }: Props) {
                   {Object.entries(allocation.allocation).map(
                     ([ticker, ratio]) => (
                       <div key={ticker} className="flex items-center gap-2">
-                        <div className="w-20 text-sm truncate shrink-0">
+                        <div className="w-16 md:w-20 text-sm truncate shrink-0">
                           {report!.market_prices[ticker]?.name ?? ticker}
                         </div>
                         <div className="flex-1 bg-gray-700/50 rounded-full h-2">

@@ -53,7 +53,8 @@ export default function AllInvestorsAssetChart({
   initialCapital,
 }: Props) {
   return (
-    <ResponsiveContainer width="100%" height={350}>
+    <div className="h-[250px] md:h-[350px]">
+    <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <XAxis
           dataKey="date"
@@ -74,7 +75,7 @@ export default function AllInvestorsAssetChart({
           formatter={(value) => krw(Number(value))}
           contentStyle={tooltipStyle}
         />
-        <Legend />
+        <Legend wrapperStyle={{ fontSize: '12px' }} />
         <ReferenceLine
           y={initialCapital}
           stroke="#6b7280"
@@ -99,5 +100,6 @@ export default function AllInvestorsAssetChart({
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
   );
 }

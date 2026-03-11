@@ -32,14 +32,14 @@ const columns = [
   }),
   col.accessor("avg_price", {
     header: "평균단가",
-    meta: { className: "text-right" },
+    meta: { className: "text-right hidden sm:table-cell" },
     cell: (info) => (
       <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
     ),
   }),
   col.accessor("current_price", {
     header: "현재가",
-    meta: { className: "text-right" },
+    meta: { className: "text-right hidden sm:table-cell" },
     cell: (info) => (
       <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
     ),

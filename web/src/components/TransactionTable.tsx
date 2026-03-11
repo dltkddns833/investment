@@ -41,14 +41,14 @@ const columns = [
   }),
   col.accessor("shares", {
     header: "수량",
-    meta: { className: "text-right" },
+    meta: { className: "text-right hidden sm:table-cell" },
     cell: (info) => (
       <span className="font-mono tabular-nums">{info.getValue()}주</span>
     ),
   }),
   col.accessor("price", {
     header: "단가",
-    meta: { className: "text-right" },
+    meta: { className: "text-right hidden sm:table-cell" },
     cell: (info) => (
       <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
     ),

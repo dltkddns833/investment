@@ -41,6 +41,7 @@ function getColumns() {
     }),
     col.accessor("strategy", {
       header: "전략",
+      meta: { className: "hidden md:table-cell" },
       cell: (info) => (
         <span className="text-gray-400">{info.getValue()}</span>
       ),
@@ -74,21 +75,21 @@ function getColumns() {
     }),
     col.accessor("num_holdings", {
       header: "종목수",
-      meta: { className: "text-right" },
+      meta: { className: "text-right hidden sm:table-cell" },
       cell: (info) => (
         <span className="tabular-nums">{info.getValue()}</span>
       ),
     }),
     col.accessor("cash_ratio", {
       header: "현금비중",
-      meta: { className: "text-right" },
+      meta: { className: "text-right hidden md:table-cell" },
       cell: (info) => (
         <span className="tabular-nums">{info.getValue()}%</span>
       ),
     }),
     col.accessor("rebalance_frequency_days", {
       header: "리밸런싱",
-      meta: { className: "text-center" },
+      meta: { className: "text-center hidden md:table-cell" },
       cell: (info) => (
         <span className="text-gray-400">{info.getValue()}일마다</span>
       ),
