@@ -18,19 +18,17 @@ export default function LiveInvestorDetail({
   const d = liveDetail ?? detail;
 
   return (
-    <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <section className="glass-card p-4 md:p-5 animate-in">
-          <h2 className="text-lg font-bold mb-3 section-header">
-            포트폴리오 구성
-          </h2>
-          <PortfolioChart detail={d} />
-        </section>
-      </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-3 section-header">
+          포트폴리오 구성
+        </h2>
+        <PortfolioChart detail={d} />
+      </section>
 
       <section className="glass-card overflow-hidden animate-in">
         <HoldingsTable holdings={d.holdings} />
       </section>
-    </>
+    </div>
   );
 }

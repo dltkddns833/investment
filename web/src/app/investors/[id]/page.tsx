@@ -87,6 +87,53 @@ export default async function InvestorPage({ params }: Props) {
         </section>
       )}
 
+      {/* Portfolio Chart + Holdings */}
+      {detail && (
+        <LiveInvestorDetail
+          detail={detail}
+          initialCapital={config.simulation.initial_capital}
+        />
+      )}
+
+      {/* Allocation */}
+      {detail && allocation && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-3 section-header">
+            목표 배분
+          </h2>
+          <p className="text-xs text-gray-400 mb-3">
+            {allocation.rationale}
+          </p>
+          <div className="space-y-2">
+            {Object.entries(allocation.allocation).map(
+              ([ticker, ratio]) => (
+                <div key={ticker} className="flex items-center gap-2">
+                  <div className="w-16 md:w-20 text-sm truncate shrink-0">
+                    {report!.market_prices[ticker]?.name ?? ticker}
+                  </div>
+                  <div className="flex-1 bg-gray-700/50 rounded-full h-2">
+                    <div
+                      className="bar-fill h-2"
+                      style={{ width: `${ratio * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
+                    {(ratio * 100).toFixed(0)}%
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Transaction History */}
+      {portfolio.transactions.length > 0 && (
+        <section className="glass-card overflow-hidden animate-in">
+          <TransactionTable transactions={portfolio.transactions} />
+        </section>
+      )}
+
       {/* Profile Info */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-3 section-header">분석 기준</h2>
@@ -101,54 +148,6 @@ export default async function InvestorPage({ params }: Props) {
           ))}
         </div>
       </section>
-
-      {/* Portfolio Chart + Holdings + Allocation */}
-      {detail && (
-        <>
-          <LiveInvestorDetail
-            detail={detail}
-            initialCapital={config.simulation.initial_capital}
-          />
-
-          {allocation && (
-            <section className="glass-card p-4 md:p-5 animate-in">
-              <h2 className="text-lg font-bold mb-3 section-header">
-                목표 배분
-              </h2>
-              <p className="text-xs text-gray-400 mb-3">
-                {allocation.rationale}
-              </p>
-              <div className="space-y-2">
-                {Object.entries(allocation.allocation).map(
-                  ([ticker, ratio]) => (
-                    <div key={ticker} className="flex items-center gap-2">
-                      <div className="w-16 md:w-20 text-sm truncate shrink-0">
-                        {report!.market_prices[ticker]?.name ?? ticker}
-                      </div>
-                      <div className="flex-1 bg-gray-700/50 rounded-full h-2">
-                        <div
-                          className="bar-fill h-2"
-                          style={{ width: `${ratio * 100}%` }}
-                        />
-                      </div>
-                      <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
-                        {(ratio * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            </section>
-          )}
-        </>
-      )}
-
-      {/* Transaction History */}
-      {portfolio.transactions.length > 0 && (
-        <section className="glass-card overflow-hidden animate-in">
-          <TransactionTable transactions={portfolio.transactions} />
-        </section>
-      )}
     </div>
   );
 }

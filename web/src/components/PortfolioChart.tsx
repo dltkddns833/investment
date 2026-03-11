@@ -75,7 +75,7 @@ export default function PortfolioChart({ detail }: Props) {
         </PieChart>
       </ResponsiveContainer>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 px-1">
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1.5 mt-3 px-1">
         {data.map((d, i) => (
           <div key={i} className="flex items-center gap-2 min-w-0">
             <span
