@@ -74,10 +74,9 @@ def build_weekly_report(today):
     # 순위표
     lines.append("*🏆 주간 종료 순위*")
     for i, r in enumerate(rankings):
-        inv_id = r.get("investor_id", "")
-        name = r.get("name", inv_id)
+        name = r.get("investor", "")
         total = r.get("total_asset", 0)
-        ret = r.get("return_pct", 0)
+        ret = r.get("total_return_pct", 0)
         medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}."
         lines.append(f"{medal} {name}: {total:,.0f}원 ({ret:+.2f}%)")
 
@@ -85,13 +84,12 @@ def build_weekly_report(today):
     lines.append("")
     lines.append("*📈 주간 변동*")
     for r in rankings:
-        inv_id = r.get("investor_id", "")
-        name = r.get("name", inv_id)
+        name = r.get("investor", "")
         end_total = r.get("total_asset", 0)
 
         start_total = 5_000_000  # 기본값
-        if inv_id in first_details:
-            start_total = first_details[inv_id].get("total_asset", 5_000_000)
+        if name in first_details:
+            start_total = first_details[name].get("total_asset", 5_000_000)
 
         weekly_change = end_total - start_total
         arrow = "▲" if weekly_change >= 0 else "▼"

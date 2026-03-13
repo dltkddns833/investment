@@ -5,6 +5,7 @@ yfinance 히스토리 데이터 + pandas 기본 연산만 사용.
 """
 import sys
 import os
+import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
 
@@ -18,7 +19,7 @@ def calculate_rsi(closes, period=14):
     avg_gain = gain.rolling(window=period, min_periods=period).mean()
     avg_loss = loss.rolling(window=period, min_periods=period).mean()
 
-    rs = avg_gain / avg_loss
+    rs = avg_gain / avg_loss.replace(0, float('nan'))
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
@@ -86,7 +87,7 @@ def get_technical_signals(tickers=None):
 
             # RSI
             rsi_series = calculate_rsi(closes)
-            rsi_val = round(float(rsi_series.iloc[-1]), 1) if not rsi_series.iloc[-1] != rsi_series.iloc[-1] else None
+            rsi_val = round(float(rsi_series.iloc[-1]), 1) if not pd.isna(rsi_series.iloc[-1]) else None
 
             if rsi_val is not None:
                 if rsi_val < 30:
