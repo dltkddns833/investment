@@ -9,7 +9,7 @@ def save_news(date_str, articles):
 
     Args:
         date_str: "2026-03-10" 형식
-        articles: [{"title": ..., "summary": ..., "category": ..., "source": ...}, ...]
+        articles: [{"title": ..., "summary": ..., "category": ..., "source": ..., "url": ...}, ...]
     """
     data = {
         "date": date_str,

@@ -142,6 +142,7 @@ export interface NewsArticle {
   summary: string;
   category: string;
   source: string;
+  url?: string;
 }
 
 export interface News {

@@ -189,7 +189,13 @@ export default async function Home() {
                 key={i}
                 className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
               >
-                <div className="font-medium text-sm">{article.title}</div>
+                {article.url ? (
+                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:text-blue-300 transition-colors">
+                    {article.title}
+                  </a>
+                ) : (
+                  <div className="font-medium text-sm">{article.title}</div>
+                )}
                 <div className="text-xs text-gray-400 mt-1">
                   {article.summary}
                 </div>

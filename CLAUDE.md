@@ -193,6 +193,7 @@ cd web && pnpm build  # 빌드
 #### Step 1: 뉴스 수집
 - WebSearch로 한국 증시 관련 뉴스 검색 (경제, 산업, 기업, 정책, 글로벌, 금융/보험, 통신/IT, 제약/바이오, 건설/부동산, 소비재/유통)
 - 15~20건 수집 후 `scripts/core/daily_pipeline.py`의 `save_news()`로 Supabase에 저장
+- 각 기사에 `url` 필드 포함: `{"title": ..., "summary": ..., "category": ..., "source": ..., "url": "https://..."}`
 
 #### Step 2: 투자자별 배분 결정 (10개 독립 AI 에이전트 병렬 실행)
 **반드시 10개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
