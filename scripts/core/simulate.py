@@ -3,8 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from supabase_client import supabase
 from market import get_stock_prices

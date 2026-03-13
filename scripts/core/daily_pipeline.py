@@ -81,7 +81,9 @@ def check_pipeline_status(date_str):
         "stories_generated": len(stories_result.data) > 0,
     }
 
-    for inv_id in ["A", "B", "C", "D", "E", "F", "G"]:
+    investor_rows = supabase.table("profiles").select("id").execute().data
+    all_investor_ids = sorted([r["id"] for r in investor_rows])
+    for inv_id in all_investor_ids:
         alloc_result = supabase.table("allocations").select("investor_id").eq("investor_id", inv_id).eq("date", date_str).execute()
         status["allocations"][inv_id] = len(alloc_result.data) > 0
 

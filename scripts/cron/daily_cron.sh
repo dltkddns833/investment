@@ -1,5 +1,5 @@
 #!/bin/bash
-# 일일 시뮬레이션 자동 실행 (cron용)
+# (레거시) 일일 시뮬레이션 자동 실행 (cron용)
 
 export HOME="/Users/isang-un"
 export PATH="/Users/isang-un/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -48,6 +48,6 @@ fi
 BODY=$(tail -30 "$LOG_FILE")
 
 # 텔레그램 발송
-cd "$PROJECT_DIR/scripts"
+cd "$PROJECT_DIR/scripts/notifications"
 /usr/bin/python3 send_telegram.py "$SUBJECT
 $BODY"

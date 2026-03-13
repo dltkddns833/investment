@@ -1,5 +1,5 @@
 #!/bin/bash
-# 오전 9시 — 뉴스 수집 + 주간 리포트 (cron용)
+# (레거시) 오전 9시 — 뉴스 수집 + 주간 리포트 (cron용)
 
 export HOME="/Users/isang-un"
 export PATH="/Users/isang-un/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -33,7 +33,7 @@ echo "뉴스 수집 종료코드: $NEWS_EXIT" >> "$LOG_FILE"
 
 # 2. 주간 리포트 (첫 영업일이 아니면 자동 스킵)
 echo "--- 주간 리포트 체크 ---" >> "$LOG_FILE"
-cd "$PROJECT_DIR/scripts"
+cd "$PROJECT_DIR/scripts/reports"
 /usr/bin/python3 weekly_report.py >> "$LOG_FILE" 2>&1
 
 WEEKLY_EXIT=$?

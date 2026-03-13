@@ -37,7 +37,7 @@ echo "시뮬레이션 종료코드: $SIM_EXIT" >> "$LOG_FILE"
 
 # 주간 리포트 (첫 영업일이 아니면 자동 스킵)
 echo "--- 주간 리포트 체크 ---" >> "$LOG_FILE"
-cd "$PROJECT_DIR/scripts"
+cd "$PROJECT_DIR/scripts/reports"
 /usr/bin/python3 weekly_report.py >> "$LOG_FILE" 2>&1
 
 WEEKLY_EXIT=$?
@@ -58,6 +58,6 @@ fi
 BODY=$(tail -30 "$LOG_FILE")
 
 # 텔레그램 발송
-cd "$PROJECT_DIR/scripts"
+cd "$PROJECT_DIR/scripts/notifications"
 /usr/bin/python3 send_telegram.py "$SUBJECT
 $BODY"

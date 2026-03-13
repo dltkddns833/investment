@@ -6,10 +6,12 @@ from pathlib import Path
 import holidays
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 # 프로젝트 내부 모듈
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SCRIPTS_DIR / "core"))
+sys.path.insert(0, str(SCRIPTS_DIR / "notifications"))
 from supabase_client import supabase
 from send_telegram import send_telegram
 

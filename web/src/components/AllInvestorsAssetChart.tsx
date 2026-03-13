@@ -27,6 +27,9 @@ const COLORS = [
   "#8b5cf6", // 정기준 - violet
   "#ec4899", // 윤순환 - pink
   "#06b6d4", // 문여론 - cyan
+  "#14b8a6", // 박기술 - teal
+  "#f97316", // 최배당 - orange
+  "#a855f7", // 한따라 - purple
 ];
 
 const tooltipStyle = {
