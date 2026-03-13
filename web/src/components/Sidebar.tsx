@@ -16,6 +16,7 @@ export default async function Sidebar() {
       <nav className="flex-1 p-3 space-y-1">
         <SidebarLink href="/" label="대시보드" />
         <SidebarLink href="/reports" label="리포트" />
+        <SidebarLink href="/news" label="뉴스" />
         <SidebarLink href="/stocks" label="종목 분석" />
         <SidebarLink href="/analysis" label="분석" />
         <SidebarLink href="/versus" label="대결" />

@@ -328,6 +328,20 @@ export async function getNews(date: string): Promise<News | null> {
   };
 }
 
+export async function getAllNews(): Promise<News[]> {
+  const { data } = await supabase
+    .from("news")
+    .select("*")
+    .order("date", { ascending: false });
+  if (!data) return [];
+  return data.map((d) => ({
+    date: d.date,
+    collected_at: d.collected_at,
+    count: d.count,
+    articles: d.articles,
+  }));
+}
+
 export async function getDailyStories(
   date: string
 ): Promise<DailyStories | null> {

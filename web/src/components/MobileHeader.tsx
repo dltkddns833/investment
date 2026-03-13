@@ -118,6 +118,16 @@ export default function MobileHeader({
               리포트
             </Link>
             <Link
+              href="/news"
+              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                pathname === "/news"
+                  ? "nav-active text-white font-medium"
+                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+              }`}
+            >
+              뉴스
+            </Link>
+            <Link
               href="/stocks"
               className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
                 pathname.startsWith("/stocks")
