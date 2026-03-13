@@ -10,6 +10,9 @@ LOG_FILE="$LOG_DIR/simulation_$DATE.log"
 
 mkdir -p "$LOG_DIR"
 
+# 파일 디스크립터 제한 해제
+ulimit -n 2147483646
+
 # 주말 체크 (토=6, 일=7)
 DAY_OF_WEEK=$(date +%u)
 if [ "$DAY_OF_WEEK" -ge 6 ]; then

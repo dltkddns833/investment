@@ -53,8 +53,8 @@ export function useLiveRankings(
   investorDetails: Record<string, InvestorDetail>,
   initialCapital: number
 ): RankingEntry[] {
-  const { prices: livePrices, isLive } = useLivePrices();
-  if (!isLive || !livePrices) return storedRankings;
+  const { prices: livePrices, isLive, isClosingPrice } = useLivePrices();
+  if ((!isLive && !isClosingPrice) || !livePrices) return storedRankings;
 
   const updated = storedRankings.map((r) => {
     const detail = investorDetails[r.investor];
@@ -81,7 +81,7 @@ export function useLiveInvestorDetail(
   detail: InvestorDetail | undefined,
   initialCapital: number
 ): InvestorDetail | undefined {
-  const { prices: livePrices, isLive } = useLivePrices();
-  if (!detail || !isLive || !livePrices) return detail;
+  const { prices: livePrices, isLive, isClosingPrice } = useLivePrices();
+  if (!detail || (!isLive && !isClosingPrice) || !livePrices) return detail;
   return recalcDetail(detail, livePrices, initialCapital);
 }

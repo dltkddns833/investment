@@ -14,21 +14,21 @@ export default function LiveMarketSection({
   storedPrices,
   storedFetchedAt,
 }: Props) {
-  const { prices: livePrices, fetchedAt: liveFetchedAt, isLive, isMarketOpen, isRefreshing, refresh } =
+  const { prices: livePrices, fetchedAt: liveFetchedAt, isLive, isMarketOpen, isClosingPrice, isRefreshing, refresh } =
     useLivePrices();
 
   // Merge live prices with stored names
   const prices: Record<string, MarketPrice> = {};
   for (const [ticker, stored] of Object.entries(storedPrices)) {
     const live = livePrices?.[ticker];
-    if (isLive && live) {
+    if ((isLive || isClosingPrice) && live) {
       prices[ticker] = { name: stored.name, price: live.price, change_pct: live.change_pct };
     } else {
       prices[ticker] = stored;
     }
   }
 
-  const fetchedAt = isLive && liveFetchedAt ? liveFetchedAt : storedFetchedAt;
+  const fetchedAt = (isLive || isClosingPrice) && liveFetchedAt ? liveFetchedAt : storedFetchedAt;
   const marketRows = Object.keys(prices).length;
 
   return (
@@ -40,9 +40,10 @@ export default function LiveMarketSection({
         <MarketTable
           prices={prices}
           fetchedAt={fetchedAt}
-          onRefresh={isMarketOpen ? refresh : undefined}
+          onRefresh={(isMarketOpen || isClosingPrice) ? refresh : undefined}
           isRefreshing={isRefreshing}
           isLive={isLive}
+          isClosingPrice={isClosingPrice}
         />
       </ShowMore>
     </section>

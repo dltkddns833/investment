@@ -7,9 +7,9 @@ interface Props {
 }
 
 export default function LiveDateLabel({ storedDate }: Props) {
-  const { fetchedAt, isLive } = useLivePrices();
+  const { fetchedAt, isLive, isClosingPrice } = useLivePrices();
 
-  if (isLive && fetchedAt) {
+  if ((isLive || isClosingPrice) && fetchedAt) {
     const time = new Date(fetchedAt).toLocaleTimeString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
@@ -24,7 +24,7 @@ export default function LiveDateLabel({ storedDate }: Props) {
     });
     return (
       <p className="text-gray-400 mt-1">
-        {today} {time} 기준
+        {today} {time} 기준{isClosingPrice ? " (종가)" : ""}
       </p>
     );
   }

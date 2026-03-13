@@ -40,23 +40,36 @@ python3 scripts/daily_pipeline.py 2026-03-10
 pip3 install -r requirements.txt
 ```
 
-## 자동 실행 (launchd)
+## 자동 실행 (launchd) — ⏸️ 잠정 중단 (2026-03-13~)
+
+> **현재 상태: 수동 실행** — 휴직 기간(~2026-04-13) 동안 launchd 스케줄 해제. 사용자가 직접 Claude CLI로 시뮬레이션 실행.
+> 재개 시: `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
 
 macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사용).
 
-### 오전 9시 — 뉴스 수집 + 주간 리포트
-- plist: `~/Library/LaunchAgents/com.investment.morning.plist`
-- `scripts/morning_cron.sh` — Claude CLI로 뉴스 수집 → Supabase news 테이블 저장
+### 오전 9:05 — 통합 파이프라인 (시가 체결)
+- plist: `~/Library/LaunchAgents/com.investment.pipeline.plist`
+- `scripts/daily_pipeline_cron.sh` — Claude CLI로 전체 파이프라인 한 번에 실행
+  - 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 스토리텔링 → 텔레그램 발송
 - `scripts/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
-- 로그: `logs/morning_YYYY-MM-DD.log`
-
-### 오후 4시 — 시뮬레이션 실행
-- plist: `~/Library/LaunchAgents/com.investment.daily.plist`
-- `scripts/daily_cron.sh` — Claude CLI로 시뮬레이션 실행 (뉴스 수집은 오전에 완료된 상태)
-- `scripts/send_telegram.py` — 텔레그램 봇으로 결과 알림 발송
-- 알림: macOS 알림 + 텔레그램
-- 로그: `logs/simulation_YYYY-MM-DD.log`
+- 로그: `logs/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
+
+### (레거시) 기존 2개 cron — 사용 안 함
+- `scripts/morning_cron.sh` / `scripts/daily_cron.sh` — 종가 체결 시절 사용하던 스크립트
+- `com.investment.morning.plist` / `com.investment.daily.plist` — 기존 plist
+
+### 재개 시 필요 설정: macOS 전체 디스크 접근 권한
+launchd 프로세스가 `~/Desktop` 하위 프로젝트에 접근할 때 macOS 권한 팝업이 뜰 수 있다.
+**설정 > 개인정보 보호 및 보안 > 전체 디스크 접근 권한**에서 아래 항목 허용:
+- `/bin/bash`
+- `/Users/isang-un/.local/bin/claude` (Claude CLI)
+- `/usr/bin/python3`
+
+```bash
+# 설정 화면 바로 열기
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+```
 
 ## Architecture
 
@@ -65,28 +78,30 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/supabase_client.py` — Python용 Supabase 클라이언트 (`.env`에서 인증 정보 로드)
 - `web/src/lib/supabase.ts` — Next.js용 Supabase 클라이언트 (서버 컴포넌트 전용, `SUPABASE_SERVICE_ROLE_KEY` 사용)
 
-**일일 파이프라인 흐름:**
+**일일 파이프라인 흐름 (09:05 시가 체결):**
 ```
 뉴스 수집 (웹 검색)
   → Supabase news 테이블 저장
 투자자별 독립 분석/배분 결정
   → Supabase allocations 테이블 저장
-simulate.py 실행
-  → market.py로 주가 조회
+simulate.py 실행 (시가 체결)
+  → market.py로 주가 조회 (price_type="open")
   → portfolio.py로 리밸런싱 due 체크 → 매도 먼저 → 매수
   → Supabase daily_reports 테이블에 리포트 저장
+장마감 후 대시보드 → Yahoo Finance 종가 자동 조회 → 포트폴리오 재계산
 ```
 
 **핵심 분리 원칙:** `simulate.py`는 배분을 결정하지 않는다. Supabase에 사전 저장된 allocation만 실행한다. 뉴스 수집과 배분 판단은 Claude가 투자자 프로필 성향에 맞춰 수행.
 
 **모듈 역할:**
 - `scripts/supabase_client.py` — Supabase 클라이언트 초기화
-- `scripts/market.py` — yfinance로 20종목 시세 조회 (config는 Supabase에서 로드)
+- `scripts/market.py` — yfinance로 20종목 시세 조회 (config는 Supabase에서 로드, price_type="open"/"close" 지원)
 - `scripts/portfolio.py` — 매수/매도/평가/리밸런싱 (Supabase 읽기/쓰기)
 - `scripts/simulate.py` — 일일 시뮬레이션 오케스트레이터 (Supabase 읽기/쓰기)
 - `scripts/daily_pipeline.py` — 뉴스 저장, 배분 저장, 상태 확인 (Supabase 쓰기)
 - `scripts/weekly_report.py` — 주간 성과 리포트 (첫 영업일에만 텔레그램 발송)
-- `scripts/morning_cron.sh` — 오전 9시 launchd (뉴스 수집 + 주간 리포트)
+- `scripts/daily_pipeline_cron.sh` — 오전 9:05 통합 파이프라인 (뉴스 + 배분 + 시뮬레이션 + 스토리텔링)
+- `scripts/morning_cron.sh` — (레거시) 오전 9시 뉴스 수집 + 주간 리포트
 
 **Supabase 테이블 (9개):**
 
@@ -164,9 +179,9 @@ cd web && pnpm build  # 빌드
 - F (섹터 로테이션): 유망 섹터 2~3개 선별 후 섹터 내 종목 집중, 섹터당 2~3종목
 - G (뉴스 감성 기반): 뉴스 긍정/부정 감성 점수로만 비중 결정, 5~10종목
 
-### Step 3: 시뮬레이션 실행
+### Step 3: 시뮬레이션 실행 (시가 체결)
 - `python3 scripts/simulate.py {date}` 실행
-- 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
+- 시가(Open) 기준 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
 
 ### Step 4: 스토리텔링
 시뮬레이션 완료 후 `daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.

@@ -17,11 +17,11 @@ export default function LiveSummaryCards({
   initialCapital,
   investorDetails,
 }: Props) {
-  const { prices: livePrices, isLive } = useLivePrices();
+  const { prices: livePrices, isLive, isClosingPrice } = useLivePrices();
 
   let totalAsset = storedTotalAsset;
 
-  if (isLive && livePrices) {
+  if ((isLive || isClosingPrice) && livePrices) {
     totalAsset = 0;
     for (const detail of Object.values(investorDetails)) {
       let stockValue = 0;

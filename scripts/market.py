@@ -14,8 +14,13 @@ def load_config():
     }
 
 
-def get_stock_prices(tickers=None):
-    """투자 유니버스 종목들의 현재가 조회"""
+def get_stock_prices(tickers=None, price_type="close"):
+    """투자 유니버스 종목들의 현재가 조회
+
+    Args:
+        tickers: 조회할 티커 목록 (None이면 전체)
+        price_type: "close" (종가, 기본) 또는 "open" (시가)
+    """
     config = load_config()
     universe = {s["ticker"]: s for s in config["stock_universe"]}
 
@@ -32,14 +37,20 @@ def get_stock_prices(tickers=None):
             latest = hist.iloc[-1]
             prev = hist.iloc[-2] if len(hist) >= 2 else hist.iloc[-1]
 
+            if price_type == "open":
+                current = int(latest["Open"])
+            else:
+                current = int(latest["Close"])
+            prev_close_val = int(prev["Close"])
+
             info = universe.get(ticker, {})
             prices[ticker] = {
                 "name": info.get("name", ticker),
                 "sector": info.get("sector", ""),
-                "price": int(latest["Close"]),
-                "prev_close": int(prev["Close"]),
-                "change": int(latest["Close"] - prev["Close"]),
-                "change_pct": round((latest["Close"] / prev["Close"] - 1) * 100, 2),
+                "price": current,
+                "prev_close": prev_close_val,
+                "change": int(current - prev_close_val),
+                "change_pct": round((current / prev_close_val - 1) * 100, 2),
                 "volume": int(latest["Volume"]),
             }
         except Exception as e:

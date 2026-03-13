@@ -11,6 +11,7 @@ interface Props {
   onRefresh?: () => void;
   isRefreshing?: boolean;
   isLive?: boolean;
+  isClosingPrice?: boolean;
 }
 
 type MarketRow = MarketPrice & { ticker: string };
@@ -62,6 +63,7 @@ export default function MarketTable({
   onRefresh,
   isRefreshing,
   isLive,
+  isClosingPrice,
 }: Props) {
   const data: MarketRow[] = Object.entries(prices).map(([ticker, p]) => ({
     ...p,
@@ -89,6 +91,12 @@ export default function MarketTable({
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
               </span>
               LIVE
+            </span>
+          )}
+          {!isLive && isClosingPrice && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
+              종가
             </span>
           )}
         </h2>

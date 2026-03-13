@@ -37,7 +37,7 @@ def run_simulation(date_str=None):
 
     # 1. 현재 주가 조회
     print(f"\n [주가 조회 중...]")
-    current_prices = get_stock_prices()
+    current_prices = get_stock_prices(price_type="open")
     if not current_prices:
         print("[오류] 주가 조회 실패")
         return None
