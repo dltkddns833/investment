@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 10명의 투자자(A~J)가 동일한 종목 풀(20개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
+한국 주식 모의 투자 시뮬레이션. 10명의 투자자(A~J)가 동일한 종목 풀(35개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
 
 - 시드머니: 각 500만원 (KRW)
 - 시장: KOSPI + KOSDAQ (yfinance 기반 실시간 시세)
@@ -173,7 +173,7 @@ cd web && pnpm build  # 빌드
 ## Key Preferences
 
 - stock_universe 종목 변경은 반드시 사용자 확인 후 진행 (임의 선정 금지)
-- 현재 20종목 → 자금 증가 시 50~100개로 확대 예정
+- 현재 35종목 → 자금 증가 시 50~100개로 확대 예정
 - 뉴스 파일에는 원문만 저장, 투자 판단은 투자자별 독립 수행
 
 ## Daily Pipeline Trigger

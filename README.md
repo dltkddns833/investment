@@ -20,7 +20,7 @@
 | J | 한따라 | 스마트머니 추종 | 매주 | 5~8 | `institutional_flow.py` (스텁) |
 
 - 시드머니: 각 500만원 (KRW)
-- 시장: KOSPI + KOSDAQ 20종목 (yfinance 기반 실시간 시세)
+- 시장: KOSPI + KOSDAQ 35종목 (yfinance 기반 실시간 시세)
 - 데이터 저장소: Supabase (PostgreSQL)
 
 ## 시뮬레이션 흐름
