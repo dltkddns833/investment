@@ -63,7 +63,7 @@ export default async function AnalysisPage() {
         <p className="text-xs text-gray-500 mb-4">
           보유 종목의 Jaccard 유사도. 셀을 클릭하면 공통/독자 종목을 확인할 수 있습니다.
         </p>
-        <OverlapMatrix investorNames={investorNames} overlaps={overlaps} />
+        <OverlapMatrix investorNames={investorNames} overlaps={overlaps} stockNames={Object.fromEntries(config.stock_universe.map((s) => [s.ticker, s.name]))} />
       </section>
 
       {/* Stock Popularity */}

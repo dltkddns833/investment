@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { PositionOverlap } from "@/lib/data";
 
 interface Props {
   investorNames: string[];
   overlaps: PositionOverlap[];
+  stockNames?: Record<string, string>;
 }
 
 function getColor(pct: number): string {
@@ -16,7 +17,8 @@ function getColor(pct: number): string {
   return "bg-slate-800 text-gray-500";
 }
 
-export default function OverlapMatrix({ investorNames, overlaps }: Props) {
+export default function OverlapMatrix({ investorNames, overlaps, stockNames = {} }: Props) {
+  const name = (ticker: string) => stockNames[ticker] ?? ticker;
   const [selected, setSelected] = useState<PositionOverlap | null>(null);
 
   const overlapMap = new Map<string, PositionOverlap>();
@@ -50,8 +52,8 @@ export default function OverlapMatrix({ investorNames, overlaps }: Props) {
         ))}
 
         {investorNames.map((rowName) => (
-          <>
-            <div key={`label-${rowName}`} className="text-[10px] text-gray-400 flex items-center justify-end pr-1 truncate">
+          <React.Fragment key={rowName}>
+            <div className="text-[10px] text-gray-400 flex items-center justify-end pr-1 truncate">
               {rowName.slice(0, 3)}
             </div>
             {investorNames.map((colName) => {
@@ -72,7 +74,7 @@ export default function OverlapMatrix({ investorNames, overlaps }: Props) {
                 </div>
               );
             })}
-          </>
+          </React.Fragment>
         ))}
       </div>
 
@@ -100,19 +102,19 @@ export default function OverlapMatrix({ investorNames, overlaps }: Props) {
             <div>
               <div className="text-gray-500 mb-1">{selected.investorA}만 보유</div>
               {selected.onlyA.length > 0
-                ? selected.onlyA.map((t) => <div key={t} className="text-gray-400">{t}</div>)
+                ? selected.onlyA.map((t) => <div key={t} className="text-gray-400">{name(t)}</div>)
                 : <div className="text-gray-600">없음</div>}
             </div>
             <div>
               <div className="text-emerald-400 mb-1">공통 보유</div>
               {selected.sharedTickers.length > 0
-                ? selected.sharedTickers.map((t) => <div key={t} className="text-gray-300">{t}</div>)
+                ? selected.sharedTickers.map((t) => <div key={t} className="text-gray-300">{name(t)}</div>)
                 : <div className="text-gray-600">없음</div>}
             </div>
             <div>
               <div className="text-gray-500 mb-1">{selected.investorB}만 보유</div>
               {selected.onlyB.length > 0
-                ? selected.onlyB.map((t) => <div key={t} className="text-gray-400">{t}</div>)
+                ? selected.onlyB.map((t) => <div key={t} className="text-gray-400">{name(t)}</div>)
                 : <div className="text-gray-600">없음</div>}
             </div>
           </div>
