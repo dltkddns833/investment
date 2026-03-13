@@ -1,5 +1,6 @@
 """포트폴리오 관리 모듈"""
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import holidays
 from supabase_client import supabase
 
 
@@ -66,7 +67,7 @@ def load_profile(investor_id):
     }
 
 
-def buy(investor_id, ticker, name, shares, price):
+def buy(investor_id, ticker, name, shares, price, date_str=None):
     """주식 매수"""
     portfolio = load_portfolio(investor_id)
     cost = shares * price
@@ -89,10 +90,11 @@ def buy(investor_id, ticker, name, shares, price):
         }
 
     # transactions 테이블에 INSERT
-    today = datetime.now().strftime("%Y-%m-%d")
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
     supabase.table("transactions").insert({
         "investor_id": investor_id,
-        "date": today,
+        "date": date_str,
         "type": "buy",
         "ticker": ticker,
         "name": name,
@@ -105,7 +107,7 @@ def buy(investor_id, ticker, name, shares, price):
     return True, f"{name} {shares}주 매수 완료 ({price:,}원 x {shares} = {cost:,}원)"
 
 
-def sell(investor_id, ticker, shares, price):
+def sell(investor_id, ticker, shares, price, date_str=None):
     """주식 매도"""
     portfolio = load_portfolio(investor_id)
 
@@ -127,10 +129,11 @@ def sell(investor_id, ticker, shares, price):
         del portfolio["holdings"][ticker]
 
     # transactions 테이블에 INSERT
-    today = datetime.now().strftime("%Y-%m-%d")
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
     supabase.table("transactions").insert({
         "investor_id": investor_id,
-        "date": today,
+        "date": date_str,
         "type": "sell",
         "ticker": ticker,
         "name": name,
@@ -231,8 +234,20 @@ def get_all_investors():
     return [r["id"] for r in rows]
 
 
+def count_business_days(start_date, end_date):
+    """두 날짜 사이의 영업일 수 계산 (주말 + 한국 공휴일 제외)"""
+    kr_holidays = holidays.KR(years=range(start_date.year, end_date.year + 1))
+    count = 0
+    current = start_date + timedelta(days=1)
+    while current <= end_date:
+        if current.weekday() < 5 and current not in kr_holidays:
+            count += 1
+        current += timedelta(days=1)
+    return count
+
+
 def is_rebalance_due(investor_id, current_date):
-    """리밸런싱 실행 여부 판단"""
+    """리밸런싱 실행 여부 판단 (영업일 기준)"""
     profile = load_profile(investor_id)
     portfolio = load_portfolio(investor_id)
     frequency = profile["rebalance_frequency_days"]
@@ -244,9 +259,9 @@ def is_rebalance_due(investor_id, current_date):
     if isinstance(current_date, str):
         current_date = datetime.strptime(current_date, "%Y-%m-%d").date()
     last_date = datetime.strptime(last, "%Y-%m-%d").date()
-    days_since = (current_date - last_date).days
 
-    return days_since >= frequency
+    business_days = count_business_days(last_date, current_date)
+    return business_days >= frequency
 
 
 def rebalance(investor_id, target_allocation, current_prices, current_date):
@@ -255,6 +270,8 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
     1) 매도 먼저 (목표 비중 초과 또는 목표에 없는 종목)
     2) 매수 실행 (목표 비중 미달 종목)
     3) last_rebalanced 업데이트
+
+    인메모리로 처리 후 마지막에 한 번만 DB 저장.
     """
     if isinstance(current_date, date):
         date_str = current_date.strftime("%Y-%m-%d")
@@ -268,6 +285,7 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
             total_asset += h["shares"] * current_prices[ticker]["price"]
 
     trades = []
+    pending_transactions = []
 
     # 1) 매도: 목표에 없거나 비중 초과 종목
     for ticker in list(portfolio["holdings"].keys()):
@@ -283,13 +301,29 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
         if diff > price:  # 1주 이상 매도 필요
             sell_shares = int(diff / price)
             if sell_shares > 0 and sell_shares <= h["shares"]:
-                success, msg = sell(investor_id, ticker, sell_shares, price)
-                if success:
-                    trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares, "price": price})
-                    portfolio = load_portfolio(investor_id)  # 갱신
+                revenue = sell_shares * price
+                profit = (price - h["avg_price"]) * sell_shares
+                name = h["name"]
+
+                portfolio["cash"] += revenue
+                h["shares"] -= sell_shares
+                if h["shares"] == 0:
+                    del portfolio["holdings"][ticker]
+
+                trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares, "price": price})
+                pending_transactions.append({
+                    "investor_id": investor_id,
+                    "date": date_str,
+                    "type": "sell",
+                    "ticker": ticker,
+                    "name": name,
+                    "shares": sell_shares,
+                    "price": price,
+                    "amount": revenue,
+                    "profit": profit,
+                })
 
     # 총 자산 재계산 (매도 후)
-    portfolio = load_portfolio(investor_id)
     total_asset = portfolio["cash"]
     for ticker, h in portfolio["holdings"].items():
         if ticker in current_prices:
@@ -311,17 +345,43 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
 
         if diff > price:  # 1주 이상 매수 필요
             buy_shares = int(diff / price)
-            portfolio = load_portfolio(investor_id)  # 최신 잔액 확인
             max_affordable = int(portfolio["cash"] / price)
             buy_shares = min(buy_shares, max_affordable)
 
             if buy_shares > 0:
-                success, msg = buy(investor_id, ticker, name, buy_shares, price)
-                if success:
-                    trades.append({"type": "buy", "ticker": ticker, "shares": buy_shares, "price": price})
+                cost = buy_shares * price
+                portfolio["cash"] -= cost
 
-    # 3) last_rebalanced 업데이트 + rebalance_history INSERT
-    portfolio = load_portfolio(investor_id)
+                if ticker in portfolio["holdings"]:
+                    existing = portfolio["holdings"][ticker]
+                    total_shares = existing["shares"] + buy_shares
+                    existing["avg_price"] = int(
+                        (existing["shares"] * existing["avg_price"] + cost) / total_shares
+                    )
+                    existing["shares"] = total_shares
+                else:
+                    portfolio["holdings"][ticker] = {
+                        "name": name,
+                        "shares": buy_shares,
+                        "avg_price": price,
+                    }
+
+                trades.append({"type": "buy", "ticker": ticker, "shares": buy_shares, "price": price})
+                pending_transactions.append({
+                    "investor_id": investor_id,
+                    "date": date_str,
+                    "type": "buy",
+                    "ticker": ticker,
+                    "name": name,
+                    "shares": buy_shares,
+                    "price": price,
+                    "amount": cost,
+                })
+
+    # 3) DB 저장 (배치)
+    if pending_transactions:
+        supabase.table("transactions").insert(pending_transactions).execute()
+
     portfolio["last_rebalanced"] = date_str
 
     total_asset_after = portfolio["cash"] + sum(

@@ -6,6 +6,7 @@ C는 변동성 낮고 시총 큰 우량주를 선호.
 import sys
 import os
 import math
+import yfinance as yf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
 
@@ -52,8 +53,17 @@ def get_quality_metrics(tickers=None):
             else:
                 volatility_tier = "high"
 
-            # 시가총액 티어 (config에서 로드, 없으면 mid)
-            market_cap_tier = info.get("market_cap_tier", "mid")
+            # 시가총액 티어 (yfinance에서 동적 조회)
+            try:
+                market_cap = yf.Ticker(ticker).fast_info.get("marketCap", 0) or 0
+                if market_cap >= 10_000_000_000_000:  # 10조원 이상
+                    market_cap_tier = "large"
+                elif market_cap >= 1_000_000_000_000:  # 1조원 이상
+                    market_cap_tier = "mid"
+                else:
+                    market_cap_tier = "small"
+            except Exception:
+                market_cap_tier = info.get("market_cap_tier", "mid")
 
             # 안정성 점수 (10점 만점)
             # 변동성 점수: low=4, medium=2, high=0
