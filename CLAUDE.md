@@ -33,8 +33,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 python3 scripts/core/market.py
 
 # 시뮬레이션 실행 (배분이 미리 Supabase에 저장되어 있어야 함)
-python3 scripts/core/simulate.py              # 오늘 날짜
-python3 scripts/core/simulate.py 2026-03-10   # 특정 날짜
+python3 scripts/core/simulate.py              # 오늘 날짜 (시가 체결)
+python3 scripts/core/simulate.py 2026-03-10   # 특정 날짜 (시가 체결)
+python3 scripts/core/simulate.py 2026-03-10 --close  # 종가 반영 (장마감 후)
 
 # 파이프라인 상태 확인
 python3 scripts/core/daily_pipeline.py 2026-03-10
@@ -87,10 +88,12 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 [오전] 뉴스 수집 → 배분 결정 → 시뮬레이션 (시가 체결)
   → market.py (price_type="open") → portfolio.py → daily_reports 저장
 
-[장마감 후] 스토리텔링 (코멘터리 + 투자자 일기)
-  → 종가 확정 후 daily_reports 기반 콘텐츠 생성 → daily_stories 저장
+[장마감 후] 종가 반영 → 스토리텔링 (코멘터리 + 투자자 일기)
+  → simulate.py --close (종가로 daily_reports 갱신)
+  → 종가 반영된 daily_reports 기반 콘텐츠 생성 → daily_stories 저장
 
-[대시보드] 16:00 이후 접속 시 Yahoo Finance 종가 자동 조회 → 포트폴리오 재계산
+[대시보드] 장중에는 Yahoo Finance 실시간 시세로 포트폴리오 재계산 (useLiveRankings)
+  → 장마감 후에는 종가 반영된 daily_reports 데이터 표시
 ```
 
 **핵심 분리 원칙:** `simulate.py`는 배분을 결정하지 않는다. Supabase에 사전 저장된 allocation만 실행한다. 뉴스 수집과 배분 판단은 Claude가 투자자 프로필 성향에 맞춰 수행.
@@ -103,7 +106,7 @@ scripts/
     supabase_client.py   Supabase 클라이언트 초기화
     market.py            yfinance 시세 조회 (open/close)
     portfolio.py         매수/매도/평가/리밸런싱
-    simulate.py          일일 시뮬레이션 오케스트레이터
+    simulate.py          일일 시뮬레이션 오케스트레이터 + 종가 업데이트
     daily_pipeline.py    뉴스/배분/스토리 저장 헬퍼
   modules/           # 투자자별 데이터 분석 모듈
     momentum_data.py       모멘텀/수익률 (A, D용)
@@ -228,7 +231,12 @@ cd web && pnpm build  # 빌드
 
 > **장마감(15:30) 이후 실행 권장** — 종가가 확정된 후 코멘터리를 작성해야 당일 시장 동향이 정확하게 반영된다.
 
-`daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
+#### Step 0: 종가 반영
+- `python3 scripts/core/simulate.py {date} --close` 실행
+- 종가(Close) 기준으로 market_prices, 포트폴리오 평가, 순위를 재계산하여 `daily_reports` 업데이트
+- 매매 정보(trades_today, rebalanced_today)는 기존 시가 체결 데이터를 그대로 유지
+
+종가 반영된 `daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
 
 **데일리 코멘터리** (2~4문장)
 - rankings, market_prices, investor_details를 분석하여 한국어 마켓 코멘터리 생성

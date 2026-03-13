@@ -176,6 +176,107 @@ def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_res
     return report
 
 
+def update_closing_prices(date_str=None):
+    """장마감 후 종가로 daily_reports 업데이트
+
+    매매 정보(trades_today, rebalanced_today 등)는 유지하고
+    시세와 포트폴리오 평가만 종가 기준으로 갱신한다.
+    """
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+    print(f"\n{'='*60}")
+    print(f" 종가 업데이트: {date_str}")
+    print(f"{'='*60}")
+
+    # 기존 리포트 로드
+    existing = supabase.table("daily_reports").select("*").eq("date", date_str).execute().data
+    if not existing:
+        print("[오류] 해당 날짜의 리포트가 없습니다")
+        return None
+
+    prev_report = existing[0]
+
+    # 종가 조회
+    print(f"\n [종가 조회 중...]")
+    closing_prices = get_stock_prices(price_type="close")
+    if not closing_prices:
+        print("[오류] 종가 조회 실패")
+        return None
+
+    for ticker, data in closing_prices.items():
+        print(f"  {data['name']}: {data['price']:,}원 ({'+' if data['change_pct'] >= 0 else ''}{data['change_pct']:.2f}%)")
+
+    # 종가 기준으로 포트폴리오 재평가
+    investors = get_all_investors()
+    results = []
+
+    print(f"\n [종가 기준 재평가]")
+    for inv_id in sorted(investors):
+        result = evaluate(inv_id, closing_prices)
+        profile = load_profile(inv_id)
+        portfolio = load_portfolio(inv_id)
+
+        # 매매 정보는 기존 리포트에서 유지
+        prev_detail = prev_report["investor_details"].get(result["investor"], {})
+        result["rebalance_frequency_days"] = profile["rebalance_frequency_days"]
+        result["rebalanced_today"] = prev_detail.get("rebalanced_today", False)
+        result["total_rebalances"] = prev_detail.get("total_rebalances", 0)
+        result["trades_today"] = prev_detail.get("trades_today", [])
+        results.append(result)
+
+        sign = "+" if result["total_return"] >= 0 else ""
+        print(f"  {result['investor']}: {result['total_asset']:,}원 ({sign}{result['total_return_pct']:.2f}%)")
+
+    results.sort(key=lambda x: x["total_return_pct"], reverse=True)
+
+    report = {
+        "date": date_str,
+        "generated_at": datetime.now().isoformat(),
+        "market_prices": {
+            ticker: {
+                "name": data["name"],
+                "price": data["price"],
+                "change_pct": data["change_pct"],
+            }
+            for ticker, data in closing_prices.items()
+        },
+        "rankings": [
+            {
+                "rank": i + 1,
+                "investor": r["investor"],
+                "strategy": r["strategy"],
+                "total_asset": r["total_asset"],
+                "total_return": r["total_return"],
+                "total_return_pct": r["total_return_pct"],
+                "num_holdings": r["num_holdings"],
+                "cash_ratio": r["cash_ratio"],
+                "rebalance_frequency_days": r["rebalance_frequency_days"],
+                "rebalanced_today": r["rebalanced_today"],
+                "total_rebalances": r["total_rebalances"],
+            }
+            for i, r in enumerate(results)
+        ],
+        "investor_details": {r["investor"]: r for r in results},
+    }
+
+    supabase.table("daily_reports").upsert({
+        "date": date_str,
+        "generated_at": report["generated_at"],
+        "market_prices": report["market_prices"],
+        "rankings": report["rankings"],
+        "investor_details": report["investor_details"],
+    }).execute()
+
+    print(f"\n 종가 반영 완료: daily_reports/{date_str}")
+    print(f"{'='*60}\n")
+
+    return report
+
+
 if __name__ == "__main__":
     target_date = sys.argv[1] if len(sys.argv) > 1 else None
-    run_simulation(target_date)
+    if len(sys.argv) > 2 and sys.argv[2] == "--close":
+        update_closing_prices(target_date)
+    else:
+        run_simulation(target_date)
