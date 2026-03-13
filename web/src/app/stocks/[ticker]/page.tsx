@@ -82,6 +82,9 @@ export default async function StockDetailPage({ params }: Props) {
           </span>
         </div>
         <p className="text-gray-500 text-sm mt-1">{decodedTicker}</p>
+        {stockInfo.description && (
+          <p className="text-gray-400 text-sm mt-3 leading-relaxed">{stockInfo.description}</p>
+        )}
         {marketPrice && (
           <LiveStockPrice
             ticker={decodedTicker}

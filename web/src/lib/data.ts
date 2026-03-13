@@ -6,6 +6,7 @@ export interface StockUniverse {
   ticker: string;
   name: string;
   sector: string;
+  description?: string;
 }
 
 export interface InvestorConfig {
