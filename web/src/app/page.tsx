@@ -25,7 +25,7 @@ function getMarketStatus(): MarketStatus {
   if (day === 0 || day === 6) return "closed";
   const t = now.getHours() * 60 + now.getMinutes();
   if (t < 540) return "pre"; // < 09:00
-  if (t < 960) return "open"; // < 16:00
+  if (t < 930) return "open"; // < 15:30
   return "closed";
 }
 

@@ -38,7 +38,6 @@ src/
     PeriodSelector.tsx        ← 투자자 탭 + 월 이동
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바
-    StockPriceChart.tsx       ← 종목 가격 라인 차트
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -57,7 +56,6 @@ src/
 - `getDailyStories(date)` → `daily_stories` 테이블 (코멘터리 & 투자자 일기)
 - `getDailyReturns(investorName, year, month)` → 히트맵용 일별 수익률
 - `getPeriodSummary(startDate, endDate)` → 기간별 투자자 성과 요약
-- `getStockPriceHistory(ticker)` → 종목 가격 추이
 - `getStockTransactions(ticker)` → 종목별 거래내역
 - `getLatestReportDate()` → `daily_reports` 최신 date
 

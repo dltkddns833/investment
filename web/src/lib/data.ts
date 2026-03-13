@@ -164,11 +164,6 @@ export interface PeriodSummary {
   trading_days: number;
 }
 
-export interface StockPriceSnapshot {
-  date: string;
-  price: number;
-  change_pct: number;
-}
 
 export interface StockTransaction {
   date: string;
@@ -483,24 +478,6 @@ export async function getPeriodSummary(
   return results;
 }
 
-export async function getStockPriceHistory(
-  ticker: string
-): Promise<StockPriceSnapshot[]> {
-  const { data } = await supabase
-    .from("daily_reports")
-    .select("date, market_prices")
-    .order("date", { ascending: true });
-
-  if (!data) return [];
-
-  return data
-    .filter((row) => row.market_prices?.[ticker])
-    .map((row) => ({
-      date: row.date,
-      price: row.market_prices[ticker].price,
-      change_pct: row.market_prices[ticker].change_pct,
-    }));
-}
 
 export async function getStockTransactions(
   ticker: string

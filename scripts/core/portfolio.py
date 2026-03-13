@@ -192,7 +192,7 @@ def evaluate(investor_id, current_prices):
         "total_return_pct": round(total_return_pct, 2),
         "holdings": holdings_detail,
         "num_holdings": len(holdings_detail),
-        "cash_ratio": round(portfolio["cash"] / total_asset * 100, 1),
+        "cash_ratio": round(portfolio["cash"] / total_asset * 100, 1) if total_asset else 0,
     }
 
 
