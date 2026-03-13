@@ -363,7 +363,8 @@ export interface AllAssetSnapshot {
 }
 
 export async function getAllAssetHistory(
-  investorNames: string[]
+  investorNames: string[],
+  initialCapital: number = 5_000_000
 ): Promise<AllAssetSnapshot[]> {
   const { data } = await supabase
     .from("daily_reports")
@@ -375,7 +376,7 @@ export async function getAllAssetHistory(
   return data.map((row) => {
     const snapshot: AllAssetSnapshot = { date: row.date };
     for (const name of investorNames) {
-      snapshot[name] = row.investor_details?.[name]?.total_asset ?? 0;
+      snapshot[name] = row.investor_details?.[name]?.total_asset ?? initialCapital;
     }
     return snapshot;
   });
@@ -809,7 +810,8 @@ export async function getBadges(): Promise<Badge[]> {
 
 export async function getVersusData(
   investorA: string,
-  investorB: string
+  investorB: string,
+  initialCapital: number = 5_000_000
 ): Promise<{
   assetHistory: { date: string; [key: string]: number | string }[];
   returnDiff: { date: string; diff: number }[];
@@ -819,18 +821,18 @@ export async function getVersusData(
 
   const assetHistory = reports.map((r) => ({
     date: r.date,
-    [investorA]: r.investor_details[investorA]?.total_asset ?? 0,
-    [investorB]: r.investor_details[investorB]?.total_asset ?? 0,
+    [investorA]: r.investor_details[investorA]?.total_asset ?? initialCapital,
+    [investorB]: r.investor_details[investorB]?.total_asset ?? initialCapital,
   }));
 
   const returnDiff: { date: string; diff: number }[] = [];
   let winsA = 0, winsB = 0, draws = 0;
 
   for (let i = 1; i < reports.length; i++) {
-    const prevA = reports[i - 1].investor_details[investorA]?.total_asset ?? 0;
-    const currA = reports[i].investor_details[investorA]?.total_asset ?? 0;
-    const prevB = reports[i - 1].investor_details[investorB]?.total_asset ?? 0;
-    const currB = reports[i].investor_details[investorB]?.total_asset ?? 0;
+    const prevA = reports[i - 1].investor_details[investorA]?.total_asset ?? initialCapital;
+    const currA = reports[i].investor_details[investorA]?.total_asset ?? initialCapital;
+    const prevB = reports[i - 1].investor_details[investorB]?.total_asset ?? initialCapital;
+    const currB = reports[i].investor_details[investorB]?.total_asset ?? initialCapital;
     const retA = prevA > 0 ? ((currA - prevA) / prevA) * 100 : 0;
     const retB = prevB > 0 ? ((currB - prevB) / prevB) * 100 : 0;
     const diff = retA - retB;
