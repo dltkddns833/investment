@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import MobileHeader from "@/components/MobileHeader";
 import { getConfig } from "@/lib/data";
 import { LivePriceProvider } from "@/lib/live-prices";
+import ScrollToTop from "@/components/ScrollToTop";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,6 +58,7 @@ export default async function RootLayout({
             <div className="gradient-separator" />
             <main className="flex-1 p-4 md:p-6 lg:p-8">
               <LivePriceProvider tickers={tickers}>
+                <ScrollToTop />
                 {children}
               </LivePriceProvider>
             </main>
