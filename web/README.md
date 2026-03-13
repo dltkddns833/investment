@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 모의 투자 대시보드
 
-## Getting Started
+> **배포 URL**: https://investment-phi-six.vercel.app/
 
-First, run the development server:
+Next.js 15 + TypeScript + Tailwind CSS + Recharts 기반 시뮬레이션 결과 시각화 대시보드.
+
+## 실행
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev     # localhost:4000
+pnpm build   # 프로덕션 빌드
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Node 20+ 필요.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 환경변수
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`.env.local` 파일에 다음 변수 필요:
 
-## Learn More
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 페이지 구성
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 경로 | 설명 |
+|------|------|
+| `/` | 투자자 순위, 마켓 코멘터리, 시장 현황, 뉴스 |
+| `/investors/[id]` | 투자자 일기, 자산 추이 차트, 목표 배분, 보유종목, 거래내역 |
+| `/reports` | 달력 히트맵, 월간 수익률 |
+| `/stocks` | 섹터 히트맵, 투자자별 섹터 비중, 전체 종목 리스트 |
+| `/stocks/[ticker]` | Yahoo Finance 가격 차트(1M/3M/6M/1Y), 보유 투자자, 거래내역 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 실시간 가격
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **장중** (09:00~15:30): Yahoo Finance에서 실시간 가격 조회, LIVE 뱃지 표시
+- **장마감 후** (15:30~): 종가 자동 조회, 종가 뱃지 표시, 포트폴리오 재계산
+- API: `/api/live-prices` (현재가), `/api/stock-chart` (OHLC 차트 데이터)
