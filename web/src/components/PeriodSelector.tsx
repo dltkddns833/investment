@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import InvestorAvatar from "./InvestorAvatar";
 
 interface Investor {
   id: string;
@@ -83,12 +84,13 @@ export default function PeriodSelector({
           <button
             key={inv.id}
             onClick={() => navigate(inv.id, year, month)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               currentInvestor === inv.id
                 ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
                 : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
             }`}
           >
+            <InvestorAvatar investorId={inv.id} size="sm" />
             {inv.name}
           </button>
         ))}

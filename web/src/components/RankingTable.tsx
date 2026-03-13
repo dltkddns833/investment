@@ -6,6 +6,7 @@ import { RankingEntry, InvestorDetail } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
 import { useLiveRankings } from "@/lib/use-live-portfolio";
 import DataTable from "./DataTable";
+import InvestorAvatar from "./InvestorAvatar";
 
 interface Props {
   rankings: RankingEntry[];
@@ -36,8 +37,9 @@ function getColumns() {
       cell: (info) => (
         <Link
           href={`/investors/${info.row.original._investorId}`}
-          className="text-blue-400 hover:text-blue-300 hover:underline font-medium transition-colors"
+          className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 hover:underline font-medium transition-colors"
         >
+          <InvestorAvatar investorId={info.row.original._investorId} size="sm" />
           {info.getValue()}
         </Link>
       ),

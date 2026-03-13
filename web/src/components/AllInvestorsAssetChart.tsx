@@ -12,25 +12,13 @@ import {
 } from "recharts";
 import { AllAssetSnapshot } from "@/lib/data";
 import { krw } from "@/lib/format";
+import { INVESTOR_COLOR_ARRAY } from "@/lib/investor-colors";
 
 interface Props {
   data: AllAssetSnapshot[];
   investorNames: string[];
   initialCapital: number;
 }
-
-const COLORS = [
-  "#ef4444", // 강돌진 - red
-  "#3b82f6", // 김균형 - blue
-  "#22c55e", // 이든든 - green
-  "#f59e0b", // 장반대 - amber
-  "#8b5cf6", // 정기준 - violet
-  "#ec4899", // 윤순환 - pink
-  "#06b6d4", // 문여론 - cyan
-  "#14b8a6", // 박기술 - teal
-  "#f97316", // 최배당 - orange
-  "#a855f7", // 한따라 - purple
-];
 
 const tooltipStyle = {
   background: "rgba(15, 23, 42, 0.9)",
@@ -95,7 +83,7 @@ export default function AllInvestorsAssetChart({
             key={name}
             type="monotone"
             dataKey={name}
-            stroke={COLORS[i % COLORS.length]}
+            stroke={INVESTOR_COLOR_ARRAY[i % INVESTOR_COLOR_ARRAY.length]}
             strokeWidth={2}
             dot={data.length <= 10}
             activeDot={{ r: 4 }}

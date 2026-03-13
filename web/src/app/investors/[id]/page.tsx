@@ -14,6 +14,8 @@ import AssetChart from "@/components/AssetChart";
 import LiveInvestorSummary from "@/components/LiveInvestorSummary";
 import LiveInvestorDetail from "@/components/LiveInvestorDetail";
 import BadgeList from "@/components/BadgeList";
+import InvestorAvatar from "@/components/InvestorAvatar";
+import { getMethodology } from "@/lib/methodology";
 
 export const dynamic = "force-dynamic";
 
@@ -48,14 +50,20 @@ export default async function InvestorPage({ params }: Props) {
   const investorBadges = allBadges.filter((b) => b.investor === profile.name);
   const detail = report?.investor_details[profile.name];
   const diary = stories?.diaries?.[profile.name];
+  const methodology = getMethodology(id);
 
   return (
     <div className="space-y-6 md:space-y-8">
       {/* Header Hero */}
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
-        <h1 className="text-2xl md:text-3xl font-bold">{profile.name}</h1>
-        <p className="text-gray-400 mt-1">{profile.strategy}</p>
-        <p className="text-gray-500 text-sm mt-2">{profile.description}</p>
+        <div className="flex items-center gap-3 md:gap-4">
+          <InvestorAvatar investorId={id} size="lg" />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">{profile.name}</h1>
+            <p className="text-gray-400 mt-1">{profile.strategy}</p>
+          </div>
+        </div>
+        <p className="text-gray-500 text-sm mt-3">{profile.description}</p>
       </div>
 
       {/* Badges */}
@@ -138,6 +146,74 @@ export default async function InvestorPage({ params }: Props) {
       {portfolio.transactions.length > 0 && (
         <section className="glass-card overflow-hidden animate-in">
           <TransactionTable transactions={portfolio.transactions} />
+        </section>
+      )}
+
+      {/* Methodology */}
+      {methodology && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-4 section-header">투자 방법론</h2>
+          <div className="space-y-3">
+            <div>
+              <span className="text-xs text-gray-500">방법론</span>
+              <p className="text-sm text-blue-300 font-medium mt-0.5">
+                {methodology.method}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500">대표 인물</span>
+              <p className="text-sm text-gray-300 mt-0.5">
+                {methodology.representative}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500">핵심 원리</span>
+              <p className="text-sm text-gray-300 mt-0.5 leading-relaxed">
+                {methodology.core}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500">학술 / 실증 근거</span>
+              <p className="text-sm text-gray-400 mt-0.5 leading-relaxed">
+                {methodology.evidence}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500">유사 전략</span>
+              <p className="text-sm text-purple-300/80 mt-0.5">
+                {methodology.similar}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500">참고 자료</span>
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {methodology.links.map((link) => (
+                  <a
+                    key={link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400 hover:text-blue-300 hover:border-blue-400/30 transition-colors"
+                  >
+                    <span>{link.label}</span>
+                    <svg
+                      className="w-3 h-3 shrink-0 opacity-50"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
+                    </svg>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
         </section>
       )}
 

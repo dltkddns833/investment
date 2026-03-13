@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { krw, signColor } from "@/lib/format";
 import { useLivePrices } from "@/lib/live-prices";
+import InvestorAvatar from "./InvestorAvatar";
 
 interface Holder {
   name: string;
@@ -59,8 +60,9 @@ export default function LiveStockHolders({ ticker, holders }: Props) {
               <td className="py-2.5 px-4">
                 <Link
                   href={`/investors/${h.investorId}`}
-                  className="font-medium hover:text-blue-400 transition-colors"
+                  className="inline-flex items-center gap-2 font-medium hover:text-blue-400 transition-colors"
                 >
+                  <InvestorAvatar investorId={h.investorId} size="sm" />
                   {h.name}
                 </Link>
               </td>

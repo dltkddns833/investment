@@ -10,13 +10,10 @@ import VersusChart from "@/components/VersusChart";
 import VersusReturnDiff from "@/components/VersusReturnDiff";
 import VersusPositionCompare from "@/components/VersusPositionCompare";
 import Link from "next/link";
+import InvestorAvatar from "@/components/InvestorAvatar";
+import { getInvestorHex } from "@/lib/investor-colors";
 
 export const dynamic = "force-dynamic";
-
-const COLORS: Record<string, string> = {
-  A: "#ef4444", B: "#3b82f6", C: "#22c55e", D: "#f59e0b", E: "#8b5cf6",
-  F: "#ec4899", G: "#06b6d4", H: "#14b8a6", I: "#f97316", J: "#a855f7",
-};
 
 interface Props {
   params: Promise<{ matchup: string }>;
@@ -63,16 +60,18 @@ export default async function VersusDetailPage({ params }: Props) {
       {/* Hero Header */}
       <div className="animate-in rounded-2xl bg-gradient-to-br from-red-500/5 via-purple-500/5 to-blue-500/5 p-4 md:p-6 border border-white/5">
         <div className="flex items-center justify-between gap-4">
-          <Link href={`/investors/${idA}`} className="text-center flex-1 hover:opacity-80 transition-opacity">
-            <div className="text-xl md:text-2xl font-bold" style={{ color: COLORS[idA] }}>{profileA.name}</div>
-            <div className="text-xs text-gray-500 mt-1">{profileA.strategy}</div>
+          <Link href={`/investors/${idA}`} className="flex flex-col items-center flex-1 gap-2 hover:opacity-80 transition-opacity">
+            <InvestorAvatar investorId={idA} size="lg" />
+            <div className="text-xl md:text-2xl font-bold" style={{ color: getInvestorHex(idA) }}>{profileA.name}</div>
+            <div className="text-xs text-gray-500">{profileA.strategy}</div>
           </Link>
           <div className="shrink-0 px-4 py-2 rounded-full bg-gradient-to-r from-red-500/20 to-blue-500/20 text-lg font-bold text-gray-300">
             VS
           </div>
-          <Link href={`/investors/${idB}`} className="text-center flex-1 hover:opacity-80 transition-opacity">
-            <div className="text-xl md:text-2xl font-bold" style={{ color: COLORS[idB] }}>{profileB.name}</div>
-            <div className="text-xs text-gray-500 mt-1">{profileB.strategy}</div>
+          <Link href={`/investors/${idB}`} className="flex flex-col items-center flex-1 gap-2 hover:opacity-80 transition-opacity">
+            <InvestorAvatar investorId={idB} size="lg" />
+            <div className="text-xl md:text-2xl font-bold" style={{ color: getInvestorHex(idB) }}>{profileB.name}</div>
+            <div className="text-xs text-gray-500">{profileB.strategy}</div>
           </Link>
         </div>
       </div>
@@ -81,8 +80,8 @@ export default async function VersusDetailPage({ params }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-in">
         <div className="glass-card p-3 text-center">
           <div className="text-[10px] text-gray-500 mb-1">총자산</div>
-          <div className="text-sm font-bold" style={{ color: COLORS[idA] }}>{krw(detailA.total_asset)}</div>
-          <div className="text-sm font-bold mt-1" style={{ color: COLORS[idB] }}>{krw(detailB.total_asset)}</div>
+          <div className="text-sm font-bold" style={{ color: getInvestorHex(idA) }}>{krw(detailA.total_asset)}</div>
+          <div className="text-sm font-bold mt-1" style={{ color: getInvestorHex(idB) }}>{krw(detailB.total_asset)}</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-[10px] text-gray-500 mb-1">수익률</div>
@@ -91,13 +90,13 @@ export default async function VersusDetailPage({ params }: Props) {
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-[10px] text-gray-500 mb-1">일별 승리</div>
-          <div className="text-sm font-bold" style={{ color: COLORS[idA] }}>{versusData.headToHead.winsA}일</div>
-          <div className="text-sm font-bold mt-1" style={{ color: COLORS[idB] }}>{versusData.headToHead.winsB}일</div>
+          <div className="text-sm font-bold" style={{ color: getInvestorHex(idA) }}>{versusData.headToHead.winsA}일</div>
+          <div className="text-sm font-bold mt-1" style={{ color: getInvestorHex(idB) }}>{versusData.headToHead.winsB}일</div>
         </div>
         <div className="glass-card p-3 text-center">
           <div className="text-[10px] text-gray-500 mb-1">보유 종목</div>
-          <div className="text-sm font-bold" style={{ color: COLORS[idA] }}>{detailA.num_holdings}종목</div>
-          <div className="text-sm font-bold mt-1" style={{ color: COLORS[idB] }}>{detailB.num_holdings}종목</div>
+          <div className="text-sm font-bold" style={{ color: getInvestorHex(idA) }}>{detailA.num_holdings}종목</div>
+          <div className="text-sm font-bold mt-1" style={{ color: getInvestorHex(idB) }}>{detailB.num_holdings}종목</div>
         </div>
       </div>
 
@@ -109,8 +108,8 @@ export default async function VersusDetailPage({ params }: Props) {
           investorA={profileA.name}
           investorB={profileB.name}
           initialCapital={config.simulation.initial_capital}
-          colorA={COLORS[idA]}
-          colorB={COLORS[idB]}
+          colorA={getInvestorHex(idA)}
+          colorB={getInvestorHex(idB)}
         />
       </section>
 

@@ -51,10 +51,14 @@ src/
     InvestorPairSelector.tsx  ← 투자자 선택 드롭다운
     WeeklyHighlights.tsx      ← 주간 MVP/꼴찌/연승 카드
     BadgeList.tsx             ← 투자자 뱃지 목록
+    InvestorAvatar.tsx        ← 투자자 카툰 아바타 (대표 인물 기반 SVG)
+    AllInvestorsAssetChart.tsx ← 전체 투자자 자산 추이 라인 차트
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
     format.ts                 ← 포맷 유틸 (krw, pct, signColor)
+    investor-colors.ts        ← 투자자 고유 컬러 시스템 (전체 앱에서 일관 사용)
+    methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터
 ```
 
 ## Data Layer
@@ -96,3 +100,5 @@ src/
 - 한국 주식 색상: 상승=빨강(`text-red-500`), 하락=파랑(`text-blue-500`)
 - 금액 포맷: `krw()`, 퍼센트: `pct()`, 색상: `signColor()`
 - `export const dynamic = "force-dynamic"` — 페이지가 항상 최신 데이터 반영
+- 투자자 고유 색상: `investor-colors.ts`의 `getInvestorColor(id)` / `getInvestorHex(id)` 사용 — 하드코딩 금지
+- 투자자 아바타: `<InvestorAvatar investorId="A" size="sm|md|lg" />` — 이름 옆에 표시

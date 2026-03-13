@@ -2,6 +2,7 @@
 
 import type { WeeklyMVP, InvestorStreak } from "@/lib/data";
 import { pct, signColor } from "@/lib/format";
+import InvestorAvatar, { investorIdByName } from "./InvestorAvatar";
 
 interface Props {
   latestWeek: WeeklyMVP | null;
@@ -19,15 +20,25 @@ export default function WeeklyHighlights({ latestWeek, streaks }: Props) {
         <>
           <div className="glass-card p-3">
             <div className="text-[10px] text-gray-500 mb-1">이번 주 MVP</div>
-            <div className="text-sm font-bold text-amber-400">{latestWeek.mvp.investor}</div>
-            <div className={`text-xs ${signColor(latestWeek.mvp.returnPct)}`}>
+            <div className="flex items-center gap-1.5">
+              {investorIdByName(latestWeek.mvp.investor) && (
+                <InvestorAvatar investorId={investorIdByName(latestWeek.mvp.investor)!} size="sm" />
+              )}
+              <div className="text-sm font-bold text-amber-400">{latestWeek.mvp.investor}</div>
+            </div>
+            <div className={`text-xs mt-0.5 ${signColor(latestWeek.mvp.returnPct)}`}>
               {pct(latestWeek.mvp.returnPct)}
             </div>
           </div>
           <div className="glass-card p-3">
             <div className="text-[10px] text-gray-500 mb-1">이번 주 꼴찌</div>
-            <div className="text-sm font-bold text-gray-400">{latestWeek.worst.investor}</div>
-            <div className={`text-xs ${signColor(latestWeek.worst.returnPct)}`}>
+            <div className="flex items-center gap-1.5">
+              {investorIdByName(latestWeek.worst.investor) && (
+                <InvestorAvatar investorId={investorIdByName(latestWeek.worst.investor)!} size="sm" />
+              )}
+              <div className="text-sm font-bold text-gray-400">{latestWeek.worst.investor}</div>
+            </div>
+            <div className={`text-xs mt-0.5 ${signColor(latestWeek.worst.returnPct)}`}>
               {pct(latestWeek.worst.returnPct)}
             </div>
           </div>

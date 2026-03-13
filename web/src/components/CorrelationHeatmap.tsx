@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { CorrelationEntry } from "@/lib/data";
 
 interface Props {
@@ -53,8 +53,8 @@ export default function CorrelationHeatmap({ investorNames, correlations }: Prop
 
         {/* Data rows */}
         {investorNames.map((rowName) => (
-          <>
-            <div key={`label-${rowName}`} className="text-[10px] text-gray-400 flex items-center justify-end pr-1 truncate">
+          <React.Fragment key={rowName}>
+            <div className="text-[10px] text-gray-400 flex items-center justify-end pr-1 truncate">
               {rowName.slice(0, 3)}
             </div>
             {investorNames.map((colName) => {
@@ -82,7 +82,7 @@ export default function CorrelationHeatmap({ investorNames, correlations }: Prop
                 </div>
               );
             })}
-          </>
+          </React.Fragment>
         ))}
       </div>
 
