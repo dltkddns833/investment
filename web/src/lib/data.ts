@@ -513,3 +513,332 @@ export async function getLatestReportDate(): Promise<string | null> {
     .limit(1);
   return data && data.length > 0 ? data[0].date : null;
 }
+
+// --- Issue #2: 투자자 간 상관관계 & 대결 구도 ---
+
+export interface CorrelationEntry {
+  investorA: string;
+  investorB: string;
+  correlation: number;
+}
+
+export interface PositionOverlap {
+  investorA: string;
+  investorB: string;
+  overlap: number;
+  sharedTickers: string[];
+  onlyA: string[];
+  onlyB: string[];
+}
+
+export interface StockPopularity {
+  ticker: string;
+  name: string;
+  sector: string;
+  holders: string[];
+  holderCount: number;
+}
+
+export interface InvestorStreak {
+  investor: string;
+  currentRank1Streak: number;
+  bestRank1Streak: number;
+}
+
+export interface WeeklyMVP {
+  weekStart: string;
+  weekEnd: string;
+  mvp: { investor: string; returnPct: number };
+  worst: { investor: string; returnPct: number };
+}
+
+export interface Badge {
+  investor: string;
+  type: string;
+  date: string;
+  description: string;
+}
+
+interface DailyReportRow {
+  date: string;
+  rankings: RankingEntry[];
+  investor_details: Record<string, InvestorDetail>;
+}
+
+function pearsonCorrelation(x: number[], y: number[]): number {
+  const n = x.length;
+  if (n < 2) return 0;
+  const meanX = x.reduce((a, b) => a + b, 0) / n;
+  const meanY = y.reduce((a, b) => a + b, 0) / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - meanX;
+    const dy = y[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den === 0 ? 0 : num / den;
+}
+
+export async function getAllDailyReports(): Promise<DailyReportRow[]> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("date, rankings, investor_details")
+    .order("date", { ascending: true });
+  return (data ?? []) as DailyReportRow[];
+}
+
+export async function getReturnCorrelationMatrix(
+  investorNames: string[]
+): Promise<CorrelationEntry[]> {
+  const reports = await getAllDailyReports();
+  if (reports.length < 3) return [];
+
+  // Build daily return series per investor
+  const returnSeries: Record<string, number[]> = {};
+  for (const name of investorNames) returnSeries[name] = [];
+
+  for (let i = 1; i < reports.length; i++) {
+    for (const name of investorNames) {
+      const prev = reports[i - 1].investor_details?.[name]?.total_asset ?? 0;
+      const curr = reports[i].investor_details?.[name]?.total_asset ?? 0;
+      const ret = prev > 0 ? (curr - prev) / prev : 0;
+      returnSeries[name].push(ret);
+    }
+  }
+
+  // Compute pairwise correlation
+  const results: CorrelationEntry[] = [];
+  for (let i = 0; i < investorNames.length; i++) {
+    for (let j = i + 1; j < investorNames.length; j++) {
+      results.push({
+        investorA: investorNames[i],
+        investorB: investorNames[j],
+        correlation: pearsonCorrelation(
+          returnSeries[investorNames[i]],
+          returnSeries[investorNames[j]]
+        ),
+      });
+    }
+  }
+  return results;
+}
+
+export function getPositionOverlaps(
+  investorDetails: Record<string, InvestorDetail>
+): PositionOverlap[] {
+  const names = Object.keys(investorDetails);
+  const results: PositionOverlap[] = [];
+
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      const tickersA = new Set(Object.keys(investorDetails[names[i]].holdings));
+      const tickersB = new Set(Object.keys(investorDetails[names[j]].holdings));
+      const shared = [...tickersA].filter((t) => tickersB.has(t));
+      const onlyA = [...tickersA].filter((t) => !tickersB.has(t));
+      const onlyB = [...tickersB].filter((t) => !tickersA.has(t));
+      const union = new Set([...tickersA, ...tickersB]).size;
+      results.push({
+        investorA: names[i],
+        investorB: names[j],
+        overlap: union > 0 ? shared.length / union : 0,
+        sharedTickers: shared,
+        onlyA,
+        onlyB,
+      });
+    }
+  }
+  return results;
+}
+
+export function getStockPopularity(
+  investorDetails: Record<string, InvestorDetail>,
+  stockUniverse: StockUniverse[]
+): StockPopularity[] {
+  const holderMap = new Map<string, string[]>();
+  for (const [name, detail] of Object.entries(investorDetails)) {
+    for (const ticker of Object.keys(detail.holdings)) {
+      const list = holderMap.get(ticker) ?? [];
+      list.push(name);
+      holderMap.set(ticker, list);
+    }
+  }
+  return stockUniverse
+    .map((s) => ({
+      ticker: s.ticker,
+      name: s.name,
+      sector: s.sector,
+      holders: holderMap.get(s.ticker) ?? [],
+      holderCount: holderMap.get(s.ticker)?.length ?? 0,
+    }))
+    .sort((a, b) => b.holderCount - a.holderCount);
+}
+
+export async function getStreaks(): Promise<InvestorStreak[]> {
+  const reports = await getAllDailyReports();
+  if (reports.length === 0) return [];
+
+  const streakMap = new Map<string, { current: number; best: number }>();
+
+  for (const report of reports) {
+    const rank1 = report.rankings.find((r) => r.rank === 1);
+    if (!rank1) continue;
+    const winner = rank1.investor;
+
+    for (const [name, s] of streakMap) {
+      if (name !== winner) {
+        s.best = Math.max(s.best, s.current);
+        s.current = 0;
+      }
+    }
+    if (!streakMap.has(winner)) streakMap.set(winner, { current: 0, best: 0 });
+    streakMap.get(winner)!.current++;
+  }
+
+  // Finalize best
+  for (const s of streakMap.values()) {
+    s.best = Math.max(s.best, s.current);
+  }
+
+  return [...streakMap.entries()]
+    .map(([investor, s]) => ({
+      investor,
+      currentRank1Streak: s.current,
+      bestRank1Streak: s.best,
+    }))
+    .sort((a, b) => b.currentRank1Streak - a.currentRank1Streak);
+}
+
+function getISOWeek(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+export async function getWeeklyMVPs(): Promise<WeeklyMVP[]> {
+  const reports = await getAllDailyReports();
+  if (reports.length < 2) return [];
+
+  // Group by ISO week
+  const weeks = new Map<string, DailyReportRow[]>();
+  for (const r of reports) {
+    const w = getISOWeek(r.date);
+    if (!weeks.has(w)) weeks.set(w, []);
+    weeks.get(w)!.push(r);
+  }
+
+  const results: WeeklyMVP[] = [];
+  for (const [, weekReports] of weeks) {
+    if (weekReports.length < 1) continue;
+    const first = weekReports[0];
+    const last = weekReports[weekReports.length - 1];
+    const names = Object.keys(last.investor_details);
+
+    let mvp = { investor: "", returnPct: -Infinity };
+    let worst = { investor: "", returnPct: Infinity };
+
+    for (const name of names) {
+      const startAsset = first.investor_details[name]?.total_asset ?? 5000000;
+      const endAsset = last.investor_details[name]?.total_asset ?? 5000000;
+      const ret = startAsset > 0 ? ((endAsset - startAsset) / startAsset) * 100 : 0;
+      if (ret > mvp.returnPct) mvp = { investor: name, returnPct: ret };
+      if (ret < worst.returnPct) worst = { investor: name, returnPct: ret };
+    }
+
+    results.push({
+      weekStart: first.date,
+      weekEnd: last.date,
+      mvp,
+      worst,
+    });
+  }
+
+  return results.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+}
+
+export async function getBadges(): Promise<Badge[]> {
+  const reports = await getAllDailyReports();
+  if (reports.length === 0) return [];
+
+  const badges: Badge[] = [];
+  const earned = new Set<string>();
+
+  const addBadge = (investor: string, type: string, date: string, desc: string) => {
+    const key = `${investor}:${type}`;
+    if (earned.has(key)) return;
+    earned.add(key);
+    badges.push({ investor, type, date, description: desc });
+  };
+
+  // Track rank-1 streaks for badges
+  const rank1Streaks = new Map<string, number>();
+
+  for (const report of reports) {
+    const rank1 = report.rankings.find((r) => r.rank === 1);
+    if (rank1) {
+      for (const name of rank1Streaks.keys()) {
+        if (name !== rank1.investor) rank1Streaks.set(name, 0);
+      }
+      rank1Streaks.set(rank1.investor, (rank1Streaks.get(rank1.investor) ?? 0) + 1);
+      const streak = rank1Streaks.get(rank1.investor)!;
+      if (streak >= 3) addBadge(rank1.investor, "streak_3", report.date, "3일 연속 1위");
+      if (streak >= 5) addBadge(rank1.investor, "streak_5", report.date, "5일 연속 1위");
+    }
+
+    for (const [name, detail] of Object.entries(report.investor_details)) {
+      if (detail.total_return_pct > 0)
+        addBadge(name, "first_profit", report.date, "첫 수익 달성");
+      if (detail.total_asset >= 6000000)
+        addBadge(name, "asset_6m", report.date, "총자산 600만원 돌파");
+      if (detail.total_asset >= 7000000)
+        addBadge(name, "asset_7m", report.date, "총자산 700만원 돌파");
+      if (detail.num_holdings >= 10)
+        addBadge(name, "holdings_10", report.date, "10종목 이상 보유");
+      if (detail.cash_ratio >= 50)
+        addBadge(name, "cash_king", report.date, "현금 비중 50% 이상");
+    }
+  }
+
+  return badges;
+}
+
+export async function getVersusData(
+  investorA: string,
+  investorB: string
+): Promise<{
+  assetHistory: { date: string; [key: string]: number | string }[];
+  returnDiff: { date: string; diff: number }[];
+  headToHead: { winsA: number; winsB: number; draws: number };
+}> {
+  const reports = await getAllDailyReports();
+
+  const assetHistory = reports.map((r) => ({
+    date: r.date,
+    [investorA]: r.investor_details[investorA]?.total_asset ?? 0,
+    [investorB]: r.investor_details[investorB]?.total_asset ?? 0,
+  }));
+
+  const returnDiff: { date: string; diff: number }[] = [];
+  let winsA = 0, winsB = 0, draws = 0;
+
+  for (let i = 1; i < reports.length; i++) {
+    const prevA = reports[i - 1].investor_details[investorA]?.total_asset ?? 0;
+    const currA = reports[i].investor_details[investorA]?.total_asset ?? 0;
+    const prevB = reports[i - 1].investor_details[investorB]?.total_asset ?? 0;
+    const currB = reports[i].investor_details[investorB]?.total_asset ?? 0;
+    const retA = prevA > 0 ? ((currA - prevA) / prevA) * 100 : 0;
+    const retB = prevB > 0 ? ((currB - prevB) / prevB) * 100 : 0;
+    const diff = retA - retB;
+    returnDiff.push({ date: reports[i].date, diff });
+    if (diff > 0.001) winsA++;
+    else if (diff < -0.001) winsB++;
+    else draws++;
+  }
+
+  return { assetHistory, returnDiff, headToHead: { winsA, winsB, draws } };
+}

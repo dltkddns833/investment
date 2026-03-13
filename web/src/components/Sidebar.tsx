@@ -17,6 +17,8 @@ export default async function Sidebar() {
         <SidebarLink href="/" label="대시보드" />
         <SidebarLink href="/reports" label="리포트" />
         <SidebarLink href="/stocks" label="종목 분석" />
+        <SidebarLink href="/analysis" label="분석" />
+        <SidebarLink href="/versus" label="대결" />
         <div className="pt-4 pb-2 px-3 text-xs text-gray-500 uppercase tracking-wider">
           투자자
         </div>

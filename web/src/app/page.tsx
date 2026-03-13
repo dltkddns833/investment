@@ -5,6 +5,8 @@ import {
   getNews,
   getAllAssetHistory,
   getDailyStories,
+  getWeeklyMVPs,
+  getStreaks,
 } from "@/lib/data";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
@@ -12,6 +14,7 @@ import ShowMore from "@/components/ShowMore";
 import LiveMarketSection from "@/components/LiveMarketSection";
 import LiveSummaryCards from "@/components/LiveSummaryCards";
 import LiveDateLabel from "@/components/LiveDateLabel";
+import WeeklyHighlights from "@/components/WeeklyHighlights";
 
 export const dynamic = "force-dynamic";
 
@@ -68,12 +71,14 @@ export default async function Home() {
   const today = new Date()
     .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-  const [report, todayNews, reportNews, assetHistory, stories] = await Promise.all([
+  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(today),
     today !== latestDate ? getNews(latestDate) : null,
     getAllAssetHistory(investorNames),
     getDailyStories(latestDate),
+    getWeeklyMVPs(),
+    getStreaks(),
   ]);
   const news = todayNews ?? reportNews;
 
@@ -206,6 +211,11 @@ export default async function Home() {
     </section>
   );
 
+  const latestWeek = weeklyMVPs.length > 0 ? weeklyMVPs[0] : null;
+  const highlightsSection = (
+    <WeeklyHighlights latestWeek={latestWeek} streaks={streaks} />
+  );
+
   const footerSection = (
     <div>
       <div className="gradient-separator" />
@@ -235,6 +245,7 @@ export default async function Home() {
         {newsSection}
         {marketSection}
         {rankingsSection}
+        {highlightsSection}
         {commentarySection}
         {chartSection}
         {summarySection}
@@ -254,6 +265,7 @@ export default async function Home() {
         </div>
         {summarySection}
         {rankingsSection}
+        {highlightsSection}
         {commentarySection}
         {chartSection}
         {footerSection}
@@ -267,6 +279,7 @@ export default async function Home() {
       {headerSection}
       {summarySection}
       {rankingsSection}
+      {highlightsSection}
       {commentarySection}
       {chartSection}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">

@@ -157,11 +157,14 @@ scripts/
 **배포 URL**: https://investment-phi-six.vercel.app/
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
-- 메인(`/`): 투자자 순위, 시장 현황, 뉴스
-- 투자자 상세(`/investors/[id]`): 포트폴리오 차트, 보유종목, 거래내역
+- 메인(`/`): 투자자 순위, 주간 MVP/연승, 시장 현황, 뉴스
+- 투자자 상세(`/investors/[id]`): 뱃지, 포트폴리오 차트, 보유종목, 거래내역
 - 리포트(`/reports`): 달력 히트맵, 월간 수익률
 - 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 종목 리스트
 - 종목 상세(`/stocks/[ticker]`): 가격 차트, 보유 투자자, 거래내역
+- 분석(`/analysis`): 수익률 상관관계 히트맵, 포지션 겹침률, 종목 인기도
+- 대결(`/versus`): 추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승 기록
+- 대결 상세(`/versus/[matchup]`): 1:1 자산 비교, 일별 수익률 차이, 포지션 비교
 - Supabase에서 데이터를 읽어 서버 컴포넌트에서 렌더링 (DB 직접 쿼리)
 - Node 20+ 필요, 상세 내용은 `web/CLAUDE.md` 참조
 
@@ -249,5 +252,5 @@ cd web && pnpm build  # 빌드
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵
-- A/G/H는 매일, D는 3일마다, B/J는 7일마다, E/F는 14일마다, C는 30일마다, I는 90일마다만 실행
+- A/G/H는 매일, D는 3영업일마다, B/J는 7영업일마다, E/F는 14영업일마다, C는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외)
 - 첫날은 `last_rebalanced: null`이므로 모두 실행

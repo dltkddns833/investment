@@ -1,0 +1,79 @@
+import {
+  getConfig,
+  getLatestReportDate,
+  getDailyReport,
+  getReturnCorrelationMatrix,
+  getPositionOverlaps,
+  getStockPopularity,
+} from "@/lib/data";
+import CorrelationHeatmap from "@/components/CorrelationHeatmap";
+import OverlapMatrix from "@/components/OverlapMatrix";
+import StockPopularityChart from "@/components/StockPopularityChart";
+
+export const dynamic = "force-dynamic";
+
+export default async function AnalysisPage() {
+  const [config, latestDate] = await Promise.all([
+    getConfig(),
+    getLatestReportDate(),
+  ]);
+
+  if (!latestDate) {
+    return (
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold mb-4">투자자 분석</h1>
+        <p className="text-gray-400">아직 리포트가 없습니다.</p>
+      </div>
+    );
+  }
+
+  const investorNames = config.investors.map((inv) => inv.name);
+
+  const [report, correlations] = await Promise.all([
+    getDailyReport(latestDate).then((r) => r!),
+    getReturnCorrelationMatrix(investorNames),
+  ]);
+
+  const overlaps = getPositionOverlaps(report.investor_details);
+  const popularity = getStockPopularity(report.investor_details, config.stock_universe);
+
+  return (
+    <div className="space-y-6 md:space-y-8">
+      <div className="animate-in">
+        <h1 className="text-2xl md:text-3xl font-bold">투자자 분석</h1>
+        <p className="text-gray-400 text-sm mt-1">상관관계 & 포지션 비교 · {latestDate} 기준</p>
+      </div>
+
+      {/* Correlation Matrix */}
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-1 section-header">수익률 상관관계</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          투자자 간 일별 수익률의 Pearson 상관계수. 빨강일수록 같이 움직이고, 파랑일수록 반대로 움직입니다.
+        </p>
+        {correlations.length > 0 ? (
+          <CorrelationHeatmap investorNames={investorNames} correlations={correlations} />
+        ) : (
+          <p className="text-gray-500 text-sm">데이터가 3일 이상 필요합니다.</p>
+        )}
+      </section>
+
+      {/* Position Overlap */}
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-1 section-header">포지션 겹침률</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          보유 종목의 Jaccard 유사도. 셀을 클릭하면 공통/독자 종목을 확인할 수 있습니다.
+        </p>
+        <OverlapMatrix investorNames={investorNames} overlaps={overlaps} />
+      </section>
+
+      {/* Stock Popularity */}
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-1 section-header">종목 인기도</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          각 종목을 보유 중인 투자자 수. 많은 투자자가 보유할수록 컨센서스가 높습니다.
+        </p>
+        <StockPopularityChart data={popularity} totalInvestors={investorNames.length} />
+      </section>
+    </div>
+  );
+}

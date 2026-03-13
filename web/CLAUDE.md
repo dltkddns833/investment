@@ -23,12 +23,15 @@ Node 18+ 필요. nvm 사용 시: `nvm use 18`
 ```
 src/
   app/
-    page.tsx                 ← 메인 대시보드 (순위, 코멘터리, 시장현황, 뉴스)
+    page.tsx                 ← 메인 대시보드 (순위, 주간 MVP/연승, 코멘터리, 시장현황, 뉴스)
     layout.tsx               ← 루트 레이아웃 (다크 테마)
-    investors/[id]/page.tsx  ← 투자자 상세 (일기, 차트, 보유종목, 거래내역)
+    investors/[id]/page.tsx  ← 투자자 상세 (뱃지, 일기, 차트, 보유종목, 거래내역)
     reports/page.tsx         ← 리포트 (달력 히트맵, 월간 수익률)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 종목 리스트)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, 보유자, 거래내역)
+    analysis/page.tsx        ← 투자자 분석 (상관관계 히트맵, 포지션 겹침률, 종목 인기도)
+    versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
+    versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
   components/
     RankingTable.tsx          ← 투자자 순위표
     MarketTable.tsx           ← 시장 현황 테이블
@@ -38,6 +41,16 @@ src/
     PeriodSelector.tsx        ← 투자자 탭 + 월 이동
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바
+    CorrelationHeatmap.tsx    ← 수익률 상관관계 10×10 히트맵
+    OverlapMatrix.tsx         ← 포지션 겹침률 매트릭스
+    StockPopularityChart.tsx  ← 종목별 보유 투자자 수 차트
+    VersusChart.tsx           ← 1:1 자산 비교 라인 차트
+    VersusReturnDiff.tsx      ← 일별 수익률 차이 바 차트
+    VersusPositionCompare.tsx ← 포지션 비교 3컬럼
+    MatchupCard.tsx           ← 추천 대결 카드
+    InvestorPairSelector.tsx  ← 투자자 선택 드롭다운
+    WeeklyHighlights.tsx      ← 주간 MVP/꼴찌/연승 카드
+    BadgeList.tsx             ← 투자자 뱃지 목록
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -58,6 +71,14 @@ src/
 - `getPeriodSummary(startDate, endDate)` → 기간별 투자자 성과 요약
 - `getStockTransactions(ticker)` → 종목별 거래내역
 - `getLatestReportDate()` → `daily_reports` 최신 date
+- `getAllDailyReports()` → 전체 daily_reports (date, rankings, investor_details)
+- `getReturnCorrelationMatrix(investorNames)` → 투자자 간 Pearson 상관계수
+- `getPositionOverlaps(investorDetails)` → 보유 종목 Jaccard 유사도 (순수 함수)
+- `getStockPopularity(investorDetails, stockUniverse)` → 종목별 보유 투자자 수 (순수 함수)
+- `getStreaks()` → 연속 1위 기록 추적
+- `getWeeklyMVPs()` → ISO 주 단위 최고/최저 투자자
+- `getBadges()` → 마일스톤 감지 (첫 수익, 600만 돌파, 연속 1위 등)
+- `getVersusData(investorA, investorB)` → 1:1 대결 데이터 (자산 추이, 수익률 차이, 승패)
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

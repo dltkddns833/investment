@@ -7,11 +7,13 @@ import {
   getAssetHistory,
   getConfig,
   getDailyStories,
+  getBadges,
 } from "@/lib/data";
 import TransactionTable from "@/components/TransactionTable";
 import AssetChart from "@/components/AssetChart";
 import LiveInvestorSummary from "@/components/LiveInvestorSummary";
 import LiveInvestorDetail from "@/components/LiveInvestorDetail";
+import BadgeList from "@/components/BadgeList";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +38,14 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation, assetHistory, stories] = await Promise.all([
+  const [report, allocation, assetHistory, stories, allBadges] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
     getAssetHistory(profile.name),
     latestDate ? getDailyStories(latestDate) : null,
+    getBadges(),
   ]);
+  const investorBadges = allBadges.filter((b) => b.investor === profile.name);
   const detail = report?.investor_details[profile.name];
   const diary = stories?.diaries?.[profile.name];
 
@@ -53,6 +57,9 @@ export default async function InvestorPage({ params }: Props) {
         <p className="text-gray-400 mt-1">{profile.strategy}</p>
         <p className="text-gray-500 text-sm mt-2">{profile.description}</p>
       </div>
+
+      {/* Badges */}
+      <BadgeList badges={investorBadges} />
 
       {/* Diary */}
       {diary && (
