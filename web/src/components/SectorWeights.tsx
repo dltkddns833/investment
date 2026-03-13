@@ -9,19 +9,29 @@ interface Props {
 
 const SECTOR_COLORS: Record<string, string> = {
   반도체: "bg-blue-500",
+  "IT/플랫폼": "bg-indigo-500",
   바이오: "bg-green-500",
   자동차: "bg-orange-500",
   방산: "bg-red-500",
+  "방산/항공": "bg-red-400",
   금융: "bg-yellow-500",
+  보험: "bg-yellow-600",
   엔터: "bg-pink-500",
   철강: "bg-gray-500",
-  에너지: "bg-emerald-500",
   통신: "bg-purple-500",
-  식품: "bg-amber-600",
   화학: "bg-cyan-500",
+  "에너지/화학": "bg-teal-500",
+  "원전/에너지": "bg-emerald-500",
+  "2차전지": "bg-sky-500",
+  "2차전지 소재": "bg-sky-400",
+  게임: "bg-violet-500",
+  조선: "bg-stone-500",
+  "조선/중공업": "bg-stone-400",
   건설: "bg-slate-500",
-  IT: "bg-indigo-500",
-  유통: "bg-rose-500",
+  "건설/지주": "bg-slate-400",
+  제약: "bg-lime-500",
+  화장품: "bg-fuchsia-500",
+  식품: "bg-amber-600",
 };
 
 function getSectorColor(sector: string): string {
