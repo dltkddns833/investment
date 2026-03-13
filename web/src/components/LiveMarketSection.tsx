@@ -8,11 +8,13 @@ import ShowMore from "./ShowMore";
 interface Props {
   storedPrices: Record<string, MarketPrice>;
   storedFetchedAt: string;
+  sectorMap: Record<string, string>;
 }
 
 export default function LiveMarketSection({
   storedPrices,
   storedFetchedAt,
+  sectorMap,
 }: Props) {
   const { prices: livePrices, fetchedAt: liveFetchedAt, isLive, isMarketOpen, isClosingPrice, isRefreshing, refresh } =
     useLivePrices();
@@ -44,6 +46,7 @@ export default function LiveMarketSection({
           isRefreshing={isRefreshing}
           isLive={isLive}
           isClosingPrice={isClosingPrice}
+          sectorMap={sectorMap}
         />
       </ShowMore>
     </section>

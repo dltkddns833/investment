@@ -2,11 +2,12 @@ import {
   getConfig,
   getLatestReportDate,
   getDailyReport,
-  getStockPriceHistory,
   getStockTransactions,
 } from "@/lib/data";
-import { krw, signColor } from "@/lib/format";
-import StockPriceChart from "@/components/StockPriceChart";
+import { krw } from "@/lib/format";
+import RealStockChart from "@/components/RealStockChart";
+import LiveStockPrice from "@/components/LiveStockPrice";
+import LiveStockHolders from "@/components/LiveStockHolders";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,9 @@ export default async function StockDetailPage({ params }: Props) {
   const { ticker } = await params;
   const decodedTicker = decodeURIComponent(ticker);
 
-  const [config, latestDate, priceHistory, transactions] = await Promise.all([
+  const [config, latestDate, transactions] = await Promise.all([
     getConfig(),
     getLatestReportDate(),
-    getStockPriceHistory(decodedTicker),
     getStockTransactions(decodedTicker),
   ]);
 
@@ -83,24 +83,18 @@ export default async function StockDetailPage({ params }: Props) {
         </div>
         <p className="text-gray-500 text-sm mt-1">{decodedTicker}</p>
         {marketPrice && (
-          <div className="flex items-baseline gap-3 mt-3">
-            <span className="text-2xl font-bold tabular-nums">
-              {krw(marketPrice.price)}
-            </span>
-            <span
-              className={`text-lg font-medium tabular-nums ${signColor(marketPrice.change_pct)}`}
-            >
-              {marketPrice.change_pct > 0 ? "+" : ""}
-              {marketPrice.change_pct.toFixed(2)}%
-            </span>
-          </div>
+          <LiveStockPrice
+            ticker={decodedTicker}
+            storedPrice={marketPrice.price}
+            storedChangePct={marketPrice.change_pct}
+          />
         )}
       </div>
 
       {/* Price Chart */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-3 section-header">가격 추이</h2>
-        <StockPriceChart data={priceHistory} />
+        <RealStockChart ticker={decodedTicker} />
       </section>
 
       {/* Holders */}
@@ -114,51 +108,7 @@ export default async function StockDetailPage({ params }: Props) {
               </span>
             </h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/5 text-gray-500 text-xs">
-                  <th className="text-left py-2.5 px-4">투자자</th>
-                  <th className="text-right py-2.5 px-4">수량</th>
-                  <th className="text-right py-2.5 px-4">평균 단가</th>
-                  <th className="text-right py-2.5 px-4">평가금</th>
-                  <th className="text-right py-2.5 px-4">수익률</th>
-                </tr>
-              </thead>
-              <tbody>
-                {holders.map((h) => (
-                  <tr
-                    key={h.investorId}
-                    className="border-b border-white/5 hover:bg-white/[0.02]"
-                  >
-                    <td className="py-2.5 px-4">
-                      <Link
-                        href={`/investors/${h.investorId}`}
-                        className="font-medium hover:text-blue-400 transition-colors"
-                      >
-                        {h.name}
-                      </Link>
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums">
-                      {h.shares}주
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums text-gray-400">
-                      {krw(h.avg_price)}
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums">
-                      {krw(h.value)}
-                    </td>
-                    <td
-                      className={`py-2.5 px-4 text-right tabular-nums font-medium ${signColor(h.profit_pct)}`}
-                    >
-                      {h.profit_pct > 0 ? "+" : ""}
-                      {h.profit_pct.toFixed(2)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LiveStockHolders ticker={decodedTicker} holders={holders} />
         </section>
       )}
 

@@ -155,6 +155,7 @@ export default async function Home() {
     <LiveMarketSection
       storedPrices={report.market_prices}
       storedFetchedAt={report.generated_at}
+      sectorMap={Object.fromEntries(config.stock_universe.map((s) => [s.ticker, s.sector]))}
     />
   );
 
