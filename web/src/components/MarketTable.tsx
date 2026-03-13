@@ -5,6 +5,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { MarketPrice } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
 import DataTable from "./DataTable";
+import { SectorIcon } from "@/lib/sector-icons";
 
 interface Props {
   prices: Record<string, MarketPrice>;
@@ -36,7 +37,10 @@ function buildColumns(hasSector: boolean) {
             header: "섹터",
             meta: { className: "text-left hidden sm:table-cell" },
             cell: (info) => (
-              <span className="text-gray-400">{info.getValue()}</span>
+              <span className="inline-flex items-center gap-1 text-gray-400">
+                <SectorIcon sector={info.getValue() ?? ""} className="w-3 h-3 text-gray-500" />
+                {info.getValue()}
+              </span>
             ),
           }),
         ]

@@ -1,6 +1,7 @@
 "use client";
 
 import type { InvestorDetail, StockUniverse } from "@/lib/data";
+import { SectorIcon } from "@/lib/sector-icons";
 
 interface Props {
   investorDetails: Record<string, InvestorDetail>;
@@ -93,6 +94,7 @@ export default function SectorWeights({ investorDetails, stocks }: Props) {
         {allSectors.map((sector) => (
           <div key={sector} className="flex items-center gap-1.5">
             <div className={`w-2.5 h-2.5 rounded-full ${getSectorColor(sector)}`} />
+            <SectorIcon sector={sector} className="w-3 h-3 text-gray-500" />
             <span className="text-xs text-gray-400">{sector}</span>
           </div>
         ))}

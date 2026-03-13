@@ -1,5 +1,6 @@
 import type { MarketPrice, StockUniverse } from "@/lib/data";
 import Link from "next/link";
+import { SectorIcon } from "@/lib/sector-icons";
 
 interface Props {
   stocks: StockUniverse[];
@@ -42,6 +43,7 @@ export default function SectorHeatmap({ stocks, marketPrices }: Props) {
         {sorted.map(({ sector, items, avg }) => (
           <div key={sector} className="border border-white/5 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1.5">
+              <SectorIcon sector={sector} className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <h3 className="text-sm font-medium text-gray-300">{sector}</h3>
               <span
                 className={`text-xs tabular-nums ${

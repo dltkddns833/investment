@@ -15,6 +15,7 @@ import LiveMarketSection from "@/components/LiveMarketSection";
 import LiveSummaryCards from "@/components/LiveSummaryCards";
 import LiveDateLabel from "@/components/LiveDateLabel";
 import WeeklyHighlights from "@/components/WeeklyHighlights";
+import NewsCard from "@/components/NewsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -185,29 +186,7 @@ export default async function Home() {
         <div className="p-4 md:p-5 space-y-2">
           {newsArticles.length > 0 ? (
             newsArticles.map((article, i) => (
-              <div
-                key={i}
-                className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
-              >
-                {article.url ? (
-                  <a href={article.url} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:text-blue-300 transition-colors">
-                    {article.title}
-                  </a>
-                ) : (
-                  <div className="font-medium text-sm">{article.title}</div>
-                )}
-                <div className="text-xs text-gray-400 mt-1">
-                  {article.summary}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                    {article.category}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {article.source}
-                  </span>
-                </div>
-              </div>
+              <NewsCard key={i} article={article} />
             ))
           ) : (
             <div className="text-gray-500">뉴스 없음</div>

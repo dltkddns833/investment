@@ -2,26 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { News } from "@/lib/data";
-
-const categoryColors: Record<string, string> = {
-  경제: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
-  글로벌: "bg-purple-500/10 text-purple-300 border-purple-500/20",
-  정책: "bg-amber-500/10 text-amber-300 border-amber-500/20",
-  산업: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
-  기업: "bg-blue-500/10 text-blue-300 border-blue-500/20",
-  "금융/보험": "bg-yellow-500/10 text-yellow-300 border-yellow-500/20",
-  "통신/IT": "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
-  "제약/바이오": "bg-pink-500/10 text-pink-300 border-pink-500/20",
-  "건설/부동산": "bg-orange-500/10 text-orange-300 border-orange-500/20",
-  "소비재/유통": "bg-teal-500/10 text-teal-300 border-teal-500/20",
-};
-
-function getCategoryStyle(category: string) {
-  return (
-    categoryColors[category] ??
-    "bg-blue-500/10 text-blue-300 border-blue-500/20"
-  );
-}
+import NewsCard from "./NewsCard";
 
 function formatDateFull(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
@@ -225,46 +206,7 @@ export default function NewsArchive({ allNews }: { allNews: News[] }) {
       <section className="glass-card overflow-hidden">
         <div className="p-4 space-y-2">
           {selectedNews.articles.map((article, i) => (
-            <div
-              key={i}
-              className="bg-white/[0.02] hover:bg-white/[0.05] rounded-lg p-3 transition-all duration-200 hover:-translate-y-0.5"
-            >
-              {article.url ? (
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-sm hover:text-blue-300 transition-colors"
-                >
-                  {article.title}
-                </a>
-              ) : (
-                <div className="font-medium text-sm">{article.title}</div>
-              )}
-              <div className="text-xs text-gray-400 mt-1">
-                {article.summary}
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border ${getCategoryStyle(article.category)}`}
-                >
-                  {article.category}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {article.source}
-                </span>
-                {article.url && (
-                  <a
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-gray-600 hover:text-blue-400 transition-colors ml-auto"
-                  >
-                    원문 &rarr;
-                  </a>
-                )}
-              </div>
-            </div>
+            <NewsCard key={i} article={article} />
           ))}
         </div>
       </section>

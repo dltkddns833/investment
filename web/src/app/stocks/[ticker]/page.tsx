@@ -8,6 +8,7 @@ import { krw } from "@/lib/format";
 import RealStockChart from "@/components/RealStockChart";
 import LiveStockPrice from "@/components/LiveStockPrice";
 import LiveStockHolders from "@/components/LiveStockHolders";
+import { SectorIcon } from "@/lib/sector-icons";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,8 @@ export default async function StockDetailPage({ params }: Props) {
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl md:text-3xl font-bold">{stockInfo.name}</h1>
-          <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+            <SectorIcon sector={stockInfo.sector} className="w-3 h-3" />
             {stockInfo.sector}
           </span>
         </div>
