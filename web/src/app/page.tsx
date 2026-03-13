@@ -134,7 +134,7 @@ export default async function Home() {
   const commentarySection = stories?.commentary ? (
     <section className="glass-card p-4 md:p-5 animate-in">
       <h2 className="text-lg font-bold mb-3 section-header">오늘의 마켓 코멘터리</h2>
-      <p className="text-sm md:text-base text-gray-300 leading-relaxed">
+      <p className="text-sm md:text-base text-gray-300 leading-relaxed whitespace-pre-line">
         {stories.commentary}
       </p>
     </section>

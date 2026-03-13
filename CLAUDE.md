@@ -47,13 +47,14 @@ pip3 install -r requirements.txt
 
 macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사용).
 
-### 오전 9:05 — 통합 파이프라인 (시가 체결)
+### 오전 9:05 — 시뮬레이션 (시가 체결)
 - plist: `~/Library/LaunchAgents/com.investment.pipeline.plist`
-- `scripts/daily_pipeline_cron.sh` — Claude CLI로 전체 파이프라인 한 번에 실행
-  - 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 스토리텔링 → 텔레그램 발송
+- `scripts/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행
+  - 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 텔레그램 발송
 - `scripts/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - 로그: `logs/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
+- **스토리텔링은 장마감 후 별도 실행** (cron 자동화 시 16:00 스케줄 추가 필요)
 
 ### (레거시) 기존 2개 cron — 사용 안 함
 - `scripts/morning_cron.sh` / `scripts/daily_cron.sh` — 종가 체결 시절 사용하던 스크립트
@@ -78,17 +79,15 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 - `scripts/supabase_client.py` — Python용 Supabase 클라이언트 (`.env`에서 인증 정보 로드)
 - `web/src/lib/supabase.ts` — Next.js용 Supabase 클라이언트 (서버 컴포넌트 전용, `SUPABASE_SERVICE_ROLE_KEY` 사용)
 
-**일일 파이프라인 흐름 (09:05 시가 체결):**
+**일일 파이프라인 흐름:**
 ```
-뉴스 수집 (웹 검색)
-  → Supabase news 테이블 저장
-투자자별 독립 분석/배분 결정
-  → Supabase allocations 테이블 저장
-simulate.py 실행 (시가 체결)
-  → market.py로 주가 조회 (price_type="open")
-  → portfolio.py로 리밸런싱 due 체크 → 매도 먼저 → 매수
-  → Supabase daily_reports 테이블에 리포트 저장
-장마감 후 대시보드 → Yahoo Finance 종가 자동 조회 → 포트폴리오 재계산
+[오전] 뉴스 수집 → 배분 결정 → 시뮬레이션 (시가 체결)
+  → market.py (price_type="open") → portfolio.py → daily_reports 저장
+
+[장마감 후] 스토리텔링 (코멘터리 + 투자자 일기)
+  → 종가 확정 후 daily_reports 기반 콘텐츠 생성 → daily_stories 저장
+
+[대시보드] 16:00 이후 접속 시 Yahoo Finance 종가 자동 조회 → 포트폴리오 재계산
 ```
 
 **핵심 분리 원칙:** `simulate.py`는 배분을 결정하지 않는다. Supabase에 사전 저장된 allocation만 실행한다. 뉴스 수집과 배분 판단은 Claude가 투자자 프로필 성향에 맞춰 수행.
@@ -100,7 +99,7 @@ simulate.py 실행 (시가 체결)
 - `scripts/simulate.py` — 일일 시뮬레이션 오케스트레이터 (Supabase 읽기/쓰기)
 - `scripts/daily_pipeline.py` — 뉴스 저장, 배분 저장, 상태 확인 (Supabase 쓰기)
 - `scripts/weekly_report.py` — 주간 성과 리포트 (첫 영업일에만 텔레그램 발송)
-- `scripts/daily_pipeline_cron.sh` — 오전 9:05 통합 파이프라인 (뉴스 + 배분 + 시뮬레이션 + 스토리텔링)
+- `scripts/daily_pipeline_cron.sh` — 오전 9:05 파이프라인 (뉴스 + 배분 + 시뮬레이션)
 - `scripts/morning_cron.sh` — (레거시) 오전 9시 뉴스 수집 + 주간 리포트
 
 **Supabase 테이블 (9개):**
@@ -158,18 +157,22 @@ cd web && pnpm build  # 빌드
 
 ## Daily Pipeline Trigger
 
-사용자가 "오늘 시뮬레이션 진행해줘" 요청 시 아래 순서대로 실행한다.
+수동 실행 시 **시뮬레이션**과 **스토리텔링**은 별도 요청으로 나뉜다.
+- 시뮬레이션: 장 시작 후 (시가 확정 후) — "시뮬레이션 진행해줘"
+- 스토리텔링: 장마감 후 (종가 확정 후) — "스토리텔링 해줘"
 
-### Step 1: 뉴스 수집
-- **오전 cron에서 이미 수집됨.** 수동 실행 시에만 이 Step 실행.
+### Part A: 시뮬레이션 ("시뮬레이션 진행해줘")
+
+#### Step 1: 뉴스 수집
 - WebSearch로 한국 증시 관련 뉴스 검색 (경제, 산업, 기업, 정책, 글로벌)
 - 10~15건 수집 후 `daily_pipeline.py`의 `save_news()`로 Supabase에 저장
 
-### Step 2: 투자자별 배분 결정 (7개 독립 AI 에이전트 병렬 실행)
+#### Step 2: 투자자별 배분 결정 (7개 독립 AI 에이전트 병렬 실행)
 **반드시 7개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
 - 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
 - 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
 - 에이전트는 분석 후 `save_allocation()`으로 Supabase에 저장
+- rationale(배분 근거) 텍스트는 논점별로 줄바꿈(`\n`) 삽입하여 가독성 확보
 - allocation 합계 = 1.0, stock_universe 종목만 사용
 - A (공격적 모멘텀): 모멘텀/테마주 집중, 5~8종목
 - B (균형 분산): 섹터별 골고루, 10~15종목
@@ -179,18 +182,25 @@ cd web && pnpm build  # 빌드
 - F (섹터 로테이션): 유망 섹터 2~3개 선별 후 섹터 내 종목 집중, 섹터당 2~3종목
 - G (뉴스 감성 기반): 뉴스 긍정/부정 감성 점수로만 비중 결정, 5~10종목
 
-### Step 3: 시뮬레이션 실행 (시가 체결)
+#### Step 3: 시뮬레이션 실행 (시가 체결)
 - `python3 scripts/simulate.py {date}` 실행
 - 시가(Open) 기준 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
 
-### Step 4: 스토리텔링
-시뮬레이션 완료 후 `daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
+#### Step 4: 결과 요약
+- 각 투자자별 총자산, 수익률, 오늘 거래 내역 보고
+
+### Part B: 스토리텔링 ("스토리텔링 해줘")
+
+> **장마감(15:30) 이후 실행 권장** — 종가가 확정된 후 코멘터리를 작성해야 당일 시장 동향이 정확하게 반영된다.
+
+`daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
 
 **데일리 코멘터리** (2~4문장)
 - rankings, market_prices, investor_details를 분석하여 한국어 마켓 코멘터리 생성
 - 오늘의 승자/패자, 주요 시장 동향, 눈에 띄는 거래
+- 문단 구분이 필요한 곳에 줄바꿈(`\n`) 삽입하여 가독성 확보
 
-**투자자 일기** (캐릭터별 어투, 각 2~3문장)
+**투자자 일기** (캐릭터별 어투, 각 2~3문장, 문장 간 줄바꿈 삽입)
 - A 강돌진: 자신감 넘치는 공격적 ("확신한다", "올인했다")
 - B 김균형: 차분하고 분석적 ("분산 효과가 나타나고 있다")
 - C 이든든: 보수적이고 신중한 ("급할 것 없다", "안정적으로 유지")
@@ -201,9 +211,6 @@ cd web && pnpm build  # 빌드
 
 **저장**: `daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
 - `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ...}` 형태 (투자자 이름 키)
-
-### Step 5: 결과 요약
-- 각 투자자별 총자산, 수익률, 오늘 거래 내역 보고
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵

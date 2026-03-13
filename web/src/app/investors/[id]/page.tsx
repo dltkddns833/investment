@@ -61,7 +61,7 @@ export default async function InvestorPage({ params }: Props) {
             <h2 className="text-sm font-bold text-purple-300">오늘의 일기</h2>
             <span className="text-xs text-gray-500">{latestDate}</span>
           </div>
-          <p className="text-sm text-gray-300 leading-relaxed italic">
+          <p className="text-sm text-gray-300 leading-relaxed italic whitespace-pre-line">
             &ldquo;{diary}&rdquo;
           </p>
         </section>
@@ -101,7 +101,7 @@ export default async function InvestorPage({ params }: Props) {
           <h2 className="text-lg font-bold mb-3 section-header">
             목표 배분
           </h2>
-          <p className="text-xs text-gray-400 mb-3">
+          <p className="text-xs text-gray-400 mb-3 whitespace-pre-line">
             {allocation.rationale}
           </p>
           <div className="space-y-2">
