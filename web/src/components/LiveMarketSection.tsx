@@ -1,6 +1,6 @@
 "use client";
 
-import { MarketPrice } from "@/lib/data";
+import { MarketPrice, StockUniverse } from "@/lib/data";
 import { useLivePrices } from "@/lib/live-prices";
 import MarketTable from "./MarketTable";
 import ShowMore from "./ShowMore";
@@ -9,24 +9,32 @@ interface Props {
   storedPrices: Record<string, MarketPrice>;
   storedFetchedAt: string;
   sectorMap: Record<string, string>;
+  stocks: StockUniverse[];
 }
 
 export default function LiveMarketSection({
   storedPrices,
   storedFetchedAt,
   sectorMap,
+  stocks,
 }: Props) {
   const { prices: livePrices, fetchedAt: liveFetchedAt, isLive, isMarketOpen, isClosingPrice, isRefreshing, refresh } =
     useLivePrices();
 
-  // Merge live prices with stored names
+  // Merge: start from all stocks in universe, fill with stored or live prices
   const prices: Record<string, MarketPrice> = {};
-  for (const [ticker, stored] of Object.entries(storedPrices)) {
+  for (const stock of stocks) {
+    const { ticker } = stock;
+    const stored = storedPrices[ticker];
     const live = livePrices?.[ticker];
+
     if ((isLive || isClosingPrice) && live) {
-      prices[ticker] = { name: stored.name, price: live.price, change_pct: live.change_pct };
-    } else {
+      prices[ticker] = { name: stock.name, price: live.price, change_pct: live.change_pct };
+    } else if (stored) {
       prices[ticker] = stored;
+    } else if (live) {
+      // stock_universe에 있지만 market_prices에 없는 종목 → 라이브 가격으로 채움
+      prices[ticker] = { name: stock.name, price: live.price, change_pct: live.change_pct };
     }
   }
 
