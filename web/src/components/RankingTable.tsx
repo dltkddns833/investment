@@ -101,7 +101,7 @@ function getColumns() {
     }),
     col.accessor("rebalanced_today", {
       header: "오늘 실행",
-      meta: { className: "text-center" },
+      meta: { className: "text-center hidden sm:table-cell" },
       cell: (info) =>
         info.getValue() ? (
           <span className="relative flex h-2.5 w-2.5 mx-auto">
