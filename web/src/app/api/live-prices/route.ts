@@ -1,3 +1,4 @@
+// 시뮬레이션 가격(과거 시가/종가)은 scripts/core/market.py 참조
 import { NextResponse, type NextRequest } from "next/server";
 
 async function fetchTicker(
