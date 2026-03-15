@@ -8,11 +8,20 @@ import { useLiveRankings } from "@/lib/use-live-portfolio";
 import DataTable from "./DataTable";
 import InvestorAvatar from "./InvestorAvatar";
 
+const RISK_GRADE_STYLE: Record<string, string> = {
+  "안정형":    "bg-blue-500/15 text-blue-300",
+  "안정추구형": "bg-lime-500/15 text-lime-300",
+  "위험중립형": "bg-green-500/15 text-green-300",
+  "적극투자형": "bg-yellow-500/15 text-yellow-300",
+  "공격투자형": "bg-red-500/15 text-red-300",
+};
+
 interface Props {
   rankings: RankingEntry[];
   investorIds: Record<string, string>;
   investorDetails?: Record<string, InvestorDetail>;
   initialCapital?: number;
+  riskGrades?: Record<string, string>;
 }
 
 function rankClass(rank: number): string {
@@ -22,7 +31,7 @@ function rankClass(rank: number): string {
   return "rank-badge bg-gray-700 text-gray-300";
 }
 
-const col = createColumnHelper<RankingEntry & { _investorId: string }>();
+const col = createColumnHelper<RankingEntry & { _investorId: string; _riskGrade: string }>();
 
 function getColumns() {
   return [
@@ -112,6 +121,20 @@ function getColumns() {
           <span className="inline-flex h-2.5 w-2.5 mx-auto rounded-full bg-gray-700" />
         ),
     }),
+    col.accessor("_riskGrade", {
+      header: "투자성향",
+      meta: { className: "text-center hidden md:table-cell" },
+      cell: (info) => {
+        const grade = info.getValue();
+        if (!grade) return null;
+        const cls = RISK_GRADE_STYLE[grade] ?? "bg-gray-500/15 text-gray-300";
+        return (
+          <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>
+            {grade}
+          </span>
+        );
+      },
+    }),
   ];
 }
 
@@ -120,6 +143,7 @@ export default function RankingTable({
   investorIds,
   investorDetails,
   initialCapital,
+  riskGrades,
 }: Props) {
   const liveRankings = useLiveRankings(
     rankings,
@@ -130,6 +154,7 @@ export default function RankingTable({
   const data = liveRankings.map((r) => ({
     ...r,
     _investorId: investorIds[r.investor] || "",
+    _riskGrade: riskGrades?.[r.investor] ?? "",
   }));
 
   return <DataTable columns={getColumns()} data={data} />;

@@ -32,6 +32,7 @@ export interface InvestorProfile {
   description: string;
   rebalance_frequency_days: number;
   risk_tolerance: string;
+  risk_grade: string;
   analysis_criteria: string[];
   investment_style: Record<string, string>;
 }
@@ -214,9 +215,16 @@ export async function getProfile(
     description: data.description,
     rebalance_frequency_days: data.rebalance_frequency_days,
     risk_tolerance: data.risk_tolerance,
+    risk_grade: data.risk_grade ?? "",
     analysis_criteria: data.analysis_criteria ?? [],
     investment_style: data.investment_style ?? {},
   };
+}
+
+export async function getProfileRiskGrades(): Promise<Record<string, string>> {
+  const { data } = await supabase.from("profiles").select("name, risk_grade");
+  if (!data) return {};
+  return Object.fromEntries(data.map((d) => [d.name, d.risk_grade ?? ""]));
 }
 
 export async function getPortfolio(

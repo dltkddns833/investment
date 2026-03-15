@@ -70,9 +70,23 @@ export default async function InvestorsPage() {
                     {inv.name}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                  {profile?.strategy ?? "—"}
-                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-xs text-gray-500 truncate">
+                    {profile?.strategy ?? "—"}
+                  </p>
+                  {profile?.risk_grade && (
+                    <span className={`shrink-0 text-xs px-1.5 py-0 rounded-full font-medium ${
+                      profile.risk_grade === "안정형"    ? "bg-blue-500/15 text-blue-300" :
+                      profile.risk_grade === "안정추구형" ? "bg-lime-500/15 text-lime-300" :
+                      profile.risk_grade === "위험중립형" ? "bg-green-500/15 text-green-300" :
+                      profile.risk_grade === "적극투자형" ? "bg-yellow-500/15 text-yellow-300" :
+                      profile.risk_grade === "공격투자형" ? "bg-red-500/15 text-red-300" :
+                      "bg-gray-500/15 text-gray-300"
+                    }`}>
+                      {profile.risk_grade}
+                    </span>
+                  )}
+                </div>
                 {ranking && (
                   <div className="flex items-center gap-2 mt-2">
                     <span

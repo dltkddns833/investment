@@ -7,6 +7,7 @@ import {
   getDailyStories,
   getWeeklyMVPs,
   getStreaks,
+  getProfileRiskGrades,
 } from "@/lib/data";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
@@ -72,7 +73,7 @@ export default async function Home() {
   const today = new Date()
     .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks] = await Promise.all([
+  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks, riskGrades] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(today),
     today !== latestDate ? getNews(latestDate) : null,
@@ -80,6 +81,7 @@ export default async function Home() {
     getDailyStories(latestDate),
     getWeeklyMVPs(),
     getStreaks(),
+    getProfileRiskGrades(),
   ]);
   const news = todayNews ?? reportNews;
 
@@ -133,6 +135,7 @@ export default async function Home() {
         investorIds={investorIds}
         investorDetails={report.investor_details}
         initialCapital={config.simulation.initial_capital}
+        riskGrades={riskGrades}
       />
     </section>
   );
