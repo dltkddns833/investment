@@ -7,6 +7,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_momentum_data(tickers=None):
@@ -68,7 +71,7 @@ def get_momentum_data(tickers=None):
                 "volume_surge": volume_ratio > 2.0,
             }
         except Exception as e:
-            print(f"[오류] {ticker} 모멘텀: {e}")
+            logger.error(f"{ticker} 모멘텀: {e}")
 
     # 모멘텀 순위 (1주 수익률 기준 내림차순)
     sorted_tickers = sorted(results.keys(), key=lambda t: results[t]["return_1w"], reverse=True)

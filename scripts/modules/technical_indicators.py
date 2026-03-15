@@ -8,6 +8,9 @@ import os
 import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def calculate_rsi(closes, period=14):
@@ -153,7 +156,7 @@ def get_technical_signals(tickers=None):
                 "trend": trend,
             }
         except Exception as e:
-            print(f"[오류] {ticker} 기술적 지표: {e}")
+            logger.error(f"{ticker} 기술적 지표: {e}")
 
     return signals
 

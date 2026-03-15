@@ -1,6 +1,12 @@
-"""주식 시장 데이터 조회 모듈"""
+"""주식 시장 데이터 조회 모듈
+
+대시보드 실시간 가격은 web/src/app/api/live-prices/route.ts 참조
+"""
 import yfinance as yf
 from supabase_client import supabase
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_config():
@@ -54,7 +60,7 @@ def get_stock_prices(tickers=None, price_type="close"):
                 "volume": int(latest["Volume"]),
             }
         except Exception as e:
-            print(f"[오류] {ticker}: {e}")
+            logger.error(f"{ticker}: {e}")
 
     return prices
 

@@ -2,6 +2,9 @@
 import sys
 from datetime import datetime
 from supabase_client import supabase
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def save_news(date_str, articles):
@@ -17,9 +20,13 @@ def save_news(date_str, articles):
         "count": len(articles),
         "articles": articles,
     }
-    supabase.table("news").upsert(data).execute()
+    try:
+        supabase.table("news").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"뉴스 저장 실패: {e}")
+        raise
 
-    print(f"뉴스 {len(articles)}건 저장 완료: news/{date_str}")
+    logger.info(f"뉴스 {len(articles)}건 저장 완료: news/{date_str}")
     return data
 
 
@@ -48,9 +55,13 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
         "generated_at": datetime.now().isoformat(),
     }
 
-    supabase.table("allocations").upsert(data).execute()
+    try:
+        supabase.table("allocations").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"{profile['name']} 배분 저장 실패: {e}")
+        raise
 
-    print(f"{profile['name']} 배분 저장 완료: allocations/{investor_id}/{date_str}")
+    logger.info(f"{profile['name']} 배분 저장 완료: allocations/{investor_id}/{date_str}")
     return data
 
 
@@ -62,8 +73,13 @@ def save_stories(date_str, commentary, diaries):
         "commentary": commentary,
         "diaries": diaries,
     }
-    supabase.table("daily_stories").upsert(data).execute()
-    print(f"데일리 스토리 저장 완료: daily_stories/{date_str}")
+    try:
+        supabase.table("daily_stories").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"데일리 스토리 저장 실패: {e}")
+        raise
+
+    logger.info(f"데일리 스토리 저장 완료: daily_stories/{date_str}")
     return data
 
 

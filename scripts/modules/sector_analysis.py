@@ -7,6 +7,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_sector_analysis(tickers=None):
@@ -76,7 +79,7 @@ def get_sector_analysis(tickers=None):
                 "return_1m": return_1m,
             }
         except Exception as e:
-            print(f"[오류] {ticker} 섹터 분석: {e}")
+            logger.error(f"{ticker} 섹터 분석: {e}")
 
     # 섹터별 그룹핑 & 평균 계산
     sector_groups = {}

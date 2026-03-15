@@ -9,6 +9,9 @@ import math
 import yfinance as yf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history, load_config
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_quality_metrics(tickers=None):
@@ -87,7 +90,7 @@ def get_quality_metrics(tickers=None):
                 "stability_score": stability_score,
             }
         except Exception as e:
-            print(f"[오류] {ticker} 품질 지표: {e}")
+            logger.error(f"{ticker} 품질 지표: {e}")
 
     return results
 

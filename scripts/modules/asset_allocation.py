@@ -7,6 +7,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 from market import get_stock_history
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # ETF 종목 목록 (카테고리별)
 ETF_UNIVERSE = {
@@ -98,7 +101,7 @@ def get_asset_allocation_data(tickers=None):
                 "trend": trend,
             }
         except Exception as e:
-            print(f"[오류] {ticker} 자산배분 데이터: {e}")
+            logger.error(f"{ticker} 자산배분 데이터: {e}")
 
     return results
 

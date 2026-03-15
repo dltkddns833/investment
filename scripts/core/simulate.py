@@ -5,6 +5,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from logger import get_logger
+
+logger = get_logger(__name__)
+
 from supabase_client import supabase
 from market import get_stock_prices
 from portfolio import (
@@ -30,69 +34,69 @@ def run_simulation(date_str=None):
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
-    print(f"\n{'='*60}")
-    print(f" 시뮬레이션 실행: {date_str}")
-    print(f"{'='*60}")
+    logger.info(f"\n{'='*60}")
+    logger.info(f" 시뮬레이션 실행: {date_str}")
+    logger.info(f"{'='*60}")
 
     # 1. 현재 주가 조회
-    print(f"\n [주가 조회 중...]")
+    logger.info(f"\n [주가 조회 중...]")
     current_prices = get_stock_prices(price_type="open")
     if not current_prices:
-        print("[오류] 주가 조회 실패")
+        logger.error("주가 조회 실패")
         return None
     for ticker, data in current_prices.items():
-        print(f"  {data['name']}: {data['price']:,}원 ({'+' if data['change_pct'] >= 0 else ''}{data['change_pct']:.2f}%)")
+        logger.debug(f"  {data['name']}: {data['price']:,}원 ({'+' if data['change_pct'] >= 0 else ''}{data['change_pct']:.2f}%)")
 
     # 2. 각 투자자별 리밸런싱
     investors = get_all_investors()
     rebalance_results = {}
 
-    print(f"\n [리밸런싱 체크]")
+    logger.info(f"\n [리밸런싱 체크]")
     for inv_id in sorted(investors):
         profile = load_profile(inv_id)
         due = is_rebalance_due(inv_id, date_str)
         freq = profile["rebalance_frequency_days"]
 
         if not due:
-            print(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 스킵")
+            logger.info(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 스킵")
             rebalance_results[inv_id] = {"rebalanced": False, "trades": []}
             continue
 
         # 투자자별 개별 allocation 로드
         alloc_data = load_investor_allocation(inv_id, date_str)
         if alloc_data is None:
-            print(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 배분 없음 (스킵)")
+            logger.info(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 배분 없음 (스킵)")
             rebalance_results[inv_id] = {"rebalanced": False, "trades": []}
             continue
 
         allocation = alloc_data["allocation"]
-        print(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 실행")
+        logger.info(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 실행")
         for ticker, pct in allocation.items():
-            print(f"    목표: {ticker} {pct*100:.1f}%")
+            logger.debug(f"    목표: {ticker} {pct*100:.1f}%")
 
         trades = rebalance(inv_id, allocation, current_prices, date_str)
         if trades:
             for t in trades:
-                print(f"    {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원")
+                logger.info(f"    {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원")
         else:
-            print(f"    변경 없음 (이미 목표 배분과 일치)")
+            logger.info(f"    변경 없음 (이미 목표 배분과 일치)")
 
         rebalance_results[inv_id] = {"rebalanced": True, "trades": trades}
 
     # 3. 포트폴리오 평가
-    print(f"\n [포트폴리오 평가]")
+    logger.info(f"\n [포트폴리오 평가]")
     for inv_id in sorted(investors):
         profile = load_profile(inv_id)
         portfolio = load_portfolio(inv_id)
         result = evaluate(inv_id, current_prices)
         sign = "+" if result["total_return"] >= 0 else ""
-        print(f"  {result['investor']} ({profile['strategy']}): 총자산 {result['total_asset']:,}원 ({sign}{result['total_return_pct']:.2f}%)")
+        logger.info(f"  {result['investor']} ({profile['strategy']}): 총자산 {result['total_asset']:,}원 ({sign}{result['total_return_pct']:.2f}%)")
 
     # 4. 일간 리포트 생성
     report = generate_daily_report_with_rebalance(current_prices, date_str, rebalance_results)
 
-    print(f"\n 리포트 저장 완료: daily_reports/{date_str}")
-    print(f"{'='*60}\n")
+    logger.info(f"\n 리포트 저장 완료: daily_reports/{date_str}")
+    logger.info(f"{'='*60}\n")
 
     return report
 
@@ -185,33 +189,33 @@ def update_closing_prices(date_str=None):
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
-    print(f"\n{'='*60}")
-    print(f" 종가 업데이트: {date_str}")
-    print(f"{'='*60}")
+    logger.info(f"\n{'='*60}")
+    logger.info(f" 종가 업데이트: {date_str}")
+    logger.info(f"{'='*60}")
 
     # 기존 리포트 로드
     existing = supabase.table("daily_reports").select("*").eq("date", date_str).execute().data
     if not existing:
-        print("[오류] 해당 날짜의 리포트가 없습니다")
+        logger.error("해당 날짜의 리포트가 없습니다")
         return None
 
     prev_report = existing[0]
 
     # 종가 조회
-    print(f"\n [종가 조회 중...]")
+    logger.info(f"\n [종가 조회 중...]")
     closing_prices = get_stock_prices(price_type="close")
     if not closing_prices:
-        print("[오류] 종가 조회 실패")
+        logger.error("종가 조회 실패")
         return None
 
     for ticker, data in closing_prices.items():
-        print(f"  {data['name']}: {data['price']:,}원 ({'+' if data['change_pct'] >= 0 else ''}{data['change_pct']:.2f}%)")
+        logger.debug(f"  {data['name']}: {data['price']:,}원 ({'+' if data['change_pct'] >= 0 else ''}{data['change_pct']:.2f}%)")
 
     # 종가 기준으로 포트폴리오 재평가
     investors = get_all_investors()
     results = []
 
-    print(f"\n [종가 기준 재평가]")
+    logger.info(f"\n [종가 기준 재평가]")
     for inv_id in sorted(investors):
         result = evaluate(inv_id, closing_prices)
         profile = load_profile(inv_id)
@@ -226,7 +230,7 @@ def update_closing_prices(date_str=None):
         results.append(result)
 
         sign = "+" if result["total_return"] >= 0 else ""
-        print(f"  {result['investor']}: {result['total_asset']:,}원 ({sign}{result['total_return_pct']:.2f}%)")
+        logger.info(f"  {result['investor']}: {result['total_asset']:,}원 ({sign}{result['total_return_pct']:.2f}%)")
 
     results.sort(key=lambda x: x["total_return_pct"], reverse=True)
 
@@ -268,8 +272,8 @@ def update_closing_prices(date_str=None):
         "investor_details": report["investor_details"],
     }).execute()
 
-    print(f"\n 종가 반영 완료: daily_reports/{date_str}")
-    print(f"{'='*60}\n")
+    logger.info(f"\n 종가 반영 완료: daily_reports/{date_str}")
+    logger.info(f"{'='*60}\n")
 
     return report
 
