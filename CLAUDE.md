@@ -133,7 +133,7 @@ scripts/
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
 | `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories (모두 jsonb) | 시뮬레이션 설정 |
-| `profiles` | id (A~K) | name, strategy, description, rebalance_frequency_days, risk_tolerance, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
+| `profiles` | id (A~K) | name, strategy, description, rebalance_frequency_days, risk_tolerance, risk_grade, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
 | `portfolios` | investor_id | investor, strategy, initial_capital, cash, holdings(jsonb), last_rebalanced | 보유 현황 |
 | `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit | 거래 내역 |
 | `rebalance_history` | serial id | investor_id(FK), date, trades(jsonb), total_asset_after | 리밸런싱 기록 |
