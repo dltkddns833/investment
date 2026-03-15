@@ -1,5 +1,14 @@
 import SidebarLink from "./SidebarLink";
 import LogoIcon from "./LogoIcon";
+import {
+  LayoutDashboard,
+  Users,
+  Swords,
+  TrendingUp,
+  PieChart,
+  BarChart2,
+  Newspaper,
+} from "lucide-react";
 
 export default async function Sidebar() {
   return (
@@ -11,13 +20,23 @@ export default async function Sidebar() {
         </span>
       </div>
       <nav className="flex-1 p-3 space-y-1">
-        <SidebarLink href="/" label="대시보드" />
-        <SidebarLink href="/investors" label="투자자" />
-        <SidebarLink href="/reports" label="리포트" />
-        <SidebarLink href="/news" label="뉴스" />
-        <SidebarLink href="/stocks" label="종목 분석" />
-        <SidebarLink href="/analysis" label="분석" />
-        <SidebarLink href="/versus" label="대결" />
+        <SidebarLink href="/" label="대시보드" icon={<LayoutDashboard size={15} />} />
+
+        <div className="my-2 border-t border-white/5" />
+        <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
+          투자자
+        </p>
+        <SidebarLink href="/investors" label="투자자" icon={<Users size={15} />} />
+        <SidebarLink href="/versus" label="대결" icon={<Swords size={15} />} />
+
+        <div className="my-2 border-t border-white/5" />
+        <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
+          데이터
+        </p>
+        <SidebarLink href="/stocks" label="종목 분석" icon={<TrendingUp size={15} />} />
+        <SidebarLink href="/analysis" label="분석" icon={<PieChart size={15} />} />
+        <SidebarLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} />
+        <SidebarLink href="/news" label="뉴스" icon={<Newspaper size={15} />} />
       </nav>
       <div className="gradient-separator mx-4" />
       <div className="p-4 text-xs text-gray-600 text-center">

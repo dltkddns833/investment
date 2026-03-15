@@ -4,10 +4,51 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoIcon from "./LogoIcon";
+import {
+  LayoutDashboard,
+  Users,
+  Swords,
+  TrendingUp,
+  PieChart,
+  BarChart2,
+  Newspaper,
+} from "lucide-react";
 
 interface Investor {
   id: string;
   name: string;
+}
+
+function MobileNavLink({
+  href,
+  label,
+  icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+        active
+          ? "nav-active text-white font-medium"
+          : "text-gray-400 hover:bg-white/5 hover:text-gray-100"
+      }`}
+    >
+      <span
+        className={`shrink-0 transition-colors duration-200 ${
+          active ? "text-blue-400" : "text-gray-500 group-hover:text-gray-300"
+        }`}
+      >
+        {icon}
+      </span>
+      {label}
+    </Link>
+  );
 }
 
 export default function MobileHeader({
@@ -97,76 +138,21 @@ export default function MobileHeader({
                 </svg>
               </button>
             </div>
-            <Link
-              href="/"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname === "/"
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              대시보드
-            </Link>
-            <Link
-              href="/reports"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname === "/reports"
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              리포트
-            </Link>
-            <Link
-              href="/news"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname === "/news"
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              뉴스
-            </Link>
-            <Link
-              href="/stocks"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname.startsWith("/stocks")
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              종목 분석
-            </Link>
-            <Link
-              href="/analysis"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname === "/analysis"
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              분석
-            </Link>
-            <Link
-              href="/versus"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname.startsWith("/versus")
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              대결
-            </Link>
-            <Link
-              href="/investors"
-              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                pathname.startsWith("/investors")
-                  ? "nav-active text-white font-medium"
-                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-              }`}
-            >
-              투자자
-            </Link>
+
+            {/* 메인 */}
+            <MobileNavLink href="/" label="대시보드" icon={<LayoutDashboard size={15} />} active={pathname === "/"} />
+
+            <div className="my-2 border-t border-white/5" />
+            <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">투자자</p>
+            <MobileNavLink href="/investors" label="투자자" icon={<Users size={15} />} active={pathname.startsWith("/investors")} />
+            <MobileNavLink href="/versus" label="대결" icon={<Swords size={15} />} active={pathname.startsWith("/versus")} />
+
+            <div className="my-2 border-t border-white/5" />
+            <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">데이터</p>
+            <MobileNavLink href="/stocks" label="종목 분석" icon={<TrendingUp size={15} />} active={pathname.startsWith("/stocks")} />
+            <MobileNavLink href="/analysis" label="분석" icon={<PieChart size={15} />} active={pathname === "/analysis"} />
+            <MobileNavLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} active={pathname === "/reports"} />
+            <MobileNavLink href="/news" label="뉴스" icon={<Newspaper size={15} />} active={pathname === "/news"} />
           </nav>
         </>
       )}

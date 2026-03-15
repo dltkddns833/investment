@@ -194,19 +194,13 @@ body::before {
 
 /* ───── Nav Active ───── */
 .nav-active {
-  background: rgba(255, 255, 255, 0.06);
-  position: relative;
-}
-
-.nav-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 25%;
-  bottom: 25%;
-  width: 3px;
-  background: linear-gradient(to bottom, var(--accent-1), var(--accent-2));
-  border-radius: 0 2px 2px 0;
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.18) 0%,
+    rgba(139, 92, 246, 0.12) 100%
+  );
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.06);
 }
 
 /* ───── Badge Glow ───── */
