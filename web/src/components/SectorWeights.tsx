@@ -33,6 +33,11 @@ const SECTOR_COLORS: Record<string, string> = {
   제약: "bg-lime-500",
   화장품: "bg-fuchsia-500",
   식품: "bg-amber-600",
+  지수ETF: "bg-indigo-400",
+  섹터ETF: "bg-violet-400",
+  해외ETF: "bg-sky-400",
+  채권ETF: "bg-teal-400",
+  배당ETF: "bg-emerald-400",
 };
 
 function getSectorColor(sector: string): string {

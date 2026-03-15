@@ -10,7 +10,7 @@ interface Props {
 
 export default function SidebarLink({ href, label }: Props) {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
 
   return (
     <Link

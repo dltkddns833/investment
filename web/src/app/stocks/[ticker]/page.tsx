@@ -10,6 +10,8 @@ import LiveStockPrice from "@/components/LiveStockPrice";
 import LiveStockHolders from "@/components/LiveStockHolders";
 import { SectorIcon } from "@/lib/sector-icons";
 import Link from "next/link";
+import { getEtfData, isEtfTicker } from "@/lib/etf-data";
+import EtfDetail from "@/components/EtfDetail";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,7 @@ export default async function StockDetailPage({ params }: Props) {
 
   const report = latestDate ? (await getDailyReport(latestDate))! : null;
   const marketPrice = report?.market_prices[decodedTicker];
+  const etfData = isEtfTicker(stockInfo.sector) ? getEtfData(decodedTicker) : null;
 
   // Find holders
   const holders: {
@@ -84,16 +87,16 @@ export default async function StockDetailPage({ params }: Props) {
           </span>
         </div>
         <p className="text-gray-500 text-sm mt-1">{decodedTicker}</p>
-        {stockInfo.description && (
-          <p className="text-gray-400 text-sm mt-3 leading-relaxed">{stockInfo.description}</p>
+        {(stockInfo.description || etfData?.objective) && (
+          <p className="text-gray-400 text-sm mt-3 leading-relaxed">
+            {stockInfo.description ?? etfData?.objective}
+          </p>
         )}
-        {marketPrice && (
-          <LiveStockPrice
-            ticker={decodedTicker}
-            storedPrice={marketPrice.price}
-            storedChangePct={marketPrice.change_pct}
-          />
-        )}
+        <LiveStockPrice
+          ticker={decodedTicker}
+          storedPrice={marketPrice?.price ?? 0}
+          storedChangePct={marketPrice?.change_pct ?? 0}
+        />
       </div>
 
       {/* Price Chart */}
@@ -101,6 +104,14 @@ export default async function StockDetailPage({ params }: Props) {
         <h2 className="text-lg font-bold mb-3 section-header">가격 추이</h2>
         <RealStockChart ticker={decodedTicker} />
       </section>
+
+      {/* ETF 상세 정보 */}
+      {etfData && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-4 section-header">ETF 구성 정보</h2>
+          <EtfDetail etf={etfData} />
+        </section>
+      )}
 
       {/* Holders */}
       {holders.length > 0 && (

@@ -284,6 +284,38 @@ function FaceJ() {
   );
 }
 
+function FaceK() {
+  // Robo-Advisor — 미래형 AI 로봇, E와 달리 유선형 디자인
+  return (
+    <>
+      {/* 안테나 2개 */}
+      <line x1="40" y1="24" x2="38" y2="32" stroke="#a78bfa" strokeWidth="2" />
+      <circle cx="38" cy="22" r="3" fill="#8b5cf6" />
+      <line x1="60" y1="24" x2="62" y2="32" stroke="#a78bfa" strokeWidth="2" />
+      <circle cx="62" cy="22" r="3" fill="#8b5cf6" />
+      {/* 로봇 머리 — 유선형 */}
+      <rect x="26" y="32" width="48" height="42" rx="14" fill="#1e1b4b" />
+      <rect x="28" y="34" width="44" height="38" rx="12" fill="#2e1065" />
+      {/* 눈 — 보라색 글로우 */}
+      <ellipse cx="39" cy="49" rx="7" ry="5" fill="#4c1d95" />
+      <ellipse cx="61" cy="49" rx="7" ry="5" fill="#4c1d95" />
+      <ellipse cx="39" cy="49" rx="5" ry="3.5" fill="#7c3aed" opacity="0.9" />
+      <ellipse cx="61" cy="49" rx="5" ry="3.5" fill="#7c3aed" opacity="0.9" />
+      <ellipse cx="39" cy="49" rx="3" ry="2" fill="#a78bfa" />
+      <ellipse cx="61" cy="49" rx="3" ry="2" fill="#a78bfa" />
+      {/* 눈 반사 */}
+      <ellipse cx="37" cy="47.5" rx="1.2" ry="0.8" fill="white" opacity="0.5" />
+      <ellipse cx="59" cy="47.5" rx="1.2" ry="0.8" fill="white" opacity="0.5" />
+      {/* 입 — 데이터 바 느낌 */}
+      <rect x="36" y="60" width="4" height="4" rx="1" fill="#8b5cf6" opacity="0.8" />
+      <rect x="42" y="58" width="4" height="6" rx="1" fill="#7c3aed" opacity="0.9" />
+      <rect x="48" y="59" width="4" height="5" rx="1" fill="#a78bfa" opacity="0.8" />
+      <rect x="54" y="57" width="4" height="7" rx="1" fill="#7c3aed" opacity="0.9" />
+      <rect x="60" y="60" width="4" height="4" rx="1" fill="#8b5cf6" opacity="0.8" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -295,6 +327,7 @@ const FACES: Record<string, () => JSX.Element> = {
   H: FaceH,
   I: FaceI,
   J: FaceJ,
+  K: FaceK,
 };
 
 export default function InvestorAvatar({

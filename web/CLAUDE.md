@@ -25,10 +25,11 @@ src/
   app/
     page.tsx                 ← 메인 대시보드 (순위, 주간 MVP/연승, 코멘터리, 시장현황, 뉴스)
     layout.tsx               ← 루트 레이아웃 (다크 테마)
+    investors/page.tsx       ← 투자자 목록 (카드 그리드, 순위/수익률)
     investors/[id]/page.tsx  ← 투자자 상세 (뱃지, 일기, 차트, 보유종목, 거래내역)
     reports/page.tsx         ← 리포트 (달력 히트맵, 월간 수익률)
-    stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 종목 리스트)
-    stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, 보유자, 거래내역)
+    stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
+    stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
     analysis/page.tsx        ← 투자자 분석 (상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
@@ -41,9 +42,10 @@ src/
     PeriodSelector.tsx        ← 투자자 탭 + 월 이동
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바
-    CorrelationHeatmap.tsx    ← 수익률 상관관계 10×10 히트맵
+    CorrelationHeatmap.tsx    ← 수익률 상관관계 11×11 히트맵
     OverlapMatrix.tsx         ← 포지션 겹침률 매트릭스
     StockPopularityChart.tsx  ← 종목별 보유 투자자 수 차트
+    EtfDetail.tsx             ← ETF 구성정보 (섹터 비중 바, 주요 구성 종목)
     VersusChart.tsx           ← 1:1 자산 비교 라인 차트
     VersusReturnDiff.tsx      ← 일별 수익률 차이 바 차트
     VersusPositionCompare.tsx ← 포지션 비교 3컬럼
@@ -57,8 +59,10 @@ src/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
     format.ts                 ← 포맷 유틸 (krw, pct, signColor)
-    investor-colors.ts        ← 투자자 고유 컬러 시스템 (전체 앱에서 일관 사용)
-    methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터
+    investor-colors.ts        ← 투자자 고유 컬러 시스템 (A~K, 전체 앱에서 일관 사용)
+    methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터 (A~K)
+    etf-data.ts               ← ETF 구성정보 정적 데이터 (12개 ETF 섹터 비중/구성 종목)
+    sector-icons.tsx          ← 섹터별 SVG 아이콘 (ETF 카테고리 포함)
 ```
 
 ## Data Layer

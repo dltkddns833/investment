@@ -11,7 +11,7 @@ interface Investor {
 }
 
 export default function MobileHeader({
-  investors,
+  investors: _investors,
 }: {
   investors: Investor[];
 }) {
@@ -157,22 +157,16 @@ export default function MobileHeader({
             >
               대결
             </Link>
-            <div className="pt-4 pb-2 px-3 text-xs text-gray-500 uppercase tracking-wider">
+            <Link
+              href="/investors"
+              className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                pathname.startsWith("/investors")
+                  ? "nav-active text-white font-medium"
+                  : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+              }`}
+            >
               투자자
-            </div>
-            {investors.map((inv) => (
-              <Link
-                key={inv.id}
-                href={`/investors/${inv.id}`}
-                className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                  pathname === `/investors/${inv.id}`
-                    ? "nav-active text-white font-medium"
-                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                }`}
-              >
-                {inv.name}
-              </Link>
-            ))}
+            </Link>
           </nav>
         </>
       )}

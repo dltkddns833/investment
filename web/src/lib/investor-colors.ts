@@ -88,6 +88,14 @@ const INVESTOR_COLORS: Record<string, InvestorColor> = {
     border: "border-orange-500/30",
     ring: "ring-orange-500/30",
   },
+  K: {
+    primary: "#8b5cf6",
+    light: "#c4b5fd",
+    bg: "rgba(139, 92, 246, 0.1)",
+    text: "text-violet-400",
+    border: "border-violet-500/30",
+    ring: "ring-violet-500/30",
+  },
 };
 
 /** Get color config by investor ID (A~J) */
@@ -100,7 +108,7 @@ export function getInvestorHex(id: string): string {
   return (INVESTOR_COLORS[id] ?? INVESTOR_COLORS.E).primary;
 }
 
-/** Ordered primary colors array (A→J) — for multi-line charts */
+/** Ordered primary colors array (A→K) — for multi-line charts */
 export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.A.primary,
   INVESTOR_COLORS.B.primary,
@@ -112,6 +120,7 @@ export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.H.primary,
   INVESTOR_COLORS.I.primary,
   INVESTOR_COLORS.J.primary,
+  INVESTOR_COLORS.K.primary,
 ];
 
 /** Name → ID lookup */
@@ -126,6 +135,7 @@ const NAME_TO_ID: Record<string, string> = {
   박기술: "H",
   최배당: "I",
   한따라: "J",
+  로로캅: "K",
 };
 
 export function investorIdByName(name: string): string | null {

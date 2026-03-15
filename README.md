@@ -2,7 +2,7 @@
 
 > **대시보드**: https://investment-phi-six.vercel.app/
 
-10명의 가상 투자자(A~J)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식에 투자하여 성과를 비교하는 시뮬레이션. 각 투자자는 전용 데이터 모듈과 AI 에이전트를 통해 독립적으로 배분을 결정한다.
+11명의 가상 투자자(A~K)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식 및 ETF에 투자하여 성과를 비교하는 시뮬레이션. 각 투자자는 전용 데이터 모듈과 AI 에이전트를 통해 독립적으로 배분을 결정한다.
 
 ## 투자자
 
@@ -18,9 +18,10 @@
 | H | 박기술 | 기술적 분석 | 매일 | 5~8 | `technical_indicators.py` |
 | I | 최배당 | 배당 투자 | 분기별 | 5~10 | `dividend_data.py` |
 | J | 한따라 | 스마트머니 추종 | 매주 | 5~8 | `institutional_flow.py` (스텁) |
+| K | 로로캅 | 글로벌 자산배분 (ETF 전용) | 매월 | 4~8 | `asset_allocation.py` |
 
 - 시드머니: 각 500만원 (KRW)
-- 시장: KOSPI + KOSDAQ 35종목 (yfinance 기반 실시간 시세)
+- 시장: KOSPI + KOSDAQ — 일반주 35종목 + ETF 12종목 = **47종목** (yfinance 기반 실시간 시세)
 - 데이터 저장소: Supabase (PostgreSQL)
 
 ## 시뮬레이션 흐름
@@ -28,7 +29,7 @@
 ```
 [오전 — 시가 체결]
 1. 뉴스 수집 → Supabase news 테이블
-2. 투자자별 독립 분석/배분 결정 (10개 AI 에이전트 병렬)
+2. 투자자별 독립 분석/배분 결정 (11개 AI 에이전트 병렬)
    → 각 에이전트에 전용 데이터 모듈 결과 전달 → allocations 테이블
 3. python3 scripts/core/simulate.py 실행
    → 시가(Open) 조회 → 리밸런싱 due 체크 → 매매 → daily_reports 저장
@@ -83,7 +84,8 @@ cd web && pnpm install && pnpm dev
 │   │   ├── quality_metrics.py          안정성/품질 지표 (C용)
 │   │   ├── technical_indicators.py     RSI/MACD/볼린저 밴드 (H용)
 │   │   ├── dividend_data.py            배당수익률 (I, C용)
-│   │   └── institutional_flow.py       외국인/기관 수급 (J용, 스텁)
+│   │   ├── institutional_flow.py       외국인/기관 수급 (J용, 스텁)
+│   │   └── asset_allocation.py         ETF 카테고리별 수익률/변동성/추세 (K용)
 │   ├── notifications/                # 알림 발송
 │   │   ├── send_telegram.py            텔레그램 알림
 │   │   └── send_email.py               이메일 알림
@@ -120,9 +122,10 @@ macOS launchd로 평일 09:05에 통합 파이프라인 실행.
 Next.js + TypeScript + Tailwind CSS + Recharts로 구성된 시각화 대시보드.
 
 - **메인** (`/`): 투자자 순위, 마켓 코멘터리, 시장 현황(실시간/종가), 뉴스
+- **투자자 목록** (`/investors`): 전체 11명 카드 그리드, 순위/수익률
 - **투자자 상세** (`/investors/[id]`): 투자자 일기, 포트폴리오 차트, 목표 배분, 보유종목, 거래내역
 - **리포트** (`/reports`): 달력 히트맵, 월간 수익률
-- **종목 분석** (`/stocks`): 섹터 히트맵(실시간), 섹터 비중, 종목 리스트(실시간)
-- **종목 상세** (`/stocks/[ticker]`): Yahoo Finance 실시간 차트(1M/3M/6M/1Y), 보유 투자자(실시간), 거래내역
+- **종목 분석** (`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(35개)/ETF(12개) 분리 목록
+- **종목 상세** (`/stocks/[ticker]`): 가격 차트, ETF 구성정보(섹터 비중·구성 종목), 보유 투자자, 거래내역
 
 장중(09:00~15:30)에는 LIVE 뱃지, 장마감 후에는 종가 뱃지와 함께 Yahoo Finance에서 가격을 자동 조회하여 포트폴리오를 재계산한다.

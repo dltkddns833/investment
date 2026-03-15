@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 10명의 투자자(A~J)가 동일한 종목 풀(35개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
+한국 주식 모의 투자 시뮬레이션. 11명의 투자자(A~K)가 동일한 종목 풀(47개, 일반주 35개 + ETF 12개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
 
 - 시드머니: 각 500만원 (KRW)
 - 시장: KOSPI + KOSDAQ (yfinance 기반 실시간 시세)
@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - H 박기술: 기술적 분석 / 매일 리밸런싱 / 5~8종목 (RSI, MACD, 볼린저 밴드 기반)
 - I 최배당: 배당 투자 / 분기별 리밸런싱 / 5~10종목 (배당수익률 중심)
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
+- K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
 
 ## Session Start Check
 
@@ -115,6 +116,7 @@ scripts/
     technical_indicators.py  RSI/MACD/볼린저 밴드 (H용)
     dividend_data.py       배당수익률 (I, C용)
     institutional_flow.py  외국인/기관 수급 (J용, 스텁)
+    asset_allocation.py    ETF 카테고리별 수익률/변동성/추세 (K용)
   notifications/     # 알림 발송
     send_telegram.py     텔레그램 알림
     send_email.py        이메일 알림
@@ -131,7 +133,7 @@ scripts/
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
 | `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories (모두 jsonb) | 시뮬레이션 설정 |
-| `profiles` | id (A~J) | name, strategy, description, rebalance_frequency_days, risk_tolerance, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
+| `profiles` | id (A~K) | name, strategy, description, rebalance_frequency_days, risk_tolerance, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
 | `portfolios` | investor_id | investor, strategy, initial_capital, cash, holdings(jsonb), last_rebalanced | 보유 현황 |
 | `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit | 거래 내역 |
 | `rebalance_history` | serial id | investor_id(FK), date, trades(jsonb), total_asset_after | 리밸런싱 기록 |
@@ -161,10 +163,11 @@ scripts/
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위, 주간 MVP/연승, 시장 현황, 뉴스
+- 투자자 목록(`/investors`): 전체 11명 카드 그리드, 순위/수익률 표시
 - 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 보유종목, 거래내역, 투자 방법론(대표인물/참고링크)
 - 리포트(`/reports`): 달력 히트맵, 월간 수익률
-- 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 종목 리스트
-- 종목 상세(`/stocks/[ticker]`): 가격 차트, 보유 투자자, 거래내역
+- 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(35개)/ETF(12개) 분리 목록
+- 종목 상세(`/stocks/[ticker]`): 가격 차트, ETF면 구성정보(섹터 비중+구성 종목), 보유 투자자, 거래내역
 - 분석(`/analysis`): 수익률 상관관계 히트맵, 포지션 겹침률, 종목 인기도
 - 대결(`/versus`): 추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승 기록
 - 대결 상세(`/versus/[matchup]`): 1:1 자산 비교, 일별 수익률 차이, 포지션 비교
@@ -179,7 +182,7 @@ cd web && pnpm build  # 빌드
 ## Key Preferences
 
 - stock_universe 종목 변경은 반드시 사용자 확인 후 진행 (임의 선정 금지)
-- 현재 35종목 → 자금 증가 시 50~100개로 확대 예정
+- 현재 47종목 (일반주 35개 + ETF 12개)
 - 뉴스 파일에는 원문만 저장, 투자 판단은 투자자별 독립 수행
 
 ## Daily Pipeline Trigger
@@ -195,8 +198,8 @@ cd web && pnpm build  # 빌드
 - 15~20건 수집 후 `scripts/core/daily_pipeline.py`의 `save_news()`로 Supabase에 저장
 - 각 기사에 `url` 필드 포함: `{"title": ..., "summary": ..., "category": ..., "source": ..., "url": "https://..."}`
 
-#### Step 2: 투자자별 배분 결정 (10개 독립 AI 에이전트 병렬 실행)
-**반드시 10개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
+#### Step 2: 투자자별 배분 결정 (11개 독립 AI 에이전트 병렬 실행)
+**반드시 11개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
 - 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
 - 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
 - A 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (모멘텀 상위 종목 집중)
@@ -207,6 +210,7 @@ cd web && pnpm build  # 빌드
 - H 에이전트에는 추가로 `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달
 - I 에이전트에는 추가로 `scripts/modules/dividend_data.py`의 `get_dividend_data()` 결과를 전달
 - J 에이전트에는 뉴스 중 외국인/기관 수급 관련 내용을 강조하여 전달
+- K 에이전트에는 추가로 `scripts/modules/asset_allocation.py`의 `get_asset_allocation_data()` 결과를 전달 (ETF 카테고리별 수익률/변동성/추세 데이터)
 - 에이전트는 분석 후 `save_allocation()`으로 Supabase에 저장
 - rationale(배분 근거) 텍스트는 논점별로 줄바꿈(`\n`) 삽입하여 가독성 확보
 - allocation 합계 = 1.0, stock_universe 종목만 사용
@@ -220,6 +224,7 @@ cd web && pnpm build  # 빌드
 - H (기술적 분석): RSI 과매도 매수, 과매수 회피, MACD 골든크로스 우선, 5~8종목
 - I (배당 투자): 배당수익률 상위 종목 집중, 재무 안정성 고려, 5~10종목
 - J (스마트머니 추종): 뉴스에서 외국인/기관 순매수 동향 파악, 수급 양호 종목, 5~8종목
+- K (글로벌 자산배분): **ETF 종목만 사용**, 지수/섹터/해외/채권/배당 ETF 카테고리별 비중 조절, 4~8종목. 주식ETF↔채권ETF 시소 원리 적용 (변동성 높을 때 채권 비중 확대)
 
 #### Step 3: 시뮬레이션 실행 (시가 체결)
 - `python3 scripts/core/simulate.py {date}` 실행
@@ -255,11 +260,12 @@ cd web && pnpm build  # 빌드
 - H 박기술: 차트 분석가 ("차트가 말해주고 있다", "RSI가 과매도 구간이다")
 - I 최배당: 배당 투자자 ("배당이 핵심이다", "꾸준한 현금흐름이 중요하다")
 - J 한따라: 수급 추종자 ("외국인이 사는 이유가 있다", "기관 자금이 몰리고 있다")
+- K 로로캅: 알고리즘식, 무감정 ("데이터가 말해준다", "최적 비중으로 재조정", "모델이 지시한 대로 실행")
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
-- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ...}` 형태 (투자자 이름 키)
+- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "로로캅": "..."}` 형태 (투자자 이름 키)
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵
-- A/G/H는 매일, D는 3영업일마다, B/J는 7영업일마다, E/F는 14영업일마다, C는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외)
+- A/G/H는 매일, D는 3영업일마다, B/J는 7영업일마다, E/F는 14영업일마다, C/K는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외)
 - 첫날은 `last_rebalanced: null`이므로 모두 실행

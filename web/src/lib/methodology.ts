@@ -238,6 +238,29 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
+  K: {
+    method: "글로벌 자산배분 (Global Asset Allocation / Robo-Advisor)",
+    representative:
+      "Betterment·Wealthfront 류의 로보어드바이저 — ETF 기반 자동 자산배분 서비스",
+    core: "지수·섹터·해외·채권·배당 ETF를 조합해 자산군별 목표 비중을 유지한다. 주식↔채권 시소 원리로 변동성을 낮추고 장기 복리를 추구한다.",
+    evidence:
+      "Swensen(2000)의 예일 기부금 모델 — 광범위한 분산과 리밸런싱이 장기 수익률을 높인다는 실증",
+    similar: "Betterment, Wealthfront, 삼성 로보어드바이저, 키움 ROBO-ADVISOR",
+    links: [
+      {
+        label: "Robo-Advisor — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Robo-advisor",
+      },
+      {
+        label: "Asset Allocation — Investopedia",
+        url: "https://www.investopedia.com/terms/a/assetallocation.asp",
+      },
+      {
+        label: "Yale Endowment Model — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Yale_model",
+      },
+    ],
+  },
 };
 
 export type { Methodology, Link };

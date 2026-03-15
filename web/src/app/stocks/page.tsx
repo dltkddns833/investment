@@ -34,15 +34,18 @@ export default async function StocksPage() {
     }
   }
 
-  // Stock list sorted by change_pct
-  const stockList = config.stock_universe
-    .map((s) => ({
-      ...s,
-      price: report.market_prices[s.ticker]?.price ?? 0,
-      change_pct: report.market_prices[s.ticker]?.change_pct ?? 0,
-      holders: holderCount.get(s.ticker) ?? 0,
-    }))
-    .sort((a, b) => b.change_pct - a.change_pct);
+  const isEtf = (sector: string) => sector.endsWith("ETF");
+
+  const allRows = config.stock_universe.map((s) => ({
+    ...s,
+    price: report.market_prices[s.ticker]?.price ?? 0,
+    change_pct: report.market_prices[s.ticker]?.change_pct ?? 0,
+    holders: holderCount.get(s.ticker) ?? 0,
+  }));
+
+  const stockList = allRows.filter((s) => !isEtf(s.sector));
+  const etfList = allRows.filter((s) => isEtf(s.sector));
+  const regularUniverse = config.stock_universe.filter((s) => !isEtf(s.sector));
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -52,11 +55,11 @@ export default async function StocksPage() {
         <p className="text-gray-400 mt-1">섹터별 현황 & 종목 상세</p>
       </div>
 
-      {/* Sector Heatmap */}
+      {/* Sector Heatmap — 일반 주식만 */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-4 section-header">섹터 히트맵</h2>
         <LiveSectorHeatmap
-          stocks={config.stock_universe}
+          stocks={regularUniverse}
           storedPrices={report.market_prices}
         />
       </section>
@@ -72,17 +75,30 @@ export default async function StocksPage() {
         />
       </section>
 
-      {/* Stock List */}
+      {/* 국내 주식 목록 */}
       <section className="glass-card overflow-hidden animate-in">
         <div className="py-4 px-4 border-b border-white/5">
           <h2 className="text-lg font-bold section-header">
-            전체 종목
+            국내 주식
             <span className="text-sm font-normal text-gray-400 ml-2">
               {stockList.length}종목
             </span>
           </h2>
         </div>
         <LiveStockList stocks={stockList} />
+      </section>
+
+      {/* ETF 목록 */}
+      <section className="glass-card overflow-hidden animate-in">
+        <div className="py-4 px-4 border-b border-white/5">
+          <h2 className="text-lg font-bold section-header">
+            ETF
+            <span className="text-sm font-normal text-gray-400 ml-2">
+              {etfList.length}종목
+            </span>
+          </h2>
+        </div>
+        <LiveStockList stocks={etfList} />
       </section>
     </div>
   );
