@@ -5,10 +5,13 @@ import {
   getReturnCorrelationMatrix,
   getPositionOverlaps,
   getStockPopularity,
+  getPerformanceStats,
 } from "@/lib/data";
 import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 import OverlapMatrix from "@/components/OverlapMatrix";
 import StockPopularityChart from "@/components/StockPopularityChart";
+import PerformanceStatsTable from "@/components/PerformanceStatsTable";
+import InvestorRadarChart from "@/components/InvestorRadarChart";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +31,16 @@ export default async function AnalysisPage() {
   }
 
   const investorNames = config.investors.map((inv) => inv.name);
+  const investorIdList = config.investors.map((inv) => inv.id);
 
-  const [report, correlations] = await Promise.all([
+  // name → id 맵
+  const investorIds: Record<string, string> = {};
+  for (const inv of config.investors) investorIds[inv.name] = inv.id;
+
+  const [report, correlations, perfStats] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getReturnCorrelationMatrix(investorNames),
+    getPerformanceStats(investorNames, investorIdList),
   ]);
 
   const overlaps = getPositionOverlaps(report.investor_details);
@@ -43,6 +52,20 @@ export default async function AnalysisPage() {
         <h1 className="text-2xl md:text-3xl font-bold">투자자 분석</h1>
         <p className="text-gray-400 text-sm mt-1">상관관계 & 포지션 비교 · {latestDate} 기준</p>
       </div>
+
+      {/* Performance Stats */}
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-1 section-header">성과 지표</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          샤프비율, 최대낙폭(MDD), 변동성, 알파(정기준 대비), 승률 비교. 컬럼 클릭 시 정렬.
+        </p>
+        {perfStats.some((s) => s.sharpeRatio !== null) && (
+          <InvestorRadarChart stats={perfStats} investorIds={investorIds} />
+        )}
+        <div className="mt-4">
+          <PerformanceStatsTable stats={perfStats} investorIds={investorIds} />
+        </div>
+      </section>
 
       {/* Correlation Matrix */}
       <section className="glass-card p-4 md:p-5 animate-in">

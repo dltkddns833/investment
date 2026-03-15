@@ -30,7 +30,7 @@ src/
     reports/page.tsx         ← 리포트 (달력 히트맵, 월간 수익률)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
-    analysis/page.tsx        ← 투자자 분석 (상관관계 히트맵, 포지션 겹침률, 종목 인기도)
+    analysis/page.tsx        ← 투자자 분석 (성과 지표, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
   components/
@@ -55,6 +55,8 @@ src/
     BadgeList.tsx             ← 투자자 뱃지 목록
     InvestorAvatar.tsx        ← 투자자 카툰 아바타 (대표 인물 기반 SVG)
     AllInvestorsAssetChart.tsx ← 전체 투자자 자산 추이 라인 차트
+    PerformanceStatsTable.tsx ← 성과 지표 테이블 (샤프/MDD/승률/변동성/알파, 클릭 정렬)
+    InvestorRadarChart.tsx    ← 성과 지표 레이더 차트 (5축, 상위 5명 기본, 클릭 토글)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -87,6 +89,7 @@ src/
 - `getWeeklyMVPs()` → ISO 주 단위 최고/최저 투자자
 - `getBadges()` → 마일스톤 감지 (첫 수익, 600만 돌파, 연속 1위 등)
 - `getVersusData(investorA, investorB)` → 1:1 대결 데이터 (자산 추이, 수익률 차이, 승패)
+- `getPerformanceStats(investorNames, investorIds)` → 샤프비율/MDD/변동성/알파/승률 (tradingDays < 5이면 sharpe/mdd/volatility = null)
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

@@ -831,6 +831,118 @@ export async function getBadges(): Promise<Badge[]> {
   return badges;
 }
 
+// --- Issue #1: 성과 분석 고도화 ---
+
+export interface PerformanceStats {
+  investor: string;        // 투자자 이름
+  investorId: string;      // A~K
+  sharpeRatio: number | null;  // 연환산 샤프비율
+  mdd: number | null;          // 최대낙폭 % (음수, 예: -12.5)
+  volatility: number | null;   // 연환산 변동성 %
+  alpha: number | null;        // 누적수익률 - E(정기준) 수익률
+  winRate: number | null;      // 매도 거래 중 profit > 0 비율 (0~100)
+  totalReturnPct: number;      // 누적수익률
+  tradingDays: number;
+}
+
+export async function getPerformanceStats(
+  investorNames: string[],
+  investorIds: string[],
+  initialCapital: number = 5_000_000
+): Promise<PerformanceStats[]> {
+  const [assetHistory, sellTxns] = await Promise.all([
+    getAllAssetHistory(investorNames, initialCapital),
+    supabase
+      .from("transactions")
+      .select("investor_id, profit")
+      .eq("type", "sell"),
+  ]);
+
+  // 매도 건별 승률 계산
+  const winCounts: Record<string, { wins: number; total: number }> = {};
+  for (const id of investorIds) winCounts[id] = { wins: 0, total: 0 };
+  for (const row of sellTxns.data ?? []) {
+    if (!winCounts[row.investor_id]) continue;
+    winCounts[row.investor_id].total++;
+    if ((row.profit ?? 0) > 0) winCounts[row.investor_id].wins++;
+  }
+
+  // 투자자 이름 → ID 맵
+  const nameToId: Record<string, string> = {};
+  for (let i = 0; i < investorNames.length; i++) nameToId[investorNames[i]] = investorIds[i] ?? "";
+
+  // 정기준(E) 누적 수익률 계산 (알파 기준선)
+  const benchmarkName = investorNames.find((n) => nameToId[n] === "E") ?? null;
+  const lastRow = assetHistory[assetHistory.length - 1];
+  const benchmarkFinalAsset = benchmarkName && lastRow
+    ? ((lastRow[benchmarkName] as number) ?? initialCapital)
+    : initialCapital;
+  const benchmarkReturnPct = ((benchmarkFinalAsset - initialCapital) / initialCapital) * 100;
+
+  const results: PerformanceStats[] = [];
+
+  for (const name of investorNames) {
+    const id = nameToId[name] ?? "";
+    const assets = assetHistory.map((row) => (row[name] as number) ?? initialCapital);
+    const tradingDays = assetHistory.length;
+
+    // 일별 수익률 계산
+    const dailyReturns: number[] = [];
+    for (let i = 1; i < assets.length; i++) {
+      const prev = assets[i - 1];
+      const curr = assets[i];
+      dailyReturns.push(prev > 0 ? (curr - prev) / prev : 0);
+    }
+
+    let sharpeRatio: number | null = null;
+    let mdd: number | null = null;
+    let volatility: number | null = null;
+
+    if (tradingDays >= 5 && dailyReturns.length >= 4) {
+      const n = dailyReturns.length;
+      const mean = dailyReturns.reduce((a, b) => a + b, 0) / n;
+      const variance = dailyReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+      const std = Math.sqrt(variance);
+
+      volatility = std * Math.sqrt(252) * 100;
+      sharpeRatio = std > 0 ? (mean * 252) / (std * Math.sqrt(252)) : null;
+
+      // MDD 계산
+      let peak = initialCapital;
+      let maxDrawdown = 0;
+      for (const asset of assets) {
+        if (asset > peak) peak = asset;
+        const drawdown = (asset - peak) / peak;
+        if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+      }
+      mdd = maxDrawdown * 100;
+    }
+
+    const finalAsset = assets[assets.length - 1] ?? initialCapital;
+    const totalReturnPct = ((finalAsset - initialCapital) / initialCapital) * 100;
+    const alpha = name === benchmarkName ? 0 : totalReturnPct - benchmarkReturnPct;
+
+    const winData = winCounts[id];
+    const winRate = winData && winData.total > 0
+      ? (winData.wins / winData.total) * 100
+      : null;
+
+    results.push({
+      investor: name,
+      investorId: id,
+      sharpeRatio,
+      mdd,
+      volatility,
+      alpha,
+      winRate,
+      totalReturnPct,
+      tradingDays,
+    });
+  }
+
+  return results;
+}
+
 export async function getVersusData(
   investorA: string,
   investorB: string,
