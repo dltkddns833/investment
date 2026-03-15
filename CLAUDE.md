@@ -41,6 +41,9 @@ python3 scripts/core/simulate.py 2026-03-10 --close  # 종가 반영 (장마감 
 # 파이프라인 상태 확인
 python3 scripts/core/daily_pipeline.py 2026-03-10
 
+# 테스트 실행
+python3 -m pytest tests/ -v
+
 # 의존성 설치
 pip3 install -r requirements.txt
 ```
@@ -60,10 +63,6 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - 로그: `logs/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
 - **스토리텔링은 장마감 후 별도 실행** (cron 자동화 시 16:00 스케줄 추가 필요)
-
-### (레거시) 기존 2개 cron — 사용 안 함
-- `scripts/cron/morning_cron.sh` / `scripts/cron/daily_cron.sh` — 종가 체결 시절 사용하던 스크립트
-- `com.investment.morning.plist` / `com.investment.daily.plist` — 기존 plist
 
 ### 재개 시 필요 설정: macOS 전체 디스크 접근 권한
 launchd 프로세스가 `~/Desktop` 하위 프로젝트에 접근할 때 macOS 권한 팝업이 뜰 수 있다.
@@ -119,13 +118,10 @@ scripts/
     asset_allocation.py    ETF 카테고리별 수익률/변동성/추세 (K용)
   notifications/     # 알림 발송
     send_telegram.py     텔레그램 알림
-    send_email.py        이메일 알림
   reports/           # 리포트 생성
     weekly_report.py     주간 성과 리포트
   cron/              # 자동 실행 셸 스크립트
     daily_pipeline_cron.sh   09:05 통합 파이프라인
-    morning_cron.sh          (레거시) 오전 뉴스 수집
-    daily_cron.sh            (레거시) 일일 시뮬레이션
 ```
 
 **Supabase 테이블 (9개):**

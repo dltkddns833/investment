@@ -87,14 +87,11 @@ cd web && pnpm install && pnpm dev
 │   │   ├── institutional_flow.py       외국인/기관 수급 (J용, 스텁)
 │   │   └── asset_allocation.py         ETF 카테고리별 수익률/변동성/추세 (K용)
 │   ├── notifications/                # 알림 발송
-│   │   ├── send_telegram.py            텔레그램 알림
-│   │   └── send_email.py               이메일 알림
+│   │   └── send_telegram.py            텔레그램 알림
 │   ├── reports/                      # 리포트 생성
 │   │   └── weekly_report.py            주간 성과 리포트
 │   └── cron/                         # 자동 실행 셸 스크립트
-│       ├── daily_pipeline_cron.sh      09:05 통합 파이프라인 (launchd)
-│       ├── morning_cron.sh             (레거시) 오전 뉴스 수집
-│       └── daily_cron.sh               (레거시) 일일 시뮬레이션
+│       └── daily_pipeline_cron.sh      09:05 통합 파이프라인 (launchd)
 └── web/                              # Next.js 대시보드
     ├── .env.local                      Supabase 인증 (Next.js용)
     └── src/
