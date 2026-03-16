@@ -397,6 +397,20 @@ export async function getDailyStories(
   };
 }
 
+export async function getAllDailyStories(): Promise<DailyStories[]> {
+  const { data } = await supabase
+    .from("daily_stories")
+    .select("*")
+    .order("date", { ascending: false });
+  if (!data) return [];
+  return data.map((d) => ({
+    date: d.date,
+    generated_at: d.generated_at,
+    commentary: d.commentary,
+    diaries: d.diaries,
+  }));
+}
+
 export async function getAvailableReportDates(): Promise<string[]> {
   const { data } = await supabase
     .from("daily_reports")

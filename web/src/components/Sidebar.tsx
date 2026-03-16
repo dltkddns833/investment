@@ -8,6 +8,7 @@ import {
   PieChart,
   BarChart2,
   Newspaper,
+  BookOpen,
 } from "lucide-react";
 
 export default async function Sidebar() {
@@ -37,6 +38,7 @@ export default async function Sidebar() {
         <SidebarLink href="/analysis" label="분석" icon={<PieChart size={15} />} />
         <SidebarLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} />
         <SidebarLink href="/news" label="뉴스" icon={<Newspaper size={15} />} />
+        <SidebarLink href="/stories" label="이야기" icon={<BookOpen size={15} />} />
       </nav>
       <div className="gradient-separator mx-4" />
       <div className="p-4 text-xs text-gray-600 text-center">
