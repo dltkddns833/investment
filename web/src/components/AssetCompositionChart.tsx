@@ -100,9 +100,9 @@ export default function AssetCompositionChart({ data }: Props) {
           />
           <Tooltip
             labelFormatter={(label) => `${label}`}
-            formatter={(value: number, name: string) => [
-              krw(value),
-              labelMap[name] ?? name,
+            formatter={(value: number | string | undefined, name: string | undefined) => [
+              krw(Number(value ?? 0)),
+              labelMap[name ?? ""] ?? name ?? "",
             ]}
             contentStyle={{
               background: "rgba(15, 23, 42, 0.9)",
