@@ -82,7 +82,8 @@ export default function AssetCompositionChart({ data }: Props) {
   if (data.length === 0) return null;
 
   return (
-    <div className="h-[200px] md:h-[300px]">
+    <div>
+      <div className="h-[200px] md:h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <XAxis
@@ -127,7 +128,8 @@ export default function AssetCompositionChart({ data }: Props) {
           ))}
         </AreaChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 px-1">
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 px-1 mb-4">
         {areaKeys.map((key, i) => (
           <div key={key} className="flex items-center gap-1">
             <span

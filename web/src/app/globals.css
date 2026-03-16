@@ -238,6 +238,27 @@ body::before {
   box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
 }
 
+/* ───── Recharts — 클릭 시 포커스 아웃라인 제거 ───── */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface *,
+.recharts-wrapper svg,
+.recharts-wrapper svg * {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible,
+.recharts-wrapper:active,
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+.recharts-surface:active {
+  outline: none !important;
+  border-color: transparent !important;
+}
+
 /* ───── Custom Scrollbar ───── */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

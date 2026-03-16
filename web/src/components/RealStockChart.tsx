@@ -209,7 +209,7 @@ export default function RealStockChart({ ticker }: Props) {
               strokeWidth={1.5}
               fill={`url(#areaFill-${ticker})`}
               dot={false}
-              activeDot={{ r: 3, fill: "#60a5fa", stroke: "white", strokeWidth: 1 }}
+              activeDot={{ r: 3, fill: "#60a5fa", stroke: "#60a5fa", strokeWidth: 1 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
