@@ -100,7 +100,8 @@ export default function AssetCompositionChart({ data }: Props) {
           />
           <Tooltip
             labelFormatter={(label) => `${label}`}
-            formatter={(value: number | string | undefined, name: string | undefined) => [
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            formatter={(value: any, name: any) => [
               krw(Number(value ?? 0)),
               labelMap[name ?? ""] ?? name ?? "",
             ]}
