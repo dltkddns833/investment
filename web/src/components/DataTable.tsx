@@ -11,9 +11,10 @@ import {
 interface Props<T> {
   columns: ColumnDef<T, any>[];
   data: T[];
+  rowClassName?: (row: T) => string;
 }
 
-export default function DataTable<T>({ columns, data }: Props<T>) {
+export default function DataTable<T>({ columns, data, rowClassName }: Props<T>) {
   const table = useReactTable({
     data,
     columns,
@@ -49,7 +50,7 @@ export default function DataTable<T>({ columns, data }: Props<T>) {
           {table.getRowModel().rows.map((row) => (
             <tr
               key={row.id}
-              className="border-b border-white/5 table-row-hover"
+              className={`border-b border-white/5 table-row-hover ${rowClassName?.(row.original) ?? ""}`}
             >
               {row.getVisibleCells().map((cell) => (
                 <td

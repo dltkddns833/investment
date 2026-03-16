@@ -57,6 +57,8 @@ src/
     AllInvestorsAssetChart.tsx ← 전체 투자자 자산 추이 라인 차트
     PerformanceStatsTable.tsx ← 성과 지표 테이블 (샤프/MDD/승률/변동성/알파, 클릭 정렬)
     InvestorRadarChart.tsx    ← 성과 지표 레이더 차트 (5축, 상위 5명 기본, 클릭 토글)
+    AssetCompositionChart.tsx ← 투자자별 자산 구성 변화 Stacked Area 차트
+    SentimentTrendChart.tsx   ← G 문여론 감성 점수 추이 바 차트
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -90,6 +92,9 @@ src/
 - `getBadges()` → 마일스톤 감지 (첫 수익, 600만 돌파, 연속 1위 등)
 - `getVersusData(investorA, investorB)` → 1:1 대결 데이터 (자산 추이, 수익률 차이, 승패)
 - `getPerformanceStats(investorNames, investorIds)` → 샤프비율/MDD/변동성/알파/승률 (tradingDays < 5이면 sharpe/mdd/volatility = null)
+- `getAssetComposition(investorId)` → `portfolio_snapshots` 테이블에서 일별 종목+현금 구성 (stacked area용)
+- `getSentimentHistory(investorId)` → `allocations` 테이블에서 G의 감성 점수 시계열
+- `getPeriodicReports(periodType)` → `periodic_reports` 테이블에서 월간/분기 리포트
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

@@ -64,6 +64,11 @@ export default async function Home() {
     config.simulation.initial_capital * config.investors.length;
   const totalAsset = report.rankings.reduce((s, r) => s + r.total_asset, 0);
 
+  // 전일 총자산 계산 (오늘의 수익 표시용)
+  const previousTotalAsset = assetHistory.length >= 2
+    ? investorNames.reduce((sum, name) => sum + ((assetHistory[assetHistory.length - 2][name] as number) ?? config.simulation.initial_capital), 0)
+    : totalInvested;
+
   const status = getMarketStatus();
   const statusCfg = STATUS_CONFIG[status];
 
@@ -93,6 +98,7 @@ export default async function Home() {
     <LiveSummaryCards
       totalInvested={totalInvested}
       storedTotalAsset={totalAsset}
+      previousTotalAsset={previousTotalAsset}
       initialCapital={config.simulation.initial_capital}
       investorDetails={report.investor_details}
     />

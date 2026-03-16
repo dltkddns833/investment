@@ -60,6 +60,8 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/cron/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행
   - 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 텔레그램 발송
 - `scripts/reports/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
+- `scripts/reports/monthly_report.py` — 월 첫 영업일이면 지난달 성과 텔레그램 발송 + Supabase 저장
+- `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
 - 로그: `logs/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
 - **스토리텔링은 장마감 후 별도 실행** (cron 자동화 시 16:00 스케줄 추가 필요)
@@ -86,10 +88,10 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 **일일 파이프라인 흐름:**
 ```
 [오전] 뉴스 수집 → 배분 결정 → 시뮬레이션 (시가 체결)
-  → market.py (price_type="open") → portfolio.py → daily_reports 저장
+  → market.py (price_type="open") → portfolio.py → daily_reports + portfolio_snapshots 저장
 
 [장마감 후] 종가 반영 → 스토리텔링 (코멘터리 + 투자자 일기)
-  → simulate.py --close (종가로 daily_reports 갱신)
+  → simulate.py --close (종가로 daily_reports + portfolio_snapshots 갱신)
   → 종가 반영된 daily_reports 기반 콘텐츠 생성 → daily_stories 저장
 
 [대시보드] 장중에는 Yahoo Finance 실시간 시세로 포트폴리오 재계산 (useLiveRankings)
@@ -114,17 +116,19 @@ scripts/
     quality_metrics.py     안정성/품질 지표 (C용)
     technical_indicators.py  RSI/MACD/볼린저 밴드 (H용)
     dividend_data.py       배당수익률 (I, C용)
-    institutional_flow.py  외국인/기관 수급 (J용, 스텁)
+    institutional_flow.py  외국인/기관 수급 (J용, pykrx→네이버 fallback + Supabase 캐시)
     asset_allocation.py    ETF 카테고리별 수익률/변동성/추세 (K용)
   notifications/     # 알림 발송
     send_telegram.py     텔레그램 알림
   reports/           # 리포트 생성
     weekly_report.py     주간 성과 리포트
+    monthly_report.py    월간 성과 리포트 (월 첫 영업일 자동 생성)
+    quarterly_report.py  분기 성과 리포트 (분기 첫 영업일 자동 생성)
   cron/              # 자동 실행 셸 스크립트
     daily_pipeline_cron.sh   09:05 통합 파이프라인
 ```
 
-**Supabase 테이블 (9개):**
+**Supabase 테이블 (12개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
@@ -133,10 +137,13 @@ scripts/
 | `portfolios` | investor_id | investor, strategy, initial_capital, cash, holdings(jsonb), last_rebalanced | 보유 현황 |
 | `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit | 거래 내역 |
 | `rebalance_history` | serial id | investor_id(FK), date, trades(jsonb), total_asset_after | 리밸런싱 기록 |
-| `allocations` | (investor_id, date) | investor, strategy, rationale, allocation(jsonb), allocation_sum, num_stocks | 일별 목표 배분 |
+| `allocations` | (investor_id, date) | investor, strategy, rationale, allocation(jsonb), allocation_sum, num_stocks, sentiment_scores(jsonb) | 일별 목표 배분 |
 | `news` | date | collected_at, count, articles(jsonb) | 수집된 뉴스 |
 | `daily_reports` | date | generated_at, market_prices(jsonb), rankings(jsonb), investor_details(jsonb) | 일간 리포트 |
 | `daily_stories` | date | generated_at, commentary(text), diaries(jsonb) | 데일리 코멘터리 & 투자자 일기 |
+| `portfolio_snapshots` | (investor_id, date) | holdings(jsonb), cash, total_asset, snapshot_at | 일별 포트폴리오 스냅샷 |
+| `periodic_reports` | (period_type, period_label) | period_start, period_end, trading_days, rankings(jsonb), highlights(jsonb), summary | 월간/분기 리포트 |
+| `institutional_flows` | (date, ticker) | foreign_net_5d, institutional_net_5d, foreign_net_today, institutional_net_today, foreign_ownership_pct, data_source | 외국인/기관 수급 캐시 |
 
 
 **환경변수:**
@@ -160,7 +167,7 @@ scripts/
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위, 주간 MVP/연승, 시장 현황, 뉴스
 - 투자자 목록(`/investors`): 전체 11명 카드 그리드, 순위/수익률 표시
-- 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 보유종목, 거래내역, 투자 방법론(대표인물/참고링크)
+- 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 자산 구성 변화(stacked area), 보유종목, 거래내역, 투자 방법론(대표인물/참고링크), G는 감성 점수 추이
 - 리포트(`/reports`): 달력 히트맵, 월간 수익률
 - 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(35개)/ETF(12개) 분리 목록
 - 종목 상세(`/stocks/[ticker]`): 가격 차트, ETF면 구성정보(섹터 비중+구성 종목), 보유 투자자, 거래내역
@@ -216,7 +223,7 @@ cd web && pnpm build  # 빌드
 - D (역발상 투자): 최근 하락 종목 매수, 과열 종목 매도, 5~8종목
 - E (동일 가중 벤치마크): 전 종목 동일 비중(1/N), AI 판단 없이 기계적 균등 분배
 - F (섹터 로테이션): 유망 섹터 2~3개 선별 후 섹터 내 종목 집중, 섹터당 2~3종목
-- G (뉴스 감성 기반): 뉴스 긍정/부정 감성 점수로만 비중 결정, 5~10종목
+- G (뉴스 감성 기반): 뉴스 긍정/부정 감성 점수로만 비중 결정, 5~10종목. `save_allocation()` 호출 시 `sentiment_scores` 인자로 종목별 감성 점수 전달 (강한 긍정 +0.8~+1.0 / 긍정 +0.3~+0.7 / 중립 -0.2~+0.2 / 부정 -0.3~-0.7 / 강한 부정 -0.8~-1.0)
 - H (기술적 분석): RSI 과매도 매수, 과매수 회피, MACD 골든크로스 우선, 5~8종목
 - I (배당 투자): 배당수익률 상위 종목 집중, 재무 안정성 고려, 5~10종목
 - J (스마트머니 추종): 뉴스에서 외국인/기관 순매수 동향 파악, 수급 양호 종목, 5~8종목

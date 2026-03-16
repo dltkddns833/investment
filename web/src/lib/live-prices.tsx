@@ -29,7 +29,8 @@ interface LivePriceContextType {
   refresh: () => Promise<void>;
 }
 
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL_OPEN_MS = 3 * 60 * 1000; // 3 minutes (장중)
+const CACHE_TTL_CLOSED_MS = 10 * 60 * 1000; // 10 minutes (장마감 후)
 
 const LivePriceContext = createContext<LivePriceContextType>({
   prices: null,
@@ -108,14 +109,36 @@ export function LivePriceProvider({
     }
   }, [tickers]);
 
-  // Auto-fetch on mount or when prices can be fetched, respect cache TTL
+  const prevMarketOpenRef = useRef(false);
+
+  // Auto-fetch on mount or when prices can be fetched, with periodic polling
   useEffect(() => {
     if (!canFetch) return;
     const age = Date.now() - lastFetchRef.current;
-    if (age >= CACHE_TTL_MS) {
+    const ttl = isMarketOpen ? CACHE_TTL_OPEN_MS : CACHE_TTL_CLOSED_MS;
+    if (age >= ttl) {
       refresh();
     }
-  }, [canFetch, refresh]);
+
+    // 장중이면 3분, 장마감 후면 10분 간격 자동 폴링
+    const interval = setInterval(() => {
+      const currentTtl = checkMarketOpen() ? CACHE_TTL_OPEN_MS : CACHE_TTL_CLOSED_MS;
+      const elapsed = Date.now() - lastFetchRef.current;
+      if (elapsed >= currentTtl) {
+        refresh();
+      }
+    }, 60_000); // 1분마다 TTL 체크
+
+    return () => clearInterval(interval);
+  }, [canFetch, isMarketOpen, refresh]);
+
+  // 장 시작/마감 전환 시 즉시 갱신
+  useEffect(() => {
+    if (prevMarketOpenRef.current !== isMarketOpen && canFetch) {
+      refresh();
+    }
+    prevMarketOpenRef.current = isMarketOpen;
+  }, [isMarketOpen, canFetch, refresh]);
 
   const isLive = isMarketOpen && prices !== null;
   const isClosingPrice = !isMarketOpen && canFetch && prices !== null;

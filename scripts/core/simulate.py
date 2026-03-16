@@ -19,6 +19,27 @@ from portfolio import (
     rebalance,
     evaluate,
 )
+from daily_pipeline import save_snapshots
+
+
+def _save_snapshots_from_report(report, date_str):
+    """리포트의 investor_details에서 스냅샷 데이터를 추출하여 저장"""
+    investors = get_all_investors()
+    profiles = {inv_id: load_profile(inv_id) for inv_id in investors}
+    name_to_id = {p["name"]: inv_id for inv_id, p in profiles.items()}
+
+    snapshot_rows = []
+    for name, detail in report["investor_details"].items():
+        inv_id = name_to_id.get(name)
+        if not inv_id:
+            continue
+        snapshot_rows.append({
+            "investor_id": inv_id,
+            "holdings": detail.get("holdings", {}),
+            "cash": detail.get("cash", 0),
+            "total_asset": detail.get("total_asset", 0),
+        })
+    save_snapshots(date_str, snapshot_rows)
 
 
 def load_investor_allocation(investor_id, date_str):
@@ -94,6 +115,9 @@ def run_simulation(date_str=None):
 
     # 4. 일간 리포트 생성
     report = generate_daily_report_with_rebalance(current_prices, date_str, rebalance_results)
+
+    # 5. 포트폴리오 스냅샷 저장
+    _save_snapshots_from_report(report, date_str)
 
     logger.info(f"\n 리포트 저장 완료: daily_reports/{date_str}")
     logger.info(f"{'='*60}\n")
@@ -271,6 +295,9 @@ def update_closing_prices(date_str=None):
         "rankings": report["rankings"],
         "investor_details": report["investor_details"],
     }).execute()
+
+    # 종가 기준 스냅샷 갱신
+    _save_snapshots_from_report(report, date_str)
 
     logger.info(f"\n 종가 반영 완료: daily_reports/{date_str}")
     logger.info(f"{'='*60}\n")

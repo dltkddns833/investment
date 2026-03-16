@@ -64,6 +64,24 @@
   }
 }
 
+@keyframes rank-up {
+  0% { background-color: rgba(34, 197, 94, 0.18); }
+  100% { background-color: transparent; }
+}
+
+@keyframes rank-down {
+  0% { background-color: rgba(239, 68, 68, 0.18); }
+  100% { background-color: transparent; }
+}
+
+.animate-rank-up {
+  animation: rank-up 2s ease-out;
+}
+
+.animate-rank-down {
+  animation: rank-down 2s ease-out;
+}
+
 /* ───── Body ───── */
 body {
   background: var(--background);

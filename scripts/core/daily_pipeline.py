@@ -30,7 +30,7 @@ def save_news(date_str, articles):
     return data
 
 
-def save_allocation(investor_id, date_str, allocation, rationale=""):
+def save_allocation(investor_id, date_str, allocation, rationale="", sentiment_scores=None):
     """투자자별 배분 결정 저장 (Supabase)
 
     Args:
@@ -38,6 +38,7 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
         date_str: "2026-03-10" 형식
         allocation: {"005930.KS": 0.25, ...} (합계 = 1.0)
         rationale: 배분 근거 설명
+        sentiment_scores: G 문여론 전용. {"005930.KS": {"score": 0.6, "label": "긍정", "reason": "..."}, ...}
     """
     # 프로필 로드
     profile = supabase.table("profiles").select("name, strategy").eq("id", investor_id).single().execute().data
@@ -54,6 +55,8 @@ def save_allocation(investor_id, date_str, allocation, rationale=""):
         "num_stocks": len([v for v in allocation.values() if v > 0]),
         "generated_at": datetime.now().isoformat(),
     }
+    if sentiment_scores is not None:
+        data["sentiment_scores"] = sentiment_scores
 
     try:
         supabase.table("allocations").upsert(data).execute()
@@ -81,6 +84,33 @@ def save_stories(date_str, commentary, diaries):
 
     logger.info(f"데일리 스토리 저장 완료: daily_stories/{date_str}")
     return data
+
+
+def save_snapshots(date_str, snapshot_rows):
+    """포트폴리오 스냅샷 일괄 저장 (Supabase)
+
+    Args:
+        date_str: "2026-03-10" 형식
+        snapshot_rows: [{"investor_id": "A", "holdings": {...}, "cash": ..., "total_asset": ...}, ...]
+    """
+    data = [
+        {
+            "investor_id": row["investor_id"],
+            "date": date_str,
+            "holdings": row["holdings"],
+            "cash": row["cash"],
+            "total_asset": row["total_asset"],
+            "snapshot_at": datetime.now().isoformat(),
+        }
+        for row in snapshot_rows
+    ]
+    try:
+        supabase.table("portfolio_snapshots").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"포트폴리오 스냅샷 저장 실패: {e}")
+        raise
+
+    logger.info(f"포트폴리오 스냅샷 {len(data)}건 저장 완료: portfolio_snapshots/{date_str}")
 
 
 def check_pipeline_status(date_str):

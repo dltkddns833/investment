@@ -39,9 +39,17 @@ echo "시뮬레이션 종료코드: $SIM_EXIT" >> "$LOG_FILE"
 echo "--- 주간 리포트 체크 ---" >> "$LOG_FILE"
 cd "$PROJECT_DIR/scripts/reports"
 /usr/bin/python3 weekly_report.py >> "$LOG_FILE" 2>&1
+echo "주간 리포트 종료코드: $?" >> "$LOG_FILE"
 
-WEEKLY_EXIT=$?
-echo "주간 리포트 종료코드: $WEEKLY_EXIT" >> "$LOG_FILE"
+# 월간 리포트 (월 첫 영업일이 아니면 자동 스킵)
+echo "--- 월간 리포트 체크 ---" >> "$LOG_FILE"
+/usr/bin/python3 monthly_report.py >> "$LOG_FILE" 2>&1
+echo "월간 리포트 종료코드: $?" >> "$LOG_FILE"
+
+# 분기 리포트 (분기 첫 영업일이 아니면 자동 스킵)
+echo "--- 분기 리포트 체크 ---" >> "$LOG_FILE"
+/usr/bin/python3 quarterly_report.py >> "$LOG_FILE" 2>&1
+echo "분기 리포트 종료코드: $?" >> "$LOG_FILE"
 
 echo "=== 통합 파이프라인 종료: $(date) ===" >> "$LOG_FILE"
 

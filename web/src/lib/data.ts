@@ -128,6 +128,12 @@ export interface DailyReport {
   investor_details: Record<string, InvestorDetail>;
 }
 
+export interface SentimentScore {
+  score: number;
+  label: string;
+  reason: string;
+}
+
 export interface Allocation {
   date: string;
   investor: string;
@@ -136,6 +142,7 @@ export interface Allocation {
   allocation: Record<string, number>;
   allocation_sum: number;
   num_stocks: number;
+  sentiment_scores?: Record<string, SentimentScore> | null;
 }
 
 export interface NewsArticle {
@@ -300,7 +307,30 @@ export async function getAllocation(
     allocation: data.allocation,
     allocation_sum: data.allocation_sum,
     num_stocks: data.num_stocks,
+    sentiment_scores: data.sentiment_scores ?? null,
   };
+}
+
+export interface SentimentHistoryEntry {
+  date: string;
+  scores: Record<string, SentimentScore>;
+}
+
+export async function getSentimentHistory(
+  investorId: string
+): Promise<SentimentHistoryEntry[]> {
+  const { data } = await supabase
+    .from("allocations")
+    .select("date, sentiment_scores")
+    .eq("investor_id", investorId)
+    .not("sentiment_scores", "is", null)
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+  return data.map((d) => ({
+    date: d.date,
+    scores: d.sentiment_scores as Record<string, SentimentScore>,
+  }));
 }
 
 export async function getDailyReport(
@@ -423,6 +453,34 @@ export async function getAssetHistory(
     }));
 }
 
+export interface AssetCompositionPoint {
+  date: string;
+  cash: number;
+  [key: string]: number | string; // 종목명별 평가금액
+}
+
+export async function getAssetComposition(
+  investorId: string
+): Promise<AssetCompositionPoint[]> {
+  const { data } = await supabase
+    .from("portfolio_snapshots")
+    .select("date, holdings, cash")
+    .eq("investor_id", investorId)
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  return data.map((s) => {
+    const point: AssetCompositionPoint = { date: s.date, cash: s.cash };
+    for (const [, detail] of Object.entries(
+      (s.holdings ?? {}) as Record<string, HoldingDetail>
+    )) {
+      point[detail.name] = detail.value;
+    }
+    return point;
+  });
+}
+
 export async function getDailyReturns(
   investorName: string | null,
   year: number,
@@ -503,6 +561,29 @@ export async function getPeriodSummary(
   return results;
 }
 
+
+export interface PeriodicReport {
+  period_type: "monthly" | "quarterly";
+  period_start: string;
+  period_end: string;
+  period_label: string;
+  generated_at: string;
+  trading_days: number;
+  rankings: { investor: string; total_asset: number; total_return_pct: number; period_return_pct: number; rank: number }[];
+  highlights: { mvp: { investor: string; period_return_pct: number } | null; worst: { investor: string; period_return_pct: number } | null } | null;
+  summary: string;
+}
+
+export async function getPeriodicReports(
+  periodType: "monthly" | "quarterly"
+): Promise<PeriodicReport[]> {
+  const { data } = await supabase
+    .from("periodic_reports")
+    .select("*")
+    .eq("period_type", periodType)
+    .order("period_label", { ascending: false });
+  return (data ?? []) as PeriodicReport[];
+}
 
 export async function getStockTransactions(
   ticker: string
@@ -756,11 +837,20 @@ export async function getWeeklyMVPs(): Promise<WeeklyMVP[]> {
     weeks.get(w)!.push(r);
   }
 
+  const weekKeys = [...weeks.keys()].sort();
   const results: WeeklyMVP[] = [];
-  for (const [, weekReports] of weeks) {
+  for (let wi = 0; wi < weekKeys.length; wi++) {
+    const weekReports = weeks.get(weekKeys[wi])!;
     if (weekReports.length < 1) continue;
-    const first = weekReports[0];
+
+    // 1일짜리 주간이면 직전 주 마지막 날을 baseline으로 사용
+    let first = weekReports[0];
+    if (weekReports.length === 1 && wi > 0) {
+      const prevWeek = weeks.get(weekKeys[wi - 1])!;
+      first = prevWeek[prevWeek.length - 1];
+    }
     const last = weekReports[weekReports.length - 1];
+    if (first === last) continue; // baseline이 없으면 스킵
     const names = Object.keys(last.investor_details);
 
     let mvp = { investor: "", returnPct: -Infinity };

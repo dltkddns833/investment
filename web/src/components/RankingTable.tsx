@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import { RankingEntry, InvestorDetail } from "@/lib/data";
@@ -151,11 +152,52 @@ export default function RankingTable({
     initialCapital ?? 5_000_000
   );
 
+  // 순위 변동 추적
+  const prevRanksRef = useRef<Record<string, number>>({});
+  const [rankChanges, setRankChanges] = useState<Record<string, "up" | "down">>({});
+
+  useEffect(() => {
+    const prevRanks = prevRanksRef.current;
+    const changes: Record<string, "up" | "down"> = {};
+
+    for (const r of liveRankings) {
+      const prev = prevRanks[r.investor];
+      if (prev !== undefined && prev !== r.rank) {
+        changes[r.investor] = r.rank < prev ? "up" : "down";
+      }
+    }
+
+    if (Object.keys(changes).length > 0) {
+      setRankChanges(changes);
+      const timer = setTimeout(() => setRankChanges({}), 2000);
+      return () => clearTimeout(timer);
+    }
+
+    // 현재 순위 저장
+    const currentRanks: Record<string, number> = {};
+    for (const r of liveRankings) currentRanks[r.investor] = r.rank;
+    prevRanksRef.current = currentRanks;
+  }, [liveRankings]);
+
+  // 현재 순위도 업데이트 (changes 이후)
+  useEffect(() => {
+    const currentRanks: Record<string, number> = {};
+    for (const r of liveRankings) currentRanks[r.investor] = r.rank;
+    prevRanksRef.current = currentRanks;
+  }, [liveRankings]);
+
   const data = liveRankings.map((r) => ({
     ...r,
     _investorId: investorIds[r.investor] || "",
     _riskGrade: riskGrades?.[r.investor] ?? "",
   }));
 
-  return <DataTable columns={getColumns()} data={data} />;
+  const rowClassName = (row: (typeof data)[number]) => {
+    const change = rankChanges[row.investor];
+    if (change === "up") return "animate-rank-up";
+    if (change === "down") return "animate-rank-down";
+    return "";
+  };
+
+  return <DataTable columns={getColumns()} data={data} rowClassName={rowClassName} />;
 }
