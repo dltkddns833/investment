@@ -54,7 +54,10 @@ export default function VersusReturnDiff({ data, investorA, investorB }: Props) 
               tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
             />
             <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.05)" }}
               contentStyle={tooltipStyle}
+              labelStyle={{ color: "#9ca3af" }}
+              itemStyle={{ color: "#e5e7eb" }}
               formatter={(value) => {
                 const v = Number(value);
                 return [`${v > 0 ? "+" : ""}${v.toFixed(3)}%p`, "수익률 차이"];

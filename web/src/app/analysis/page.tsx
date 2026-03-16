@@ -6,12 +6,14 @@ import {
   getPositionOverlaps,
   getStockPopularity,
   getPerformanceStats,
+  computeAllAttributions,
 } from "@/lib/data";
 import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 import OverlapMatrix from "@/components/OverlapMatrix";
 import StockPopularityChart from "@/components/StockPopularityChart";
 import PerformanceStatsTable from "@/components/PerformanceStatsTable";
 import InvestorRadarChart from "@/components/InvestorRadarChart";
+import AttributionComparisonChart from "@/components/AttributionComparisonChart";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,7 @@ export default async function AnalysisPage() {
 
   const overlaps = getPositionOverlaps(report.investor_details);
   const popularity = getStockPopularity(report.investor_details, config.stock_universe);
+  const allAttributions = computeAllAttributions(report.investor_details, investorIds, config.stock_universe);
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -96,6 +99,15 @@ export default async function AnalysisPage() {
           각 종목을 보유 중인 투자자 수. 많은 투자자가 보유할수록 컨센서스가 높습니다.
         </p>
         <StockPopularityChart data={popularity} totalInvestors={investorNames.length} />
+      </section>
+
+      {/* Attribution Comparison */}
+      <section className="glass-card p-4 md:p-5 animate-in">
+        <h2 className="text-lg font-bold mb-1 section-header">성과 기여도 분석</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          투자자별 섹터 기여도 비교. 같은 섹터에서 누가 더 많은 수익을 올렸는지 확인할 수 있습니다.
+        </p>
+        <AttributionComparisonChart attributions={allAttributions} />
       </section>
     </div>
   );

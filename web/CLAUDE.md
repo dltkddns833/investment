@@ -26,7 +26,7 @@ src/
     page.tsx                 ← 메인 대시보드 (순위, 주간 MVP/연승, 코멘터리, 시장현황, 뉴스)
     layout.tsx               ← 루트 레이아웃 (다크 테마)
     investors/page.tsx       ← 투자자 목록 (카드 그리드, 순위/수익률)
-    investors/[id]/page.tsx  ← 투자자 상세 (뱃지, 일기, 차트, 보유종목, 거래내역)
+    investors/[id]/page.tsx  ← 투자자 상세 (요약→뱃지+리그→일기→포트폴리오→기여도→차트→거래→방법론)
     reports/page.tsx         ← 리포트 (좌우 분할: 달력+날짜목록 | 코멘터리+순위+일기+뉴스)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
@@ -65,6 +65,9 @@ src/
     InvestorRadarChart.tsx    ← 성과 지표 레이더 차트 (5축, 상위 5명 기본, 클릭 토글)
     AssetCompositionChart.tsx ← 투자자별 자산 구성 변화 Stacked Area 차트
     SentimentTrendChart.tsx   ← G 문여론 감성 점수 추이 바 차트
+    StockAttributionChart.tsx ← 종목별 수익 기여도 수평 바 차트
+    SectorAttributionChart.tsx ← 섹터별 수익 기여도 Treemap
+    AttributionComparisonChart.tsx ← 투자자 간 섹터 기여도 교차 비교 (토글 선택)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -101,6 +104,8 @@ src/
 - `getAssetComposition(investorId)` → `portfolio_snapshots` 테이블에서 일별 종목+현금 구성 (stacked area용)
 - `getSentimentHistory(investorId)` → `allocations` 테이블에서 G의 감성 점수 시계열
 - `getPeriodicReports(periodType)` → `periodic_reports` 테이블에서 월간/분기 리포트
+- `computeAttribution(investorName, investorId, detail, stockUniverse)` → 종목별/섹터별 수익 기여도 (순수 함수)
+- `computeAllAttributions(investorDetails, investorIdMap, stockUniverse)` → 전체 투자자 기여도 (순수 함수)
 - `getLeagueStandings(seasonLabel?)` → 현재/과거 시즌 승점 순위 (현재: on-the-fly 계산, 과거: periodic_reports.league_standings)
 - `getSeasonHistory()` → 완료된 시즌 목록 (periodic_reports에서 league_standings 있는 월간 리포트)
 - `getDailyLeaguePoints(seasonLabel?)` → 일별 누적 승점 (차트용)

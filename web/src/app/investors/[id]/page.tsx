@@ -11,8 +11,11 @@ import {
   getDailyStories,
   getBadges,
   getLeagueStandings,
+  computeAttribution,
 } from "@/lib/data";
 import TransactionTable from "@/components/TransactionTable";
+import StockAttributionChart from "@/components/StockAttributionChart";
+import SectorAttributionChart from "@/components/SectorAttributionChart";
 import AssetChart from "@/components/AssetChart";
 import AssetCompositionChart from "@/components/AssetCompositionChart";
 import SentimentTrendChart from "@/components/SentimentTrendChart";
@@ -97,8 +100,56 @@ export default async function InvestorPage({ params }: Props) {
         <p className="text-gray-500 text-sm mt-3">{profile.description}</p>
       </div>
 
-      {/* Badges */}
-      <BadgeList badges={investorBadges} />
+      {/* Summary Cards */}
+      <LiveInvestorSummary
+        detail={detail}
+        initialCapital={config.simulation.initial_capital}
+        cash={portfolio.cash}
+        rebalanceFrequency={profile.rebalance_frequency_days}
+        rebalanceCount={portfolio.rebalance_history.length}
+      />
+
+      {/* Badges + League Standing (inline) */}
+      {(investorBadges.length > 0 || leagueSeason) && (
+        <div className="flex flex-wrap items-center gap-2 animate-in">
+          {investorBadges.map((badge, i) => (
+            <div
+              key={i}
+              className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+                ({
+                  first_profit: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                  asset_6m: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                  asset_7m: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+                  streak_3: "bg-red-500/10 text-red-400 border-red-500/20",
+                  streak_5: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+                  holdings_10: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                  cash_king: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+                  season_champion: "bg-yellow-500/10 text-yellow-300 border-yellow-500/20",
+                  season_champion_2: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                  season_champion_3: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+                } as Record<string, string>)[badge.type] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20"
+              }`}
+              title={`${badge.description} (${badge.date})`}
+            >
+              <span>{{ first_profit: "★", asset_6m: "◆", asset_7m: "◇", streak_3: "▲", streak_5: "▲▲", holdings_10: "▦", cash_king: "○", season_champion: "🏆", season_champion_2: "🏆", season_champion_3: "🏆" }[badge.type] ?? "●"}</span>
+              <span>{badge.description}</span>
+            </div>
+          ))}
+          {leagueSeason && (() => {
+            const standing = leagueSeason.standings.find((s) => s.investorId === id);
+            if (!standing) return null;
+            return (
+              <a
+                href="/league"
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border bg-yellow-500/10 text-yellow-300 border-yellow-500/20 hover:bg-yellow-500/20 transition-colors"
+              >
+                <span>🏆</span>
+                <span>{leagueSeason.seasonName} {standing.rank}위 · {standing.points}점</span>
+              </a>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Diary */}
       {diary && (
@@ -113,34 +164,43 @@ export default async function InvestorPage({ params }: Props) {
         </section>
       )}
 
-      {/* League Standing */}
-      {leagueSeason && (() => {
-        const standing = leagueSeason.standings.find((s) => s.investorId === id);
-        if (!standing) return null;
+      {/* Portfolio Chart + Allocation + Holdings */}
+      {detail && (
+        <LiveInvestorDetail
+          detail={detail}
+          initialCapital={config.simulation.initial_capital}
+          allocation={allocation}
+          marketPrices={report?.market_prices}
+        />
+      )}
+
+      {/* Attribution Analysis */}
+      {detail && Object.keys(detail.holdings).length > 0 && (() => {
+        const attribution = computeAttribution(profile.name, id, detail, config.stock_universe);
         return (
-          <a href="/league" className="glass-card p-3 flex items-center justify-between hover:bg-white/[0.03] transition-colors animate-in">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">🏆</span>
+          <section className="glass-card p-4 md:p-5 animate-in">
+            <h2 className="text-lg font-bold mb-1 section-header">성과 기여도</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              종목별·섹터별 수익 기여도 분석
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
-                <div className="text-[10px] text-gray-500">{leagueSeason.seasonName}</div>
-                <div className="text-sm font-medium text-gray-200">
-                  리그 {standing.rank}위 · <span className="text-yellow-300">{standing.points}점</span>
-                </div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">종목별 기여도</h3>
+                <StockAttributionChart
+                  attributions={attribution.stockAttributions}
+                  totalReturn={detail.total_return}
+                />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">섹터별 기여도</h3>
+                <SectorAttributionChart
+                  sectorAttributions={attribution.sectorAttributions}
+                />
               </div>
             </div>
-            <span className="text-xs text-gray-500">상세 →</span>
-          </a>
+          </section>
         );
       })()}
-
-      {/* Summary Cards */}
-      <LiveInvestorSummary
-        detail={detail}
-        initialCapital={config.simulation.initial_capital}
-        cash={portfolio.cash}
-        rebalanceFrequency={profile.rebalance_frequency_days}
-        rebalanceCount={portfolio.rebalance_history.length}
-      />
 
       {/* Asset History Chart */}
       {assetHistory.length >= 1 && (
@@ -168,16 +228,6 @@ export default async function InvestorPage({ params }: Props) {
           <p className="text-xs text-gray-500 mb-3">뉴스 감성 분석 평균 점수 (-1.0 부정 ~ +1.0 긍정)</p>
           <SentimentTrendChart data={sentimentHistory} />
         </section>
-      )}
-
-      {/* Portfolio Chart + Allocation + Holdings */}
-      {detail && (
-        <LiveInvestorDetail
-          detail={detail}
-          initialCapital={config.simulation.initial_capital}
-          allocation={allocation}
-          marketPrices={report?.market_prices}
-        />
       )}
 
       {/* Transaction History */}
