@@ -10,9 +10,22 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts";
+import { useMemo } from "react";
 import { AllAssetSnapshot } from "@/lib/data";
 import { krw } from "@/lib/format";
 import { INVESTOR_COLOR_ARRAY } from "@/lib/investor-colors";
+
+/** 한국 시간 기준 오늘 날짜(YYYY-MM-DD)와 장마감(15:30) 이후 여부 */
+function getKSTInfo() {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const t = now.getHours() * 60 + now.getMinutes();
+  return { today: `${yyyy}-${mm}-${dd}`, isAfterClose: t >= 930 };
+}
 
 interface Props {
   data: AllAssetSnapshot[];
@@ -43,10 +56,17 @@ export default function AllInvestorsAssetChart({
   investorNames,
   initialCapital,
 }: Props) {
+  // 장마감 전이면 오늘 데이터 제외 (시가 기준이라 부정확)
+  const filtered = useMemo(() => {
+    const { today, isAfterClose } = getKSTInfo();
+    if (isAfterClose) return data;
+    return data.filter((d) => d.date !== today);
+  }, [data]);
+
   return (
     <div className="h-[250px] md:h-[350px]">
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <LineChart data={filtered} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <XAxis
           dataKey="date"
           tickFormatter={formatDate}
@@ -65,6 +85,7 @@ export default function AllInvestorsAssetChart({
           labelFormatter={(label) => `${label}`}
           formatter={(value) => krw(Number(value))}
           contentStyle={tooltipStyle}
+          itemSorter={(item) => -(Number(item.value) || 0)}
         />
         <Legend wrapperStyle={{ fontSize: '12px' }} />
         <ReferenceLine

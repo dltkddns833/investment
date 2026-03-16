@@ -16,6 +16,8 @@ import LiveInvestorDetail from "@/components/LiveInvestorDetail";
 import BadgeList from "@/components/BadgeList";
 import InvestorAvatar from "@/components/InvestorAvatar";
 import { getMethodology } from "@/lib/methodology";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +56,14 @@ export default async function InvestorPage({ params }: Props) {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Header Hero */}
+      {/* Back + Header Hero */}
+      <Link
+        href="/investors"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-300 transition-colors -ml-1"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        투자자 목록
+      </Link>
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
         <div className="flex items-center gap-3 md:gap-4">
           <InvestorAvatar investorId={id} size="lg" />

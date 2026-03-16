@@ -9,8 +9,21 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { useMemo } from "react";
 import { AssetSnapshot } from "@/lib/data";
 import { krw } from "@/lib/format";
+
+/** 한국 시간 기준 오늘 날짜(YYYY-MM-DD)와 장마감(15:30) 이후 여부 */
+function getKSTInfo() {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const t = now.getHours() * 60 + now.getMinutes();
+  return { today: `${yyyy}-${mm}-${dd}`, isAfterClose: t >= 930 };
+}
 
 interface Props {
   data: AssetSnapshot[];
@@ -36,7 +49,14 @@ function formatYAxis(value: number) {
 }
 
 export default function AssetChart({ data, initialCapital }: Props) {
-  const lastValue = data[data.length - 1]?.total_asset ?? initialCapital;
+  // 장마감 전이면 오늘 데이터 제외 (시가 기준이라 부정확)
+  const filtered = useMemo(() => {
+    const { today, isAfterClose } = getKSTInfo();
+    if (isAfterClose) return data;
+    return data.filter((d) => d.date !== today);
+  }, [data]);
+
+  const lastValue = filtered[filtered.length - 1]?.total_asset ?? initialCapital;
   const isProfit = lastValue >= initialCapital;
   const strokeColor = isProfit ? "#ef4444" : "#3b82f6";
   const fillId = "assetGradient";
@@ -44,7 +64,7 @@ export default function AssetChart({ data, initialCapital }: Props) {
   return (
     <div className="h-[200px] md:h-[300px]">
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <AreaChart data={filtered} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />

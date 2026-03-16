@@ -10,6 +10,7 @@ import VersusChart from "@/components/VersusChart";
 import VersusReturnDiff from "@/components/VersusReturnDiff";
 import VersusPositionCompare from "@/components/VersusPositionCompare";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import InvestorAvatar from "@/components/InvestorAvatar";
 import { getInvestorHex } from "@/lib/investor-colors";
 
@@ -57,7 +58,14 @@ export default async function VersusDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Hero Header */}
+      {/* Back + Hero Header */}
+      <Link
+        href="/versus"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-300 transition-colors -ml-1"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        대결
+      </Link>
       <div className="animate-in rounded-2xl bg-gradient-to-br from-red-500/5 via-purple-500/5 to-blue-500/5 p-4 md:p-6 border border-white/5">
         <div className="flex items-center justify-between gap-4">
           <Link href={`/investors/${idA}`} className="flex flex-col items-center flex-1 gap-2 hover:opacity-80 transition-opacity">

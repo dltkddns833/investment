@@ -10,6 +10,7 @@ import LiveStockPrice from "@/components/LiveStockPrice";
 import LiveStockHolders from "@/components/LiveStockHolders";
 import { SectorIcon } from "@/lib/sector-icons";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { getEtfData, isEtfTicker } from "@/lib/etf-data";
 import EtfDetail from "@/components/EtfDetail";
 
@@ -77,7 +78,14 @@ export default async function StockDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      {/* Header */}
+      {/* Back + Header */}
+      <Link
+        href="/stocks"
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-300 transition-colors -ml-1"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        종목 분석
+      </Link>
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl md:text-3xl font-bold">{stockInfo.name}</h1>
