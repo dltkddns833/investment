@@ -110,6 +110,7 @@ scripts/
     portfolio.py         매수/매도/평가/리밸런싱
     simulate.py          일일 시뮬레이션 오케스트레이터 + 종가 업데이트
     daily_pipeline.py    뉴스/배분/스토리 저장 헬퍼
+    event_detector.py    이벤트 감지 & 텔레그램 알림 (시뮬레이션 후 자동 호출)
   modules/           # 투자자별 데이터 분석 모듈
     momentum_data.py       모멘텀/수익률 (A, D용)
     sector_analysis.py     섹터별 성과 (B, F용)

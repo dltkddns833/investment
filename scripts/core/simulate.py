@@ -120,6 +120,14 @@ def run_simulation(date_str=None):
     _save_snapshots_from_report(report, date_str)
 
     logger.info(f"\n 리포트 저장 완료: daily_reports/{date_str}")
+
+    # 6. 이벤트 감지 & 알림
+    try:
+        from event_detector import detect_and_alert
+        detect_and_alert(date_str)
+    except Exception as e:
+        logger.warning(f"이벤트 감지 실패 (무시): {e}")
+
     logger.info(f"{'='*60}\n")
 
     return report
