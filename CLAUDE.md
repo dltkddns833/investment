@@ -198,12 +198,19 @@ cd web && pnpm build  # 빌드
 
 ### Part A: 시뮬레이션 ("시뮬레이션 진행해줘")
 
+> **텔레그램 알림**: 각 Step 시작/완료 시 `scripts/core/daily_pipeline.py`의 `notify()` 함수로 진행 상황을 텔레그램으로 발송한다.
+
+**Part 시작 알림**: `notify("📋 *Part A: 시뮬레이션 시작* ({date})")`
+
 #### Step 1: 뉴스 수집
+- `notify("🔍 Step 1: 뉴스 수집 시작")`
 - WebSearch로 한국 증시 관련 뉴스 검색 (경제, 산업, 기업, 정책, 글로벌, 금융/보험, 통신/IT, 제약/바이오, 건설/부동산, 소비재/유통)
 - 15~20건 수집 후 `scripts/core/daily_pipeline.py`의 `save_news()`로 Supabase에 저장
 - 각 기사에 `url` 필드 포함: `{"title": ..., "summary": ..., "category": ..., "source": ..., "url": "https://..."}`
+- `notify("✅ Step 1 완료: 뉴스 {N}건 수집")`
 
 #### Step 2: 투자자별 배분 결정 (11개 독립 AI 에이전트 병렬 실행)
+- `notify("🧠 Step 2: 투자자별 배분 결정 시작 (11명 병렬)")`
 **반드시 11개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
 - 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
 - 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
@@ -231,21 +238,30 @@ cd web && pnpm build  # 빌드
 - J (스마트머니 추종): 뉴스에서 외국인/기관 순매수 동향 파악, 수급 양호 종목, 5~8종목
 - K (글로벌 자산배분): **ETF 종목만 사용**, 지수/섹터/해외/채권/배당 ETF 카테고리별 비중 조절, 4~8종목. 주식ETF↔채권ETF 시소 원리 적용 (변동성 높을 때 채권 비중 확대)
 
+- `notify("✅ Step 2 완료: 11명 배분 결정 저장")`
+
 #### Step 3: 시뮬레이션 실행 (시가 체결)
+- `notify("⚙️ Step 3: 시뮬레이션 실행")`
 - `python3 scripts/core/simulate.py {date}` 실행
 - 시가(Open) 기준 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
+- (simulate.py 내부에서 이벤트 감지 & 텔레그램 자동 발송)
 
 #### Step 4: 결과 요약
 - 각 투자자별 총자산, 수익률, 오늘 거래 내역 보고
+- `notify("✅ *Part A 완료* ({date}) — 시뮬레이션 결과가 저장되었습니다.")`
 
 ### Part B: 스토리텔링 ("스토리텔링 해줘")
 
 > **장마감(15:30) 이후 실행 권장** — 종가가 확정된 후 코멘터리를 작성해야 당일 시장 동향이 정확하게 반영된다.
 
+**Part 시작 알림**: `notify("📝 *Part B: 스토리텔링 시작* ({date})")`
+
 #### Step 0: 종가 반영
+- `notify("📊 Step 0: 종가 반영 시작")`
 - `python3 scripts/core/simulate.py {date} --close` 실행
 - 종가(Close) 기준으로 market_prices, 포트폴리오 평가, 순위를 재계산하여 `daily_reports` 업데이트
 - 매매 정보(trades_today, rebalanced_today)는 기존 시가 체결 데이터를 그대로 유지
+- `notify("✅ Step 0 완료: 종가 반영")`
 
 종가 반영된 `daily_reports` 결과를 바탕으로 콘텐츠를 생성한다.
 
@@ -269,6 +285,7 @@ cd web && pnpm build  # 빌드
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
 - `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "로로캅": "..."}` 형태 (투자자 이름 키)
+- `notify("✅ *Part B 완료* ({date}) — 코멘터리 & 투자자 일기가 저장되었습니다.")`
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵

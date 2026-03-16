@@ -1,10 +1,23 @@
 """일일 시뮬레이션 파이프라인 헬퍼"""
 import sys
 from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications"))
+
 from supabase_client import supabase
+from send_telegram import send_telegram
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def notify(message):
+    """파이프라인 진행 상황 텔레그램 알림"""
+    try:
+        send_telegram(message)
+    except Exception as e:
+        logger.warning(f"텔레그램 알림 실패 (무시): {e}")
 
 
 def save_news(date_str, articles):
