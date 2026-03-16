@@ -23,6 +23,7 @@ interface Props {
   investorDetails?: Record<string, InvestorDetail>;
   initialCapital?: number;
   riskGrades?: Record<string, string>;
+  prevRankMap?: Record<string, number> | null;
 }
 
 function rankClass(rank: number): string {
@@ -32,7 +33,28 @@ function rankClass(rank: number): string {
   return "rank-badge bg-gray-700 text-gray-300";
 }
 
-const col = createColumnHelper<RankingEntry & { _investorId: string; _riskGrade: string }>();
+const col = createColumnHelper<RankingEntry & { _investorId: string; _riskGrade: string; _rankDiff: number }>();
+
+function RankDiffIcon({ diff }: { diff: number }) {
+  if (diff === 0) return null;
+  const isUp = diff > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${
+        isUp ? "text-red-400" : "text-blue-400"
+      }`}
+    >
+      <svg
+        className={`w-2.5 h-2.5 ${!isUp ? "rotate-180" : ""}`}
+        viewBox="0 0 10 8"
+        fill="currentColor"
+      >
+        <path d="M5 0L10 8H0z" />
+      </svg>
+      {Math.abs(diff)}
+    </span>
+  );
+}
 
 function getColumns() {
   return [
@@ -51,6 +73,7 @@ function getColumns() {
         >
           <InvestorAvatar investorId={info.row.original._investorId} size="sm" />
           {info.getValue()}
+          <RankDiffIcon diff={info.row.original._rankDiff} />
         </Link>
       ),
     }),
@@ -145,6 +168,7 @@ export default function RankingTable({
   investorDetails,
   initialCapital,
   riskGrades,
+  prevRankMap,
 }: Props) {
   const liveRankings = useLiveRankings(
     rankings,
@@ -186,11 +210,15 @@ export default function RankingTable({
     prevRanksRef.current = currentRanks;
   }, [liveRankings]);
 
-  const data = liveRankings.map((r) => ({
-    ...r,
-    _investorId: investorIds[r.investor] || "",
-    _riskGrade: riskGrades?.[r.investor] ?? "",
-  }));
+  const data = liveRankings.map((r) => {
+    const prev = prevRankMap?.[r.investor];
+    return {
+      ...r,
+      _investorId: investorIds[r.investor] || "",
+      _riskGrade: riskGrades?.[r.investor] ?? "",
+      _rankDiff: prev != null ? prev - r.rank : 0,
+    };
+  });
 
   const rowClassName = (row: (typeof data)[number]) => {
     const change = rankChanges[row.investor];

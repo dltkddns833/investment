@@ -7,6 +7,8 @@ interface Props {
   data: DailyReturn[];
   year: number;
   month: number;
+  onDateClick?: (dateStr: string) => void;
+  selectedDate?: string | null;
 }
 
 function getColor(pct: number): string {
@@ -21,7 +23,7 @@ function getColor(pct: number): string {
 
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
 
-export default function CalendarHeatmap({ data, year, month }: Props) {
+export default function CalendarHeatmap({ data, year, month, onDateClick, selectedDate }: Props) {
   const [tooltip, setTooltip] = useState<{
     date: string;
     pct: number;
@@ -41,7 +43,7 @@ export default function CalendarHeatmap({ data, year, month }: Props) {
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="relative">
+    <div className="relative p-1 -m-1">
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAY_LABELS.map((d) => (
@@ -66,17 +68,26 @@ export default function CalendarHeatmap({ data, year, month }: Props) {
           const isWeekend = dow >= 5;
           const pct = returnMap.get(dateStr);
           const hasData = pct !== undefined;
+          const isSelected = selectedDate === dateStr;
+          const clickable = hasData && onDateClick;
 
           return (
             <div
               key={i}
-              className={`aspect-square rounded-md flex items-center justify-center text-xs font-medium cursor-default transition-transform hover:scale-110 ${
+              className={`aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-transform hover:scale-110 ${
+                clickable ? "cursor-pointer" : "cursor-default"
+              } ${
+                isSelected ? "ring-2 ring-purple-400 ring-offset-1 ring-offset-gray-900" : ""
+              } ${
                 hasData
                   ? getColor(pct)
                   : isWeekend
                     ? "bg-transparent border border-white/5 text-gray-600"
                     : "bg-white/[0.02] border border-white/5 text-gray-500"
               }`}
+              onClick={() => {
+                if (clickable) onDateClick(dateStr);
+              }}
               onMouseEnter={(e) => {
                 if (hasData) {
                   const rect = e.currentTarget.getBoundingClientRect();

@@ -351,6 +351,24 @@ export async function getDailyReport(
   };
 }
 
+export async function getPrevRankMap(
+  date: string
+): Promise<Record<string, number> | null> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("rankings")
+    .lt("date", date)
+    .order("date", { ascending: false })
+    .limit(1)
+    .single();
+  if (!data?.rankings) return null;
+  const map: Record<string, number> = {};
+  for (const r of data.rankings as { rank: number; investor: string }[]) {
+    map[r.investor] = r.rank;
+  }
+  return map;
+}
+
 export async function getNews(date: string): Promise<News | null> {
   const { data } = await supabase
     .from("news")
@@ -364,20 +382,6 @@ export async function getNews(date: string): Promise<News | null> {
     count: data.count,
     articles: data.articles,
   };
-}
-
-export async function getAllNews(): Promise<News[]> {
-  const { data } = await supabase
-    .from("news")
-    .select("*")
-    .order("date", { ascending: false });
-  if (!data) return [];
-  return data.map((d) => ({
-    date: d.date,
-    collected_at: d.collected_at,
-    count: d.count,
-    articles: d.articles,
-  }));
 }
 
 export async function getDailyStories(
@@ -395,20 +399,6 @@ export async function getDailyStories(
     commentary: data.commentary,
     diaries: data.diaries,
   };
-}
-
-export async function getAllDailyStories(): Promise<DailyStories[]> {
-  const { data } = await supabase
-    .from("daily_stories")
-    .select("*")
-    .order("date", { ascending: false });
-  if (!data) return [];
-  return data.map((d) => ({
-    date: d.date,
-    generated_at: d.generated_at,
-    commentary: d.commentary,
-    diaries: d.diaries,
-  }));
 }
 
 export async function getAvailableReportDates(): Promise<string[]> {

@@ -11,8 +11,6 @@ import {
   TrendingUp,
   PieChart,
   BarChart2,
-  Newspaper,
-  BookOpen,
 } from "lucide-react";
 
 interface Investor {
@@ -153,8 +151,6 @@ export default function MobileHeader({
             <MobileNavLink href="/stocks" label="종목 분석" icon={<TrendingUp size={15} />} active={pathname.startsWith("/stocks")} />
             <MobileNavLink href="/analysis" label="분석" icon={<PieChart size={15} />} active={pathname === "/analysis"} />
             <MobileNavLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} active={pathname === "/reports"} />
-            <MobileNavLink href="/news" label="뉴스" icon={<Newspaper size={15} />} active={pathname === "/news"} />
-            <MobileNavLink href="/stories" label="이야기" icon={<BookOpen size={15} />} active={pathname === "/stories"} />
           </nav>
         </>
       )}

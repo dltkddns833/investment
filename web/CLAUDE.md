@@ -27,20 +27,21 @@ src/
     layout.tsx               ← 루트 레이아웃 (다크 테마)
     investors/page.tsx       ← 투자자 목록 (카드 그리드, 순위/수익률)
     investors/[id]/page.tsx  ← 투자자 상세 (뱃지, 일기, 차트, 보유종목, 거래내역)
-    reports/page.tsx         ← 리포트 (달력 히트맵, 월간 수익률)
+    reports/page.tsx         ← 리포트 (좌우 분할: 달력+날짜목록 | 코멘터리+순위+일기+뉴스)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
     analysis/page.tsx        ← 투자자 분석 (성과 지표, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
-    stories/page.tsx         ← 이야기 아카이브 (과거 코멘터리 & 투자자 일기, 캘린더 탐색)
+    api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 전일 순위)
   components/
-    RankingTable.tsx          ← 투자자 순위표
+    RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
     MarketTable.tsx           ← 시장 현황 테이블
     PortfolioChart.tsx        ← 포트폴리오 파이차트 (recharts)
     HoldingsTable.tsx         ← 보유종목 테이블
     CalendarHeatmap.tsx       ← 달력 히트맵 (수익률 색상)
-    PeriodSelector.tsx        ← 투자자 탭 + 월 이동
+    ReportsContent.tsx        ← 리포트 좌우 분할 레이아웃 (데스크탑: 마스터-디테일, 모바일: 접기/펼치기)
+    DailyDetailPanel.tsx      ← 날짜별 상세 패널 (코멘터리, 투자자 현황+일기 통합, 뉴스)
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바
     CorrelationHeatmap.tsx    ← 수익률 상관관계 11×11 히트맵
@@ -60,7 +61,6 @@ src/
     InvestorRadarChart.tsx    ← 성과 지표 레이더 차트 (5축, 상위 5명 기본, 클릭 토글)
     AssetCompositionChart.tsx ← 투자자별 자산 구성 변화 Stacked Area 차트
     SentimentTrendChart.tsx   ← G 문여론 감성 점수 추이 바 차트
-    StoryArchive.tsx          ← 이야기 아카이브 (캘린더 + 코멘터리 + 투자자 일기 카드)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -82,7 +82,7 @@ src/
 - `getNews(date)` → `news` 테이블
 - `getDailyStories(date)` → `daily_stories` 테이블 (코멘터리 & 투자자 일기)
 - `getDailyReturns(investorName, year, month)` → 히트맵용 일별 수익률
-- `getPeriodSummary(startDate, endDate)` → 기간별 투자자 성과 요약
+- `getPrevRankMap(date)` → 전일 대비 순위 변동 계산용 이전 순위 맵
 - `getStockTransactions(ticker)` → 종목별 거래내역
 - `getLatestReportDate()` → `daily_reports` 최신 date
 - `getAllDailyReports()` → 전체 daily_reports (date, rankings, investor_details)
