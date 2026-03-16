@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Users,
   Swords,
+  Trophy,
   TrendingUp,
   PieChart,
   BarChart2,
@@ -145,6 +146,7 @@ export default function MobileHeader({
             <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">투자자</p>
             <MobileNavLink href="/investors" label="투자자" icon={<Users size={15} />} active={pathname.startsWith("/investors")} />
             <MobileNavLink href="/versus" label="대결" icon={<Swords size={15} />} active={pathname.startsWith("/versus")} />
+            <MobileNavLink href="/league" label="리그" icon={<Trophy size={15} />} active={pathname === "/league"} />
 
             <div className="my-2 border-t border-white/5" />
             <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">데이터</p>

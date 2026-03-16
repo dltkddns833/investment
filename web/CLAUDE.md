@@ -33,6 +33,7 @@ src/
     analysis/page.tsx        ← 투자자 분석 (성과 지표, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
+    league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 전일 순위)
   components/
     RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
@@ -54,7 +55,10 @@ src/
     MatchupCard.tsx           ← 추천 대결 카드
     InvestorPairSelector.tsx  ← 투자자 선택 드롭다운
     WeeklyHighlights.tsx      ← 주간 MVP/꼴찌/연승 카드
-    BadgeList.tsx             ← 투자자 뱃지 목록
+    LeagueTable.tsx           ← 리그 승점 순위 테이블 (승점 프로그레스바, 평균순위, 1위횟수)
+    LeaguePointsChart.tsx     ← 누적 승점 추이 라인 차트 (투자자별 컬러)
+    SeasonHistory.tsx         ← 시즌 아카이브 카드 (우승자, Top 3 포디움)
+    BadgeList.tsx             ← 투자자 뱃지 목록 (시즌 우승 뱃지 포함)
     InvestorAvatar.tsx        ← 투자자 카툰 아바타 (대표 인물 기반 SVG)
     AllInvestorsAssetChart.tsx ← 전체 투자자 자산 추이 라인 차트
     PerformanceStatsTable.tsx ← 성과 지표 테이블 (샤프/MDD/승률/변동성/알파, 클릭 정렬)
@@ -97,6 +101,9 @@ src/
 - `getAssetComposition(investorId)` → `portfolio_snapshots` 테이블에서 일별 종목+현금 구성 (stacked area용)
 - `getSentimentHistory(investorId)` → `allocations` 테이블에서 G의 감성 점수 시계열
 - `getPeriodicReports(periodType)` → `periodic_reports` 테이블에서 월간/분기 리포트
+- `getLeagueStandings(seasonLabel?)` → 현재/과거 시즌 승점 순위 (현재: on-the-fly 계산, 과거: periodic_reports.league_standings)
+- `getSeasonHistory()` → 완료된 시즌 목록 (periodic_reports에서 league_standings 있는 월간 리포트)
+- `getDailyLeaguePoints(seasonLabel?)` → 일별 누적 승점 (차트용)
 - `getAllDailyStories()` → `daily_stories` 테이블에서 전체 코멘터리 & 투자자 일기 (날짜 역순)
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.

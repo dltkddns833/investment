@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   Swords,
+  Trophy,
   TrendingUp,
   PieChart,
   BarChart2,
@@ -27,6 +28,7 @@ export default async function Sidebar() {
         </p>
         <SidebarLink href="/investors" label="투자자" icon={<Users size={15} />} />
         <SidebarLink href="/versus" label="대결" icon={<Swords size={15} />} />
+        <SidebarLink href="/league" label="리그" icon={<Trophy size={15} />} />
 
         <div className="my-2 border-t border-white/5" />
         <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">

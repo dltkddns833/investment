@@ -648,6 +648,27 @@ export interface StockPopularity {
   holderCount: number;
 }
 
+// --- Issue #19: 리그 시스템 (시즌제 + 승점) ---
+
+export interface LeagueStanding {
+  rank: number;
+  investor: string;
+  investorId: string;
+  points: number;
+  avgRank: number;
+  rank1Days: number;
+  pointsPerDay: number;
+}
+
+export interface SeasonSummary {
+  seasonLabel: string;       // "2026-03"
+  seasonName: string;        // "3월 시즌"
+  champion: { investor: string; investorId: string; points: number } | null;
+  standings: LeagueStanding[];
+  tradingDays: number;
+  isCurrent: boolean;
+}
+
 export interface InvestorStreak {
   investor: string;
   currentRank1Streak: number;
@@ -922,6 +943,20 @@ export async function getBadges(): Promise<Badge[]> {
     }
   }
 
+  // 시즌 우승 뱃지 (완료된 시즌)
+  const seasonHistory = await getSeasonHistory();
+  const championCounts: Record<string, number> = {};
+  for (const season of seasonHistory) {
+    if (season.champion) {
+      const name = season.champion.investor;
+      championCounts[name] = (championCounts[name] ?? 0) + 1;
+      const count = championCounts[name];
+      if (count >= 3) addBadge(name, "season_champion_3", season.seasonLabel, "트리플 크라운");
+      else if (count >= 2) addBadge(name, "season_champion_2", season.seasonLabel, "시즌 2회 우승");
+      else addBadge(name, "season_champion", season.seasonLabel, `${season.seasonName} 우승`);
+    }
+  }
+
   return badges;
 }
 
@@ -1072,4 +1107,181 @@ export async function getVersusData(
   }
 
   return { assetHistory, returnDiff, headToHead: { winsA, winsB, draws } };
+}
+
+// --- Issue #19: 리그 승점 계산 ---
+
+function computeLeaguePoints(
+  reports: DailyReportRow[],
+  investorIdMap: Record<string, string>
+): LeagueStanding[] {
+  const stats: Record<string, { points: number; rankSum: number; rank1: number; days: number }> = {};
+
+  for (const report of reports) {
+    for (const r of report.rankings) {
+      if (!stats[r.investor]) stats[r.investor] = { points: 0, rankSum: 0, rank1: 0, days: 0 };
+      const totalInvestors = report.rankings.length;
+      const pts = totalInvestors + 1 - r.rank; // 11명이면: 1위=11, 11위=1
+      stats[r.investor].points += pts;
+      stats[r.investor].rankSum += r.rank;
+      stats[r.investor].days++;
+      if (r.rank === 1) stats[r.investor].rank1++;
+    }
+  }
+
+  return Object.entries(stats)
+    .map(([investor, s]) => ({
+      rank: 0,
+      investor,
+      investorId: investorIdMap[investor] ?? "",
+      points: s.points,
+      avgRank: s.days > 0 ? Math.round((s.rankSum / s.days) * 10) / 10 : 0,
+      rank1Days: s.rank1,
+      pointsPerDay: s.days > 0 ? Math.round((s.points / s.days) * 10) / 10 : 0,
+    }))
+    .sort((a, b) => b.points - a.points || a.avgRank - b.avgRank)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+}
+
+const MONTH_NAMES = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+
+export async function getLeagueStandings(seasonLabel?: string): Promise<SeasonSummary | null> {
+  const now = new Date();
+  const currentLabel = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [year, monthStr] = currentLabel.split("-");
+  const month = parseInt(monthStr, 10);
+  const seasonName = `${year}년 ${MONTH_NAMES[month - 1]} 시즌`;
+
+  const isCurrentMonth =
+    parseInt(year, 10) === now.getFullYear() && month === now.getMonth() + 1;
+
+  if (!isCurrentMonth) {
+    // 과거 시즌: periodic_reports에서 league_standings 읽기
+    const { data } = await supabase
+      .from("periodic_reports")
+      .select("*")
+      .eq("period_type", "monthly")
+      .eq("period_label", currentLabel)
+      .single();
+
+    if (!data?.league_standings) return null;
+
+    const ls = data.league_standings as {
+      champion: { investor: string; investor_id: string; points: number };
+      standings: { rank: number; investor: string; investor_id: string; points: number; avg_rank: number; rank1_days: number }[];
+      trading_days: number;
+    };
+
+    return {
+      seasonLabel: currentLabel,
+      seasonName,
+      champion: ls.champion ? { investor: ls.champion.investor, investorId: ls.champion.investor_id, points: ls.champion.points } : null,
+      standings: ls.standings.map((s) => ({
+        rank: s.rank,
+        investor: s.investor,
+        investorId: s.investor_id,
+        points: s.points,
+        avgRank: s.avg_rank,
+        rank1Days: s.rank1_days,
+        pointsPerDay: ls.trading_days > 0 ? Math.round((s.points / ls.trading_days) * 10) / 10 : 0,
+      })),
+      tradingDays: ls.trading_days,
+      isCurrent: false,
+    };
+  }
+
+  // 현재 시즌: daily_reports에서 on-the-fly 계산
+  const firstDay = `${currentLabel}-01`;
+  const lastDay = `${currentLabel}-31`;
+
+  const { data: reports } = await supabase
+    .from("daily_reports")
+    .select("date, rankings, investor_details")
+    .gte("date", firstDay)
+    .lte("date", lastDay)
+    .order("date", { ascending: true });
+
+  if (!reports || reports.length === 0) return null;
+
+  const config = await getConfig();
+  const investorIdMap: Record<string, string> = {};
+  for (const inv of config.investors) investorIdMap[inv.name] = inv.id;
+
+  const standings = computeLeaguePoints(reports as DailyReportRow[], investorIdMap);
+  const champion = standings.length > 0 ? { investor: standings[0].investor, investorId: standings[0].investorId, points: standings[0].points } : null;
+
+  return {
+    seasonLabel: currentLabel,
+    seasonName,
+    champion,
+    standings,
+    tradingDays: reports.length,
+    isCurrent: true,
+  };
+}
+
+export async function getSeasonHistory(): Promise<SeasonSummary[]> {
+  const { data } = await supabase
+    .from("periodic_reports")
+    .select("*")
+    .eq("period_type", "monthly")
+    .not("league_standings", "is", null)
+    .order("period_label", { ascending: false });
+
+  const seasons: SeasonSummary[] = [];
+
+  for (const row of data ?? []) {
+    const ls = row.league_standings as {
+      champion: { investor: string; investor_id: string; points: number };
+      standings: { rank: number; investor: string; investor_id: string; points: number; avg_rank: number; rank1_days: number }[];
+      trading_days: number;
+    };
+    const [year, monthStr] = row.period_label.split("-");
+    const month = parseInt(monthStr, 10);
+
+    seasons.push({
+      seasonLabel: row.period_label,
+      seasonName: `${year}년 ${MONTH_NAMES[month - 1]} 시즌`,
+      champion: ls.champion ? { investor: ls.champion.investor, investorId: ls.champion.investor_id, points: ls.champion.points } : null,
+      standings: ls.standings.map((s) => ({
+        rank: s.rank,
+        investor: s.investor,
+        investorId: s.investor_id,
+        points: s.points,
+        avgRank: s.avg_rank,
+        rank1Days: s.rank1_days,
+        pointsPerDay: ls.trading_days > 0 ? Math.round((s.points / ls.trading_days) * 10) / 10 : 0,
+      })),
+      tradingDays: ls.trading_days,
+      isCurrent: false,
+    });
+  }
+
+  return seasons;
+}
+
+export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date: string; points: Record<string, number> }[]> {
+  const now = new Date();
+  const label = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const firstDay = `${label}-01`;
+  const lastDay = `${label}-31`;
+
+  const { data: reports } = await supabase
+    .from("daily_reports")
+    .select("date, rankings")
+    .gte("date", firstDay)
+    .lte("date", lastDay)
+    .order("date", { ascending: true });
+
+  if (!reports || reports.length === 0) return [];
+
+  const cumulative: Record<string, number> = {};
+  return reports.map((r) => {
+    const rankings = r.rankings as RankingEntry[];
+    const totalInvestors = rankings.length;
+    for (const entry of rankings) {
+      cumulative[entry.investor] = (cumulative[entry.investor] ?? 0) + (totalInvestors + 1 - entry.rank);
+    }
+    return { date: r.date, points: { ...cumulative } };
+  });
 }

@@ -10,6 +10,7 @@ import {
   getConfig,
   getDailyStories,
   getBadges,
+  getLeagueStandings,
 } from "@/lib/data";
 import TransactionTable from "@/components/TransactionTable";
 import AssetChart from "@/components/AssetChart";
@@ -46,7 +47,7 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation, assetHistory, assetComposition, sentimentHistory, stories, allBadges] = await Promise.all([
+  const [report, allocation, assetHistory, assetComposition, sentimentHistory, stories, allBadges, leagueSeason] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
     getAssetHistory(profile.name),
@@ -54,6 +55,7 @@ export default async function InvestorPage({ params }: Props) {
     id === "G" ? getSentimentHistory(id) : Promise.resolve([]),
     latestDate ? getDailyStories(latestDate) : null,
     getBadges(),
+    getLeagueStandings(),
   ]);
   const investorBadges = allBadges.filter((b) => b.investor === profile.name);
   const detail = report?.investor_details[profile.name];
@@ -110,6 +112,26 @@ export default async function InvestorPage({ params }: Props) {
           </p>
         </section>
       )}
+
+      {/* League Standing */}
+      {leagueSeason && (() => {
+        const standing = leagueSeason.standings.find((s) => s.investorId === id);
+        if (!standing) return null;
+        return (
+          <a href="/league" className="glass-card p-3 flex items-center justify-between hover:bg-white/[0.03] transition-colors animate-in">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">🏆</span>
+              <div>
+                <div className="text-[10px] text-gray-500">{leagueSeason.seasonName}</div>
+                <div className="text-sm font-medium text-gray-200">
+                  리그 {standing.rank}위 · <span className="text-yellow-300">{standing.points}점</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-xs text-gray-500">상세 →</span>
+          </a>
+        );
+      })()}
 
       {/* Summary Cards */}
       <LiveInvestorSummary

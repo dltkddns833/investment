@@ -99,6 +99,57 @@ def build_monthly_report(today):
         total_ret = r["total_return_pct"]
         lines.append(f"  {r['investor']}: {r['total_asset']:,.0f}원 (누적 {total_ret:+.2f}%)")
 
+    # 리그 승점 계산 (Issue #19)
+    investor_points = {}
+    for report in reports:
+        rankings = report.get("rankings", [])
+        total_investors = len(rankings)
+        for r in rankings:
+            name = r.get("investor", "")
+            rank = r.get("rank", total_investors)
+            if name not in investor_points:
+                investor_points[name] = {"points": 0, "rank_sum": 0, "rank1": 0, "days": 0}
+            pts = total_investors + 1 - rank  # 1위=11점, 11위=1점
+            investor_points[name]["points"] += pts
+            investor_points[name]["rank_sum"] += rank
+            investor_points[name]["days"] += 1
+            if rank == 1:
+                investor_points[name]["rank1"] += 1
+
+    league_standings_list = []
+    for name, s in investor_points.items():
+        league_standings_list.append({
+            "investor": name,
+            "investor_id": next((r.get("investor_id", "") for r in monthly_results if r["investor"] == name), ""),
+            "points": s["points"],
+            "avg_rank": round(s["rank_sum"] / s["days"], 1) if s["days"] > 0 else 0,
+            "rank1_days": s["rank1"],
+        })
+    league_standings_list.sort(key=lambda x: (-x["points"], x["avg_rank"]))
+    for i, s in enumerate(league_standings_list):
+        s["rank"] = i + 1
+
+    # investor_id 보완: daily_reports에서 가져올 수 없으므로 profiles 조회
+    profiles_result = supabase.table("profiles").select("id, name").execute()
+    name_to_id = {p["name"]: p["id"] for p in (profiles_result.data or [])}
+    for s in league_standings_list:
+        if not s["investor_id"]:
+            s["investor_id"] = name_to_id.get(s["investor"], "")
+
+    league_champion = league_standings_list[0] if league_standings_list else None
+    league_standings = {
+        "champion": {"investor": league_champion["investor"], "investor_id": league_champion["investor_id"], "points": league_champion["points"]} if league_champion else None,
+        "standings": league_standings_list,
+        "trading_days": len(reports),
+    }
+
+    # 텔레그램 메시지에 리그 순위 추가
+    lines.append("")
+    lines.append("*🏆 리그 승점 순위*")
+    for s in league_standings_list[:5]:
+        medal = ["🥇", "🥈", "🥉"][s["rank"] - 1] if s["rank"] <= 3 else f"{s['rank']}."
+        lines.append(f"{medal} {s['investor']}: {s['points']}점 (평균 {s['avg_rank']}위)")
+
     lines.append("")
     lines.append(f"_생성: {today.strftime('%Y-%m-%d %H:%M')}_")
 
@@ -115,6 +166,7 @@ def build_monthly_report(today):
         "trading_days": len(reports),
         "rankings": monthly_results,
         "highlights": {"mvp": mvp, "worst": worst} if mvp else None,
+        "league_standings": league_standings,
         "summary": text,
     }
     supabase.table("periodic_reports").upsert(db_data).execute()

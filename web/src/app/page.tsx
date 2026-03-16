@@ -9,6 +9,7 @@ import {
   getWeeklyMVPs,
   getStreaks,
   getProfileRiskGrades,
+  getLeagueStandings,
 } from "@/lib/data";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
@@ -44,7 +45,7 @@ export default async function Home() {
   const today = new Date()
     .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks, riskGrades, prevRankMap] = await Promise.all([
+  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks, riskGrades, prevRankMap, leagueSeason] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(today),
     today !== latestDate ? getNews(latestDate) : null,
@@ -54,6 +55,7 @@ export default async function Home() {
     getStreaks(),
     getProfileRiskGrades(),
     getPrevRankMap(latestDate),
+    getLeagueStandings(),
   ]);
   const news = todayNews ?? reportNews;
 
@@ -180,7 +182,21 @@ export default async function Home() {
 
   const latestWeek = weeklyMVPs.length > 0 ? weeklyMVPs[0] : null;
   const highlightsSection = (
-    <WeeklyHighlights latestWeek={latestWeek} streaks={streaks} />
+    <div className="space-y-3">
+      <WeeklyHighlights latestWeek={latestWeek} streaks={streaks} />
+      {leagueSeason && leagueSeason.standings.length > 0 && (
+        <a href="/league" className="glass-card p-3 flex items-center justify-between hover:bg-white/[0.03] transition-colors block animate-in">
+          <div>
+            <div className="text-[10px] text-gray-500 mb-1">🏆 {leagueSeason.seasonName}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-yellow-300">{leagueSeason.standings[0].investor}</span>
+              <span className="text-xs text-gray-400">{leagueSeason.standings[0].points}점</span>
+            </div>
+          </div>
+          <span className="text-xs text-gray-500">상세 →</span>
+        </a>
+      )}
+    </div>
   );
 
   const footerSection = (

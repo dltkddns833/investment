@@ -14,6 +14,9 @@ const BADGE_ICONS: Record<string, string> = {
   streak_5: "▲▲",
   holdings_10: "▦",
   cash_king: "○",
+  season_champion: "🏆",
+  season_champion_2: "🏆",
+  season_champion_3: "🏆",
 };
 
 const BADGE_COLORS: Record<string, string> = {
@@ -24,6 +27,9 @@ const BADGE_COLORS: Record<string, string> = {
   streak_5: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   holdings_10: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   cash_king: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  season_champion: "bg-yellow-500/10 text-yellow-300 border-yellow-500/20",
+  season_champion_2: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+  season_champion_3: "bg-orange-500/10 text-orange-300 border-orange-500/20",
 };
 
 export default function BadgeList({ badges }: Props) {
