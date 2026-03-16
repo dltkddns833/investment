@@ -116,44 +116,14 @@ export default async function InvestorPage({ params }: Props) {
         </section>
       )}
 
-      {/* Portfolio Chart + Holdings */}
+      {/* Portfolio Chart + Allocation + Holdings */}
       {detail && (
         <LiveInvestorDetail
           detail={detail}
           initialCapital={config.simulation.initial_capital}
+          allocation={allocation}
+          marketPrices={report?.market_prices}
         />
-      )}
-
-      {/* Allocation */}
-      {detail && allocation && (
-        <section className="glass-card p-4 md:p-5 animate-in">
-          <h2 className="text-lg font-bold mb-3 section-header">
-            목표 배분
-          </h2>
-          <p className="text-xs text-gray-400 mb-3 whitespace-pre-line">
-            {allocation.rationale}
-          </p>
-          <div className="space-y-2">
-            {Object.entries(allocation.allocation).map(
-              ([ticker, ratio]) => (
-                <div key={ticker} className="flex items-center gap-2">
-                  <div className="w-16 md:w-20 text-sm truncate shrink-0">
-                    {report!.market_prices[ticker]?.name ?? ticker}
-                  </div>
-                  <div className="flex-1 bg-gray-700/50 rounded-full h-2">
-                    <div
-                      className="bar-fill h-2"
-                      style={{ width: `${ratio * 100}%` }}
-                    />
-                  </div>
-                  <div className="text-sm text-gray-400 w-12 text-right tabular-nums">
-                    {(ratio * 100).toFixed(0)}%
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        </section>
       )}
 
       {/* Transaction History */}
