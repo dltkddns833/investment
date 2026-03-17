@@ -2,7 +2,7 @@
 
 > **대시보드**: https://investment-phi-six.vercel.app/
 
-11명의 가상 투자자(A~K)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식 및 ETF에 투자하여 성과를 비교하는 시뮬레이션. 각 투자자는 전용 데이터 모듈과 AI 에이전트를 통해 독립적으로 배분을 결정한다.
+14명의 가상 투자자(A~N)가 서로 다른 **투자 성향**과 **리밸런싱 빈도**로 한국 주식 및 ETF에 투자하여 성과를 비교하는 시뮬레이션. 각 투자자는 전용 데이터 모듈과 AI 에이전트를 통해 독립적으로 배분을 결정한다.
 
 ## 투자자
 
@@ -19,17 +19,21 @@
 | I | 최배당 | 배당 투자 | 안정형 | 분기별 | 5~10 | `dividend_data.py` |
 | J | 한따라 | 스마트머니 추종 | 위험중립형 | 매주 | 5~8 | `institutional_flow.py` (pykrx + 네이버 fallback) |
 | K | 로로캅 | 글로벌 자산배분 (ETF 전용) | 안정추구형 | 매월 | 4~8 | `asset_allocation.py` |
+| L | 신장모 | 분할매도 전략 | 적극투자형 | 매일 | 5~8 | `momentum_data.py` |
+| M | 오판단 | 마켓 타이밍 | 적극투자형 | 매일 | 3~10 | `market_regime.py` |
+| N | 전몰빵 | 집중투자 | 공격투자형 | 매주 | 2~3 | `momentum_data.py` + `quality_metrics.py` + `institutional_flow.py` |
 
 - 시드머니: 각 500만원 (KRW)
-- 시장: KOSPI + KOSDAQ — 일반주 35종목 + ETF 12종목 = **47종목** (yfinance 기반 실시간 시세)
+- 시장: KOSPI + KOSDAQ — 일반주 85종목 + ETF 15종목 = **100종목** (yfinance 기반 실시간 시세)
 - 데이터 저장소: Supabase (PostgreSQL)
+- 거래 비용: 매수 수수료 0.015% + 매도 수수료 0.015% + 증권거래세 0.18% + 슬리피지 0.05%
 
 ## 시뮬레이션 흐름
 
 ```
 [오전 — 시가 체결]
 1. 뉴스 수집 → Supabase news 테이블
-2. 투자자별 독립 분석/배분 결정 (11개 AI 에이전트 병렬)
+2. 투자자별 독립 분석/배분 결정 (14개 AI 에이전트 병렬)
    → 각 에이전트에 전용 데이터 모듈 결과 전달 → allocations 테이블
 3. python3 scripts/core/simulate.py 실행
    → 시가(Open) 조회 → 리밸런싱 due 체크 → 매매 → daily_reports + portfolio_snapshots 저장
@@ -85,7 +89,8 @@ cd web && pnpm install && pnpm dev
 │   │   ├── technical_indicators.py     RSI/MACD/볼린저 밴드 (H용)
 │   │   ├── dividend_data.py            배당수익률 (I, C용)
 │   │   ├── institutional_flow.py       외국인/기관 수급 (J용, pykrx→네이버 fallback + 캐시)
-│   │   └── asset_allocation.py         ETF 카테고리별 수익률/변동성/추세 (K용)
+│   │   ├── asset_allocation.py         ETF 카테고리별 수익률/변동성/추세 (K용)
+│   │   └── market_regime.py            KOSPI 레짐 판단 — 이평선/거래량/변동성 (M용)
 │   ├── notifications/                # 알림 발송
 │   │   └── send_telegram.py            텔레그램 알림
 │   ├── reports/                      # 리포트 생성
@@ -121,15 +126,15 @@ macOS launchd로 평일 09:05에 통합 파이프라인 실행.
 Next.js + TypeScript + Tailwind CSS + Recharts로 구성된 시각화 대시보드.
 
 - **메인** (`/`): 투자자 순위, 마켓 코멘터리, 시장 현황(실시간/종가), 뉴스
-- **투자자 목록** (`/investors`): 전체 11명 카드 그리드, 순위/수익률/투자성향 뱃지
+- **투자자 목록** (`/investors`): 전체 14명 카드 그리드, 순위/수익률/투자성향 뱃지
 - **투자자 상세** (`/investors/[id]`): 투자자 일기, 포트폴리오 차트, 자산 구성 변화(stacked area), 성과 기여도(종목별·섹터별), 목표 배분, 보유종목, 거래내역, 투자성향 뱃지, G는 감성 점수 추이
 - **리포트** (`/reports`): 달력 히트맵, 월간 수익률
-- **종목 분석** (`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(35개)/ETF(12개) 분리 목록
+- **종목 분석** (`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(85개)/ETF(15개) 분리 목록
 - **종목 상세** (`/stocks/[ticker]`): 가격 차트, ETF 구성정보(섹터 비중·구성 종목), 보유 투자자, 거래내역
 - **분석** (`/analysis`): 성과 지표(샤프비율·MDD·변동성·알파·승률), 수익률 상관관계 히트맵, 포지션 겹침률, 종목 인기도, 성과 기여도 분석
 - **대결** (`/versus`): 추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승 기록
 - **대결 상세** (`/versus/[matchup]`): 1:1 자산 비교, 일별 수익률 차이, 포지션 비교
-- **리그** (`/league`): 월간 시즌제 승점 순위(1위=11점~11위=1점), 누적 승점 추이 차트, 시즌 아카이브
+- **리그** (`/league`): 월간 시즌제 승점 순위(1위=14점~14위=1점), 누적 승점 추이 차트, 시즌 아카이브
 - **뉴스 아카이브** (`/news`): 날짜별 뉴스 카드, 섹터별 아이콘
 - **이야기 아카이브** (`/stories`): 과거 데일리 코멘터리 & 투자자 일기 (캘린더 탐색)
 
