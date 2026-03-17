@@ -139,10 +139,10 @@ scripts/
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
-| `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories (모두 jsonb) | 시뮬레이션 설정 |
+| `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories, trading_costs (모두 jsonb) | 시뮬레이션 설정 |
 | `profiles` | id (A~K) | name, strategy, description, rebalance_frequency_days, risk_tolerance, risk_grade, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
 | `portfolios` | investor_id | investor, strategy, initial_capital, cash, holdings(jsonb), last_rebalanced | 보유 현황 |
-| `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit | 거래 내역 |
+| `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit, fee | 거래 내역 |
 | `rebalance_history` | serial id | investor_id(FK), date, trades(jsonb), total_asset_after | 리밸런싱 기록 |
 | `allocations` | (investor_id, date) | investor, strategy, rationale, allocation(jsonb), allocation_sum, num_stocks, sentiment_scores(jsonb) | 일별 목표 배분 |
 | `news` | date | collected_at, count, articles(jsonb) | 수집된 뉴스 |
@@ -167,6 +167,8 @@ scripts/
 - ⚠️ yfinance에서 `.KQ`를 MUTUALFUND로 오인식하는 종목은 `.KS`로 등록: 엘앤에프(066970), 포스코DX(022100), 시프트업(462870), 더존비즈온(012510), 덴티움(145720), 코스맥스(192820), 씨에스윈드(112610)
 - stock_universe 종목 변경은 반드시 사용자 확인 후 진행 (임의 선정 금지)
 - 포트폴리오의 `last_rebalanced: null`이면 첫 리밸런싱 무조건 실행
+- 거래 비용: 매수 수수료 0.015% + 매도 수수료 0.015% + 증권거래세 0.18% + 슬리피지 0.05% (config.trading_costs에서 조정 가능)
+- 슬리피지는 체결가 조정 방식 (매수 +0.05%, 매도 -0.05%), 수수료/세금은 현금에서 별도 차감
 
 ## Web Dashboard
 

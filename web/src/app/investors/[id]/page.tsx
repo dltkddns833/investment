@@ -12,6 +12,7 @@ import {
   getBadges,
   getLeagueStandings,
 } from "@/lib/data";
+import { krw } from "@/lib/format";
 import TransactionTable from "@/components/TransactionTable";
 import LiveAttributionSection from "@/components/LiveAttributionSection";
 import AssetChart from "@/components/AssetChart";
@@ -214,6 +215,18 @@ export default async function InvestorPage({ params }: Props) {
       {/* Transaction History */}
       {portfolio.transactions.length > 0 && (
         <section className="glass-card overflow-hidden animate-in">
+          {(() => {
+            const totalFees = portfolio.transactions.reduce(
+              (sum, t) => sum + (t.fee ?? 0),
+              0
+            );
+            return totalFees > 0 ? (
+              <div className="px-4 pt-3 flex items-center gap-2 text-sm text-yellow-500">
+                <span>누적 거래비용</span>
+                <span className="font-mono font-bold">{krw(totalFees)}</span>
+              </div>
+            ) : null;
+          })()}
           <TransactionTable transactions={portfolio.transactions} />
         </section>
       )}

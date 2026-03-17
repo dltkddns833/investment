@@ -52,6 +52,7 @@ export interface Transaction {
   price: number;
   amount: number;
   profit?: number;
+  fee?: number;
 }
 
 export interface RebalanceRecord {
@@ -183,6 +184,7 @@ export interface StockTransaction {
   price: number;
   amount: number;
   profit?: number;
+  fee?: number;
 }
 
 export interface DailyStories {
@@ -267,6 +269,7 @@ export async function getPortfolio(
       amount: t.amount,
     };
     if (t.profit !== null) entry.profit = t.profit;
+    if (t.fee) entry.fee = t.fee;
     return entry;
   });
 
@@ -594,7 +597,7 @@ export async function getStockTransactions(
 ): Promise<StockTransaction[]> {
   const { data } = await supabase
     .from("transactions")
-    .select("date, investor_id, type, shares, price, amount, profit")
+    .select("date, investor_id, type, shares, price, amount, profit, fee")
     .eq("ticker", ticker)
     .order("id", { ascending: false });
 
@@ -610,6 +613,7 @@ export async function getStockTransactions(
       amount: t.amount,
     };
     if (t.profit !== null) entry.profit = t.profit;
+    if (t.fee) entry.fee = t.fee;
     return entry;
   });
 }

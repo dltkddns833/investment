@@ -3,6 +3,38 @@ from datetime import datetime, date, timedelta
 import holidays
 from supabase_client import supabase
 
+_trading_costs_cache = None
+
+
+def load_trading_costs():
+    """거래 비용 설정 로드 (캐시)"""
+    global _trading_costs_cache
+    if _trading_costs_cache is None:
+        row = supabase.table("config").select("trading_costs").eq("id", 1).single().execute().data
+        _trading_costs_cache = row.get("trading_costs") or {}
+    return _trading_costs_cache
+
+
+def calc_fees(ticker, price, shares, trade_type):
+    """체결가(슬리피지 반영) + 수수료(수수료+세금) 계산
+    Returns: (exec_price: int, fee: int)
+    """
+    tc = load_trading_costs()
+    slippage = tc.get("slippage_pct", 0)
+
+    if trade_type == "buy":
+        exec_price = int(price * (1 + slippage))
+        commission_pct = tc.get("buy_commission_pct", 0)
+        fee = int(exec_price * shares * commission_pct)
+    else:
+        exec_price = int(price * (1 - slippage))
+        commission_pct = tc.get("sell_commission_pct", 0)
+        suffix = "KQ" if ticker.endswith(".KQ") else "KS"
+        tax_pct = tc.get("sell_tax_pct", {}).get(suffix, 0)
+        fee = int(exec_price * shares * (commission_pct + tax_pct))
+
+    return exec_price, fee
+
 
 def load_portfolio(investor_id):
     """투자자 포트폴리오 로드 (Supabase)"""
@@ -23,6 +55,8 @@ def load_portfolio(investor_id):
         }
         if t["profit"] is not None:
             entry["profit"] = t["profit"]
+        if t.get("fee"):
+            entry["fee"] = t["fee"]
         transactions.append(entry)
 
     # rebalance_history 로드
@@ -70,12 +104,14 @@ def load_profile(investor_id):
 def buy(investor_id, ticker, name, shares, price, date_str=None):
     """주식 매수"""
     portfolio = load_portfolio(investor_id)
-    cost = shares * price
+    exec_price, fee = calc_fees(ticker, price, shares, "buy")
+    cost = shares * exec_price
+    total_cost = cost + fee
 
-    if cost > portfolio["cash"]:
-        return False, f"잔액 부족 (필요: {cost:,}원, 보유: {portfolio['cash']:,}원)"
+    if total_cost > portfolio["cash"]:
+        return False, f"잔액 부족 (필요: {total_cost:,}원, 보유: {portfolio['cash']:,}원)"
 
-    portfolio["cash"] -= cost
+    portfolio["cash"] -= total_cost
 
     if ticker in portfolio["holdings"]:
         h = portfolio["holdings"][ticker]
@@ -86,7 +122,7 @@ def buy(investor_id, ticker, name, shares, price, date_str=None):
         portfolio["holdings"][ticker] = {
             "name": name,
             "shares": shares,
-            "avg_price": price,
+            "avg_price": exec_price,
         }
 
     # transactions 테이블에 INSERT
@@ -99,12 +135,13 @@ def buy(investor_id, ticker, name, shares, price, date_str=None):
         "ticker": ticker,
         "name": name,
         "shares": shares,
-        "price": price,
+        "price": exec_price,
         "amount": cost,
+        "fee": fee,
     }).execute()
 
     save_portfolio(investor_id, portfolio)
-    return True, f"{name} {shares}주 매수 완료 ({price:,}원 x {shares} = {cost:,}원)"
+    return True, f"{name} {shares}주 매수 완료 ({exec_price:,}원 x {shares} = {cost:,}원, 수수료: {fee:,}원)"
 
 
 def sell(investor_id, ticker, shares, price, date_str=None):
@@ -118,11 +155,12 @@ def sell(investor_id, ticker, shares, price, date_str=None):
     if shares > h["shares"]:
         return False, f"보유 수량 부족 (보유: {h['shares']}주, 매도 요청: {shares}주)"
 
-    revenue = shares * price
-    profit = (price - h["avg_price"]) * shares
+    exec_price, fee = calc_fees(ticker, price, shares, "sell")
+    revenue = shares * exec_price
+    profit = (exec_price - h["avg_price"]) * shares
     name = h["name"]
 
-    portfolio["cash"] += revenue
+    portfolio["cash"] += revenue - fee
     h["shares"] -= shares
 
     if h["shares"] == 0:
@@ -138,14 +176,15 @@ def sell(investor_id, ticker, shares, price, date_str=None):
         "ticker": ticker,
         "name": name,
         "shares": shares,
-        "price": price,
+        "price": exec_price,
         "amount": revenue,
+        "fee": fee,
         "profit": profit,
     }).execute()
 
     save_portfolio(investor_id, portfolio)
     sign = "+" if profit >= 0 else ""
-    return True, f"{name} {shares}주 매도 완료 (수익: {sign}{profit:,}원)"
+    return True, f"{name} {shares}주 매도 완료 (수익: {sign}{profit:,}원, 수수료: {fee:,}원)"
 
 
 def evaluate(investor_id, current_prices):
@@ -301,19 +340,20 @@ def check_target_prices(investor_id, current_prices, date_str,
         # 손절 체크
         if profit_pct <= stop_loss:
             sell_shares = h["shares"]
-            revenue = sell_shares * price
-            profit = (price - h["avg_price"]) * sell_shares
+            exec_price, fee = calc_fees(ticker, price, sell_shares, "sell")
+            revenue = sell_shares * exec_price
+            profit = (exec_price - h["avg_price"]) * sell_shares
             name = h["name"]
 
-            portfolio["cash"] += revenue
+            portfolio["cash"] += revenue - fee
             del portfolio["holdings"][ticker]
 
             trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares,
-                           "price": price, "reason": f"손절 ({profit_pct*100:.1f}%)"})
+                           "price": exec_price, "reason": f"손절 ({profit_pct*100:.1f}%)"})
             pending_transactions.append({
                 "investor_id": investor_id, "date": date_str, "type": "sell",
                 "ticker": ticker, "name": name, "shares": sell_shares,
-                "price": price, "amount": revenue, "profit": profit,
+                "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
             })
             continue
 
@@ -328,20 +368,21 @@ def check_target_prices(investor_id, current_prices, date_str,
                 if sell_shares <= 0:
                     continue
 
-                revenue = sell_shares * price
-                profit = (price - h["avg_price"]) * sell_shares
+                exec_price, fee = calc_fees(ticker, price, sell_shares, "sell")
+                revenue = sell_shares * exec_price
+                profit = (exec_price - h["avg_price"]) * sell_shares
                 name = h["name"]
 
-                portfolio["cash"] += revenue
+                portfolio["cash"] += revenue - fee
                 h["shares"] -= sell_shares
                 triggered.append(threshold)
 
                 trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares,
-                               "price": price, "reason": f"익절 +{threshold*100:.0f}%"})
+                               "price": exec_price, "reason": f"익절 +{threshold*100:.0f}%"})
                 pending_transactions.append({
                     "investor_id": investor_id, "date": date_str, "type": "sell",
                     "ticker": ticker, "name": name, "shares": sell_shares,
-                    "price": price, "amount": revenue, "profit": profit,
+                    "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
                 })
 
                 if h["shares"] == 0:
@@ -393,16 +434,17 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
         if diff > price:  # 1주 이상 매도 필요
             sell_shares = int(diff / price)
             if sell_shares > 0 and sell_shares <= h["shares"]:
-                revenue = sell_shares * price
-                profit = (price - h["avg_price"]) * sell_shares
+                exec_price, fee = calc_fees(ticker, price, sell_shares, "sell")
+                revenue = sell_shares * exec_price
+                profit = (exec_price - h["avg_price"]) * sell_shares
                 name = h["name"]
 
-                portfolio["cash"] += revenue
+                portfolio["cash"] += revenue - fee
                 h["shares"] -= sell_shares
                 if h["shares"] == 0:
                     del portfolio["holdings"][ticker]
 
-                trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares, "price": price})
+                trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares, "price": exec_price})
                 pending_transactions.append({
                     "investor_id": investor_id,
                     "date": date_str,
@@ -410,8 +452,9 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                     "ticker": ticker,
                     "name": name,
                     "shares": sell_shares,
-                    "price": price,
+                    "price": exec_price,
                     "amount": revenue,
+                    "fee": fee,
                     "profit": profit,
                 })
 
@@ -437,12 +480,18 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
 
         if diff > price:  # 1주 이상 매수 필요
             buy_shares = int(diff / price)
-            max_affordable = int(portfolio["cash"] / price)
+            # 수수료 포함하여 매수 가능 수량 계산
+            tc = load_trading_costs()
+            exec_price_est = int(price * (1 + tc.get("slippage_pct", 0)))
+            buy_commission = tc.get("buy_commission_pct", 0)
+            cost_per_share = exec_price_est + int(exec_price_est * buy_commission)
+            max_affordable = int(portfolio["cash"] / cost_per_share) if cost_per_share > 0 else 0
             buy_shares = min(buy_shares, max_affordable)
 
             if buy_shares > 0:
-                cost = buy_shares * price
-                portfolio["cash"] -= cost
+                exec_price, fee = calc_fees(ticker, price, buy_shares, "buy")
+                cost = buy_shares * exec_price
+                portfolio["cash"] -= cost + fee
 
                 if ticker in portfolio["holdings"]:
                     existing = portfolio["holdings"][ticker]
@@ -455,10 +504,10 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                     portfolio["holdings"][ticker] = {
                         "name": name,
                         "shares": buy_shares,
-                        "avg_price": price,
+                        "avg_price": exec_price,
                     }
 
-                trades.append({"type": "buy", "ticker": ticker, "shares": buy_shares, "price": price})
+                trades.append({"type": "buy", "ticker": ticker, "shares": buy_shares, "price": exec_price})
                 pending_transactions.append({
                     "investor_id": investor_id,
                     "date": date_str,
@@ -466,8 +515,9 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                     "ticker": ticker,
                     "name": name,
                     "shares": buy_shares,
-                    "price": price,
+                    "price": exec_price,
                     "amount": cost,
+                    "fee": fee,
                 })
 
     # 3) DB 저장 (배치)

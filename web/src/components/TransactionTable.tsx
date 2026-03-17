@@ -60,6 +60,20 @@ const columns = [
       <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
     ),
   }),
+  col.accessor("fee", {
+    header: "수수료",
+    meta: { className: "text-right hidden md:table-cell" },
+    cell: (info) => {
+      const v = info.getValue();
+      return v ? (
+        <span className="font-mono tabular-nums text-yellow-500 text-xs">
+          {krw(v)}
+        </span>
+      ) : (
+        <span className="text-gray-600">-</span>
+      );
+    },
+  }),
 ];
 
 export default function TransactionTable({ transactions }: Props) {

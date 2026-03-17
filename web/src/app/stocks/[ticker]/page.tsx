@@ -157,6 +157,7 @@ export default async function StockDetailPage({ params }: Props) {
                   <th className="text-right py-2.5 px-4">수량</th>
                   <th className="text-right py-2.5 px-4">단가</th>
                   <th className="text-right py-2.5 px-4 hidden sm:table-cell">금액</th>
+                  <th className="text-right py-2.5 px-4 hidden md:table-cell">수수료</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,6 +189,13 @@ export default async function StockDetailPage({ params }: Props) {
                     </td>
                     <td className="py-2.5 px-4 text-right tabular-nums text-gray-400 hidden sm:table-cell">
                       {krw(t.amount)}
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums hidden md:table-cell">
+                      {t.fee ? (
+                        <span className="text-yellow-500 text-xs">{krw(t.fee)}</span>
+                      ) : (
+                        <span className="text-gray-600">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
