@@ -295,6 +295,61 @@ const ETF_DATA: Record<string, EtfInfo> = {
     ],
     note: "분기 배당 지급. 배당수익률 약 5~7% 수준. 금리 상승에 민감",
   },
+  "114800.KS": {
+    ticker: "114800.KS",
+    category: "인버스ETF",
+    objective: "KOSPI 200 지수의 일별 수익률을 -1배로 추종하는 인버스 ETF",
+    benchmark: "KOSPI 200 인버스",
+    topHoldings: [
+      { name: "KOSPI 200 선물 매도", weight: 95.2 },
+      { name: "단기채/RP", weight: 4.8 },
+    ],
+    sectorWeights: [
+      { sector: "KOSPI 200 선물 (매도)", weight: 95.2 },
+      { sector: "현금성 자산", weight: 4.8 },
+    ],
+    note: "하락장 헤지용. 장기 보유 시 복리 효과로 인한 괴리 발생 주의",
+  },
+  "272580.KS": {
+    ticker: "272580.KS",
+    category: "단기채ETF",
+    objective: "단기 통안증권에 투자하여 안정적 이자 수익을 추구하는 초단기 채권 ETF",
+    benchmark: "KIS 단기통안채 지수",
+    topHoldings: [
+      { name: "통안증권 91일물", weight: 42.3 },
+      { name: "통안증권 182일물", weight: 35.6 },
+      { name: "통안증권 364일물", weight: 18.4 },
+      { name: "현금성 자산", weight: 3.7 },
+    ],
+    sectorWeights: [
+      { sector: "통안증권 (AAA)", weight: 96.3 },
+      { sector: "현금성 자산", weight: 3.7 },
+    ],
+    note: "현금 대체 수단. 변동성 극히 낮음. 금리 변동에 따른 소폭 가격 변동",
+  },
+  "364980.KS": {
+    ticker: "364980.KS",
+    category: "섹터ETF",
+    objective: "한국 방산 기업에 집중 투자하는 K-방산 테마 ETF",
+    benchmark: "FnGuide K-방산 지수",
+    topHoldings: [
+      { name: "한화에어로스페이스", weight: 24.6 },
+      { name: "한화시스템", weight: 16.3 },
+      { name: "LIG넥스원", weight: 14.8 },
+      { name: "현대로템", weight: 12.1 },
+      { name: "한국항공우주", weight: 11.5 },
+      { name: "풍산", weight: 7.2 },
+      { name: "한화오션", weight: 6.9 },
+      { name: "한화", weight: 6.6 },
+    ],
+    sectorWeights: [
+      { sector: "항공/우주", weight: 36.1 },
+      { sector: "방산 전자/시스템", weight: 31.1 },
+      { sector: "육상 장비", weight: 19.3 },
+      { sector: "탄약/화약", weight: 13.5 },
+    ],
+    note: "글로벌 방산 수출 확대로 K-방산 수혜. 지정학적 리스크에 민감",
+  },
 };
 
 export function getEtfData(ticker: string): EtfInfo | null {

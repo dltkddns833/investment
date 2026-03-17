@@ -25,6 +25,9 @@ ETF_UNIVERSE = {
     "319640.KS": {"name": "TIGER 금은선물", "category": "채권ETF"},
     "211560.KS": {"name": "TIGER 배당성장", "category": "배당ETF"},
     "329200.KS": {"name": "TIGER 리츠부동산인프라", "category": "배당ETF"},
+    "114800.KS": {"name": "KODEX 인버스", "category": "인버스ETF"},
+    "272580.KS": {"name": "TIGER 단기통안채", "category": "단기채ETF"},
+    "364980.KS": {"name": "TIGER K방산", "category": "섹터ETF"},
 }
 
 

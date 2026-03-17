@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "tickers required" }, { status: 400 });
   }
 
-  const tickers = tickersParam.split(",").slice(0, 50);
+  const tickers = tickersParam.split(",").slice(0, 120);
   const results = await Promise.all(
     tickers.map(async (ticker) => {
       const data = await fetchTicker(ticker);
