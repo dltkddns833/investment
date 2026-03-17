@@ -11,11 +11,9 @@ import {
   getDailyStories,
   getBadges,
   getLeagueStandings,
-  computeAttribution,
 } from "@/lib/data";
 import TransactionTable from "@/components/TransactionTable";
-import StockAttributionChart from "@/components/StockAttributionChart";
-import SectorAttributionChart from "@/components/SectorAttributionChart";
+import LiveAttributionSection from "@/components/LiveAttributionSection";
 import AssetChart from "@/components/AssetChart";
 import AssetCompositionChart from "@/components/AssetCompositionChart";
 import SentimentTrendChart from "@/components/SentimentTrendChart";
@@ -175,32 +173,15 @@ export default async function InvestorPage({ params }: Props) {
       )}
 
       {/* Attribution Analysis */}
-      {detail && Object.keys(detail.holdings).length > 0 && (() => {
-        const attribution = computeAttribution(profile.name, id, detail, config.stock_universe);
-        return (
-          <section className="glass-card p-4 md:p-5 animate-in">
-            <h2 className="text-lg font-bold mb-1 section-header">성과 기여도</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              종목별·섹터별 수익 기여도 분석
-            </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">종목별 기여도</h3>
-                <StockAttributionChart
-                  attributions={attribution.stockAttributions}
-                  totalReturn={detail.total_return}
-                />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">섹터별 기여도</h3>
-                <SectorAttributionChart
-                  sectorAttributions={attribution.sectorAttributions}
-                />
-              </div>
-            </div>
-          </section>
-        );
-      })()}
+      {detail && Object.keys(detail.holdings).length > 0 && (
+        <LiveAttributionSection
+          detail={detail}
+          initialCapital={config.simulation.initial_capital}
+          investorName={profile.name}
+          investorId={id}
+          stockUniverse={config.stock_universe}
+        />
+      )}
 
       {/* Asset History Chart */}
       {assetHistory.length >= 1 && (

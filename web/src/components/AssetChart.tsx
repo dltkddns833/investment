@@ -86,6 +86,7 @@ export default function AssetChart({ data, initialCapital }: Props) {
           domain={["auto", "auto"]}
         />
         <Tooltip
+          wrapperStyle={{ zIndex: 10 }}
           labelFormatter={(label) => `${label}`}
           formatter={(value) => [krw(Number(value)), "총 자산"]}
           contentStyle={tooltipStyle}

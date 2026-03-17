@@ -168,6 +168,7 @@ export default function RealStockChart({ ticker }: Props) {
             <YAxis yAxisId="volume" hide domain={[0, maxVolume * 4]} />
 
             <Tooltip
+              wrapperStyle={{ zIndex: 10 }}
               contentStyle={tooltipStyle}
               labelStyle={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}
               formatter={(value, name) => {

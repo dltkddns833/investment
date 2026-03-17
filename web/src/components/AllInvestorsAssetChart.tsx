@@ -82,6 +82,7 @@ export default function AllInvestorsAssetChart({
           domain={["auto", "auto"]}
         />
         <Tooltip
+          wrapperStyle={{ zIndex: 10 }}
           labelFormatter={(label) => `${label}`}
           formatter={(value) => krw(Number(value))}
           contentStyle={tooltipStyle}

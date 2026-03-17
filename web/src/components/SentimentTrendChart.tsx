@@ -54,6 +54,7 @@ export default function SentimentTrendChart({ data }: Props) {
             tickLine={false}
           />
           <Tooltip
+            wrapperStyle={{ zIndex: 10 }}
             labelFormatter={(label) => `${label}`}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={(value: any) => [Number(value ?? 0).toFixed(2), "평균 감성 점수"]}

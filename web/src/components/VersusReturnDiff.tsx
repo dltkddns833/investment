@@ -54,6 +54,7 @@ export default function VersusReturnDiff({ data, investorA, investorB }: Props) 
               tickFormatter={(v) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
             />
             <Tooltip
+              wrapperStyle={{ zIndex: 10 }}
               cursor={{ fill: "rgba(255,255,255,0.05)" }}
               contentStyle={tooltipStyle}
               labelStyle={{ color: "#9ca3af" }}

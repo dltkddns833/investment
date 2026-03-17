@@ -100,6 +100,7 @@ export default function AttributionComparisonChart({ attributions }: Props) {
                 width={80}
               />
               <Tooltip
+                wrapperStyle={{ zIndex: 10 }}
                 cursor={{ fill: "rgba(255,255,255,0.05)" }}
                 contentStyle={{
                   backgroundColor: "rgba(15, 23, 42, 0.95)",
@@ -110,7 +111,7 @@ export default function AttributionComparisonChart({ attributions }: Props) {
                 }}
                 labelStyle={{ color: "#9ca3af" }}
                 itemStyle={{ color: "#e5e7eb" }}
-                formatter={(value) => [`${value}%`]}
+                formatter={(value: number, name: string) => [`${value}%`, name]}
               />
               <Legend
                 wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}

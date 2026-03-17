@@ -52,6 +52,7 @@ export default function LeaguePointsChart({ data, investorNames, investorIds }: 
               width={35}
             />
             <Tooltip
+              wrapperStyle={{ zIndex: 10 }}
               contentStyle={{
                 backgroundColor: "#1f2937",
                 border: "1px solid rgba(255,255,255,0.1)",
@@ -59,7 +60,7 @@ export default function LeaguePointsChart({ data, investorNames, investorIds }: 
                 fontSize: "12px",
               }}
               labelStyle={{ color: "#9ca3af" }}
-              formatter={(value) => [`${value}점`]}
+              formatter={(value: number, name: string) => [`${value}점`, name]}
             />
             <Legend
               wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}

@@ -61,6 +61,7 @@ export default function VersusChart({
             domain={["auto", "auto"]}
           />
           <Tooltip
+            wrapperStyle={{ zIndex: 10 }}
             labelFormatter={(label) => `${label}`}
             formatter={(value) => krw(Number(value))}
             contentStyle={tooltipStyle}

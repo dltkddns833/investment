@@ -155,6 +155,7 @@ export default function InvestorRadarChart({ stats, investorIds }: Props) {
               );
             })}
             <Tooltip
+              wrapperStyle={{ zIndex: 10 }}
               contentStyle={{
                 background: "#1e293b",
                 border: "1px solid #334155",

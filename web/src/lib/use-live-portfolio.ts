@@ -22,16 +22,19 @@ function recalcDetail(
       h.avg_price > 0
         ? +((((currentPrice - h.avg_price) / h.avg_price) * 100).toFixed(2))
         : 0;
+    const profit = value - h.invested;
     stockValue += value;
     newHoldings[ticker] = {
       ...h,
       current_price: currentPrice,
       value,
+      profit,
       profit_pct: profitPct,
     };
   }
 
   const totalAsset = detail.cash + stockValue;
+  const totalReturn = totalAsset - initialCapital;
   const totalReturnPct =
     initialCapital > 0
       ? +((((totalAsset - initialCapital) / initialCapital) * 100).toFixed(2))
@@ -40,7 +43,9 @@ function recalcDetail(
   return {
     ...detail,
     holdings: newHoldings,
+    holdings_value: stockValue,
     total_asset: totalAsset,
+    total_return: totalReturn,
     total_return_pct: totalReturnPct,
   };
 }

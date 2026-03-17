@@ -99,6 +99,7 @@ export default function SectorAttributionChart({ sectorAttributions }: Props) {
             content={<CustomContent />}
           >
             <Tooltip
+              wrapperStyle={{ zIndex: 10 }}
               cursor={{ fill: "transparent" }}
               contentStyle={{
                 backgroundColor: "rgba(15, 23, 42, 0.95)",

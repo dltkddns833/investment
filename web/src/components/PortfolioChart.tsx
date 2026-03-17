@@ -69,6 +69,7 @@ export default function PortfolioChart({ detail }: Props) {
             ))}
           </Pie>
           <Tooltip
+            wrapperStyle={{ zIndex: 10 }}
             formatter={(value) => krw(Number(value))}
             contentStyle={tooltipStyle}
           />
