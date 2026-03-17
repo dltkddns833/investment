@@ -72,8 +72,8 @@ src/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
     format.ts                 ← 포맷 유틸 (krw, pct, signColor)
-    investor-colors.ts        ← 투자자 고유 컬러 시스템 (A~K, 전체 앱에서 일관 사용)
-    methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터 (A~K)
+    investor-colors.ts        ← 투자자 고유 컬러 시스템 (A~N, 전체 앱에서 일관 사용)
+    methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터 (A~N)
     etf-data.ts               ← ETF 구성정보 정적 데이터 (12개 ETF 섹터 비중/구성 종목)
     sector-icons.tsx          ← 섹터별 SVG 아이콘 (ETF 카테고리 포함)
 ```

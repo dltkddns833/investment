@@ -264,6 +264,98 @@ def is_rebalance_due(investor_id, current_date):
     return business_days >= frequency
 
 
+def check_target_prices(investor_id, current_prices, date_str,
+                        sell_tranches=None, stop_loss=-0.10):
+    """목표가/손절 체크 후 분할매도 실행 (L 신장모 전용)
+
+    보유종목의 수익률을 체크하여:
+    - stop_loss 이하: 전량 손절
+    - sell_tranches 각 threshold 도달: 해당 비율만큼 매도
+
+    holdings에 target_state 필드로 이미 트리거된 threshold를 추적한다.
+    """
+    if sell_tranches is None:
+        sell_tranches = [
+            {"threshold": 0.15, "sell_ratio": 1/3},   # +15% → 1/3 매도
+            {"threshold": 0.30, "sell_ratio": 0.5},    # +30% → 남은 것의 1/2 매도
+            {"threshold": 0.50, "sell_ratio": 1.0},    # +50% → 전량 매도
+        ]
+
+    portfolio = load_portfolio(investor_id)
+    trades = []
+    pending_transactions = []
+
+    for ticker in list(portfolio["holdings"].keys()):
+        if ticker not in current_prices:
+            continue
+
+        h = portfolio["holdings"][ticker]
+        price = current_prices[ticker]["price"]
+        profit_pct = price / h["avg_price"] - 1
+
+        # target_state 초기화
+        if "target_state" not in h:
+            h["target_state"] = {"triggered": []}
+        triggered = h["target_state"]["triggered"]
+
+        # 손절 체크
+        if profit_pct <= stop_loss:
+            sell_shares = h["shares"]
+            revenue = sell_shares * price
+            profit = (price - h["avg_price"]) * sell_shares
+            name = h["name"]
+
+            portfolio["cash"] += revenue
+            del portfolio["holdings"][ticker]
+
+            trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares,
+                           "price": price, "reason": f"손절 ({profit_pct*100:.1f}%)"})
+            pending_transactions.append({
+                "investor_id": investor_id, "date": date_str, "type": "sell",
+                "ticker": ticker, "name": name, "shares": sell_shares,
+                "price": price, "amount": revenue, "profit": profit,
+            })
+            continue
+
+        # 분할매도 체크 (threshold 오름차순으로)
+        for tranche in sell_tranches:
+            threshold = tranche["threshold"]
+            if threshold in triggered:
+                continue
+            if profit_pct >= threshold:
+                sell_shares = max(1, int(h["shares"] * tranche["sell_ratio"]))
+                sell_shares = min(sell_shares, h["shares"])
+                if sell_shares <= 0:
+                    continue
+
+                revenue = sell_shares * price
+                profit = (price - h["avg_price"]) * sell_shares
+                name = h["name"]
+
+                portfolio["cash"] += revenue
+                h["shares"] -= sell_shares
+                triggered.append(threshold)
+
+                trades.append({"type": "sell", "ticker": ticker, "shares": sell_shares,
+                               "price": price, "reason": f"익절 +{threshold*100:.0f}%"})
+                pending_transactions.append({
+                    "investor_id": investor_id, "date": date_str, "type": "sell",
+                    "ticker": ticker, "name": name, "shares": sell_shares,
+                    "price": price, "amount": revenue, "profit": profit,
+                })
+
+                if h["shares"] == 0:
+                    del portfolio["holdings"][ticker]
+                    break
+
+    # DB 저장
+    if pending_transactions:
+        supabase.table("transactions").insert(pending_transactions).execute()
+
+    save_portfolio(investor_id, portfolio)
+    return trades
+
+
 def rebalance(investor_id, target_allocation, current_prices, current_date):
     """목표 배분에 맞춰 포트폴리오 리밸런싱 실행
 

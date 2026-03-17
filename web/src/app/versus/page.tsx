@@ -14,6 +14,9 @@ const RECOMMENDED_MATCHUPS = [
   { idA: "B", idB: "E", desc: "균형 분산 vs 동일 가중 벤치마크" },
   { idA: "G", idB: "H", desc: "뉴스 감성 vs 기술적 분석" },
   { idA: "C", idB: "I", desc: "보수적 우량주 vs 배당 투자" },
+  { idA: "L", idB: "I", desc: "분할매도 vs 배당 투자" },
+  { idA: "M", idB: "A", desc: "마켓 타이밍 vs 공격적 모멘텀" },
+  { idA: "N", idB: "B", desc: "집중투자 vs 균형 분산" },
 ];
 
 export default async function VersusPage() {
@@ -43,6 +46,10 @@ export default async function VersusPage() {
     H: "기술적 분석",
     I: "배당 투자",
     J: "스마트머니 추종",
+    K: "글로벌 자산배분",
+    L: "분할매도",
+    M: "마켓 타이밍",
+    N: "집중투자",
   };
 
   const latestWeek = weeklyMVPs.length > 0 ? weeklyMVPs[0] : null;

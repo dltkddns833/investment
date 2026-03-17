@@ -96,9 +96,33 @@ const INVESTOR_COLORS: Record<string, InvestorColor> = {
     border: "border-violet-500/30",
     ring: "ring-violet-500/30",
   },
+  L: {
+    primary: "#06b6d4",
+    light: "#67e8f9",
+    bg: "rgba(6, 182, 212, 0.1)",
+    text: "text-cyan-400",
+    border: "border-cyan-500/30",
+    ring: "ring-cyan-500/30",
+  },
+  M: {
+    primary: "#84cc16",
+    light: "#bef264",
+    bg: "rgba(132, 204, 22, 0.1)",
+    text: "text-lime-400",
+    border: "border-lime-500/30",
+    ring: "ring-lime-500/30",
+  },
+  N: {
+    primary: "#e11d48",
+    light: "#fda4af",
+    bg: "rgba(225, 29, 72, 0.1)",
+    text: "text-rose-500",
+    border: "border-rose-500/30",
+    ring: "ring-rose-500/30",
+  },
 };
 
-/** Get color config by investor ID (A~J) */
+/** Get color config by investor ID (A~N) */
 export function getInvestorColor(id: string): InvestorColor {
   return INVESTOR_COLORS[id] ?? INVESTOR_COLORS.E;
 }
@@ -108,7 +132,7 @@ export function getInvestorHex(id: string): string {
   return (INVESTOR_COLORS[id] ?? INVESTOR_COLORS.E).primary;
 }
 
-/** Ordered primary colors array (A→K) — for multi-line charts */
+/** Ordered primary colors array (A→N) — for multi-line charts */
 export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.A.primary,
   INVESTOR_COLORS.B.primary,
@@ -121,6 +145,9 @@ export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.I.primary,
   INVESTOR_COLORS.J.primary,
   INVESTOR_COLORS.K.primary,
+  INVESTOR_COLORS.L.primary,
+  INVESTOR_COLORS.M.primary,
+  INVESTOR_COLORS.N.primary,
 ];
 
 /** Name → ID lookup */
@@ -136,6 +163,9 @@ const NAME_TO_ID: Record<string, string> = {
   최배당: "I",
   한따라: "J",
   로로캅: "K",
+  신장모: "L",
+  오판단: "M",
+  전몰빵: "N",
 };
 
 export function investorIdByName(name: string): string | null {

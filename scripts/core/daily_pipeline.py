@@ -49,7 +49,7 @@ def save_allocation(investor_id, date_str, allocation, rationale="", sentiment_s
     Args:
         investor_id: "A", "B", "C"
         date_str: "2026-03-10" 형식
-        allocation: {"005930.KS": 0.25, ...} (합계 = 1.0)
+        allocation: {"005930.KS": 0.25, ...} (합계 ≤ 1.0, M 오판단은 현금비중만큼 합계 < 1.0)
         rationale: 배분 근거 설명
         sentiment_scores: G 문여론 전용. {"005930.KS": {"score": 0.6, "label": "긍정", "reason": "..."}, ...}
     """

@@ -21,6 +21,10 @@ const SIZES = { sm: 24, md: 36, lg: 48 };
  * H 박기술 — John Murphy: 사각 안경, 집중하는 표정
  * I 최배당 — Jeremy Siegel: 후퇴한 머리, 안경, 학자풍
  * J 한따라 — Smart Money: 쌍안경/망원경 느낌, 앞을 응시
+ * K 로로캅 — Robo-Advisor: 미래형 AI 로봇, 보라색 글로우
+ * L 신장모 — William O'Neil: 정돈된 머리, 자신감 있는 트레이더
+ * M 오판단 — Martin Zweig: 경계하는 눈, 냉정한 관찰자
+ * N 전몰빵 — Charlie Munger: 큰 안경, 확신에 찬 표정
  */
 
 // skin, hair 색상
@@ -316,6 +320,103 @@ function FaceK() {
   );
 }
 
+function FaceL() {
+  // William O'Neil — 정돈된 머리, 자신감 넘치는 트레이더, 매도 타이밍의 달인
+  return (
+    <>
+      {/* 머리카락 — 정돈된 올백 */}
+      <ellipse cx="50" cy="38" rx="22" ry="16" fill="#2d1810" />
+      <path d="M28 42 Q30 28 50 26 Q70 28 72 42" fill="#3d2517" />
+      {/* 얼굴 */}
+      <ellipse cx="50" cy="50" rx="20" ry="22" fill={SKIN} />
+      <ellipse cx="50" cy="52" rx="18" ry="18" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 눈썹 — 날카로운 */}
+      <path d="M36 43 L44 41" stroke="#2d1810" strokeWidth="2" strokeLinecap="round" />
+      <path d="M56 41 L64 43" stroke="#2d1810" strokeWidth="2" strokeLinecap="round" />
+      {/* 눈 — 확신에 찬 */}
+      <ellipse cx="40" cy="49" rx="4" ry="3.5" fill="white" />
+      <circle cx="41" cy="49" r="2.5" fill="#1a1a2e" />
+      <circle cx="42" cy="48" r="0.8" fill="white" />
+      <ellipse cx="60" cy="49" rx="4" ry="3.5" fill="white" />
+      <circle cx="59" cy="49" r="2.5" fill="#1a1a2e" />
+      <circle cx="60" cy="48" r="0.8" fill="white" />
+      {/* 코 */}
+      <path d="M48 52 Q50 56 52 52" stroke={SKIN_SHADOW} strokeWidth="1.2" fill="none" />
+      {/* 입 — 만족스러운 미소 */}
+      <path d="M42 62 Q50 67 58 62" stroke="#b35c3a" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      {/* 달러 사인 넥타이 */}
+      <rect x="47" y="72" width="6" height="8" rx="1" fill="#06b6d4" />
+      <text x="50" y="79" textAnchor="middle" fill="white" fontSize="6" fontWeight="bold">₩</text>
+    </>
+  );
+}
+
+function FaceM() {
+  // Martin Zweig — 냉정하고 경계하는 관찰자, 시장을 주시하는 눈
+  return (
+    <>
+      {/* 머리카락 — 짧고 단정한 회색 */}
+      <ellipse cx="50" cy="36" rx="22" ry="14" fill="#6b7280" />
+      <path d="M28 40 Q32 28 50 26 Q68 28 72 40" fill="#9ca3af" />
+      {/* 얼굴 */}
+      <ellipse cx="50" cy="50" rx="20" ry="22" fill={SKIN} />
+      <ellipse cx="50" cy="52" rx="18" ry="18" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 눈썹 — 경계하는 */}
+      <path d="M34 42 L44 44" stroke="#4b5563" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M56 44 L66 42" stroke="#4b5563" strokeWidth="2.2" strokeLinecap="round" />
+      {/* 눈 — 날카로운 관찰자 */}
+      <ellipse cx="40" cy="49" rx="5" ry="3" fill="white" />
+      <circle cx="41" cy="49" r="2.5" fill="#1e3a5f" />
+      <circle cx="42" cy="48" r="0.8" fill="white" />
+      <ellipse cx="60" cy="49" rx="5" ry="3" fill="white" />
+      <circle cx="59" cy="49" r="2.5" fill="#1e3a5f" />
+      <circle cx="60" cy="48" r="0.8" fill="white" />
+      {/* 코 */}
+      <path d="M48 52 Q50 56 52 52" stroke={SKIN_SHADOW} strokeWidth="1.2" fill="none" />
+      {/* 입 — 일자, 냉정한 */}
+      <line x1="43" y1="63" x2="57" y2="63" stroke="#8b6e5a" strokeWidth="1.5" strokeLinecap="round" />
+      {/* 차트 아이콘 (이마 위) */}
+      <polyline points="32,30 38,26 44,28 50,22" stroke="#84cc16" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <circle cx="50" cy="22" r="2" fill="#84cc16" />
+    </>
+  );
+}
+
+function FaceN() {
+  // Charlie Munger — 큰 안경, 확신에 찬 강한 인상
+  return (
+    <>
+      {/* 머리카락 — 후퇴한 흰머리 */}
+      <path d="M28 44 Q28 30 40 28 Q42 26 50 28 Q58 26 60 28 Q72 30 72 44" fill="#d4d4d4" />
+      <path d="M30 44 Q32 34 50 32 Q68 34 70 44" fill="#e5e5e5" />
+      {/* 얼굴 */}
+      <ellipse cx="50" cy="52" rx="21" ry="23" fill={SKIN} />
+      <ellipse cx="50" cy="54" rx="19" ry="19" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 큰 사각 안경 */}
+      <rect x="30" y="44" width="17" height="13" rx="3" fill="none" stroke="#374151" strokeWidth="2.5" />
+      <rect x="53" y="44" width="17" height="13" rx="3" fill="none" stroke="#374151" strokeWidth="2.5" />
+      <line x1="47" y1="50" x2="53" y2="50" stroke="#374151" strokeWidth="2" />
+      {/* 안경 렌즈 반사 */}
+      <rect x="31" y="45" width="15" height="11" rx="2" fill="white" opacity="0.1" />
+      <rect x="54" y="45" width="15" height="11" rx="2" fill="white" opacity="0.1" />
+      {/* 눈 — 확신에 찬 */}
+      <ellipse cx="38.5" cy="50" rx="4" ry="3.5" fill="white" />
+      <circle cx="39" cy="50" r="3" fill="#1a1a2e" />
+      <circle cx="40" cy="49" r="1" fill="white" />
+      <ellipse cx="61.5" cy="50" rx="4" ry="3.5" fill="white" />
+      <circle cx="61" cy="50" r="3" fill="#1a1a2e" />
+      <circle cx="62" cy="49" r="1" fill="white" />
+      {/* 눈썹 — 강한 */}
+      <path d="M32 42 L46 43" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M54 43 L68 42" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" />
+      {/* 코 — 뚜렷한 */}
+      <path d="M47 54 Q50 60 53 54" stroke={SKIN_SHADOW} strokeWidth="1.5" fill="none" />
+      {/* 입 — 단호한 */}
+      <path d="M41 66 Q50 69 59 66" stroke="#8b5a42" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -328,6 +429,9 @@ const FACES: Record<string, () => JSX.Element> = {
   I: FaceI,
   J: FaceJ,
   K: FaceK,
+  L: FaceL,
+  M: FaceM,
+  N: FaceN,
 };
 
 export default function InvestorAvatar({

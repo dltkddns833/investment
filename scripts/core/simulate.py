@@ -18,6 +18,7 @@ from portfolio import (
     load_profile,
     rebalance,
     evaluate,
+    check_target_prices,
 )
 from daily_pipeline import save_snapshots
 
@@ -103,6 +104,17 @@ def run_simulation(date_str=None):
             logger.info(f"    변경 없음 (이미 목표 배분과 일치)")
 
         rebalance_results[inv_id] = {"rebalanced": True, "trades": trades}
+
+    # 2.5 L 신장모: 목표가/손절 체크 (리밸런싱과 별개로 매일 실행)
+    if "L" in investors:
+        target_trades = check_target_prices("L", current_prices, date_str)
+        if target_trades:
+            if "L" not in rebalance_results:
+                rebalance_results["L"] = {"rebalanced": False, "trades": []}
+            rebalance_results["L"]["trades"].extend(target_trades)
+            rebalance_results["L"]["rebalanced"] = True
+            for t in target_trades:
+                logger.info(f"    [신장모 목표가] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
 
     # 3. 포트폴리오 평가
     logger.info(f"\n [포트폴리오 평가]")

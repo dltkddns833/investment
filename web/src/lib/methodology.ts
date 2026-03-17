@@ -261,6 +261,75 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
+  L: {
+    method: "분할매도 전략 (Scaled Exit / Tranche Selling)",
+    representative:
+      '윌리엄 오닐(William O\'Neil) — 《How to Make Money in Stocks》 저자, IBD 창립자',
+    core: "코스닥 성장주를 선매수한 뒤, 목표가 도달 시 분할매도(+15%, +30%, +50%)로 수익을 확정한다. -10% 하락 시 전량 손절하여 손실을 제한한다.",
+    evidence:
+      "오닐의 CAN SLIM 시스템 — 손절 규칙(-7~8%)과 이익 확정 규칙을 결합한 체계적 매매 전략",
+    similar: "CAN SLIM 투자법, 트레일링 스탑 전략",
+    links: [
+      {
+        label: "William O'Neil — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/William_O%27Neil",
+      },
+      {
+        label: "CAN SLIM — Investopedia",
+        url: "https://www.investopedia.com/terms/c/canslim.asp",
+      },
+      {
+        label: "Trailing Stop — Investopedia",
+        url: "https://www.investopedia.com/terms/t/trailingstop.asp",
+      },
+    ],
+  },
+  M: {
+    method: "마켓 타이밍 (Market Timing)",
+    representative:
+      '마틴 츠바이크(Martin Zweig) — "Don\'t fight the Fed, Don\'t fight the tape"',
+    core: "KOSPI 이동평균(20일/60일) 크로스, 거래량 추세, 변동성을 종합하여 시장 레짐을 판단한다. 강세장에는 90%+ 투자, 약세장에는 70%+ 현금으로 방어한다.",
+    evidence:
+      "Zweig의 시장 타이밍 모델 — 통화정책과 시장 추세의 결합이 주요 하락장 회피에 유효",
+    similar: "듀얼 모멘텀 전략, 200일 이평선 전략",
+    links: [
+      {
+        label: "Market Timing — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Market_timing",
+      },
+      {
+        label: "Martin Zweig — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Martin_Zweig",
+      },
+      {
+        label: "Market Timing — Investopedia",
+        url: "https://www.investopedia.com/terms/m/markettiming.asp",
+      },
+    ],
+  },
+  N: {
+    method: "집중투자 (Concentrated Portfolio / Focus Investing)",
+    representative:
+      '찰리 멍거(Charlie Munger) — "분산투자는 무지에 대한 방어일 뿐이다"',
+    core: "모멘텀, 펀더멘털, 수급이 모두 양호한 최고 확신 종목 2~3개에만 올인한다. 확신이 없으면 투자하지 않는다.",
+    evidence:
+      "Coval & Moskowitz(2001) — 집중 포트폴리오가 분산 포트폴리오 대비 높은 알파를 기록하는 경우 존재",
+    similar: "버크셔 해서웨이 초기 전략, 피터 린치의 텐배거 집중",
+    links: [
+      {
+        label: "Charlie Munger — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Charlie_Munger",
+      },
+      {
+        label: "Concentrated Portfolio — Investopedia",
+        url: "https://www.investopedia.com/terms/c/concentrated-portfolio.asp",
+      },
+      {
+        label: "Focus Investing — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Focus_investing",
+      },
+    ],
+  },
 };
 
 export type { Methodology, Link };
