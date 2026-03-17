@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PerformanceStats } from "@/lib/data";
 import { pct, signColor } from "@/lib/format";
 import InvestorAvatar from "@/components/InvestorAvatar";
+import TooltipIcon from "@/components/TooltipIcon";
 
 type SortKey = "sharpeRatio" | "mdd" | "volatility" | "alpha" | "winRate" | "totalReturnPct";
 
@@ -61,19 +62,34 @@ export default function PerformanceStatsTable({ stats, investorIds }: Props) {
           <tr className="border-b border-white/10">
             <th className={thClass}>투자자</th>
             <th className={thClass} onClick={() => handleSort("sharpeRatio")}>
-              샤프비율 {sortArrow("sharpeRatio")}
+              <span className="inline-flex items-center gap-1">
+                샤프비율 {sortArrow("sharpeRatio")}
+                <TooltipIcon text="위험 대비 수익 효율. 높을수록 같은 리스크에서 더 많은 수익을 냈다는 의미." />
+              </span>
             </th>
             <th className={thClass} onClick={() => handleSort("mdd")}>
-              MDD {sortArrow("mdd")}
+              <span className="inline-flex items-center gap-1">
+                MDD {sortArrow("mdd")}
+                <TooltipIcon text="최대 낙폭(Max Drawdown). 고점 대비 최대 하락폭으로, 최악의 손실 구간을 나타냄." />
+              </span>
             </th>
             <th className={thClass} onClick={() => handleSort("winRate")}>
-              승률 {sortArrow("winRate")}
+              <span className="inline-flex items-center gap-1">
+                승률 {sortArrow("winRate")}
+                <TooltipIcon text="매도 거래 중 수익을 낸 비율. 높을수록 수익 실현 빈도가 높다는 의미." />
+              </span>
             </th>
             <th className={`${thClass} hidden md:table-cell`} onClick={() => handleSort("volatility")}>
-              변동성 {sortArrow("volatility")}
+              <span className="inline-flex items-center gap-1">
+                변동성 {sortArrow("volatility")}
+                <TooltipIcon text="수익률의 변동 정도(연환산). 낮을수록 안정적인 투자 성과를 의미." />
+              </span>
             </th>
             <th className={`${thClass} hidden md:table-cell`} onClick={() => handleSort("alpha")}>
-              알파 {sortArrow("alpha")}
+              <span className="inline-flex items-center gap-1">
+                알파 {sortArrow("alpha")}
+                <TooltipIcon text="벤치마크(E 정기준) 대비 초과 수익률. 양수면 벤치마크를 이겼다는 의미." />
+              </span>
             </th>
           </tr>
         </thead>

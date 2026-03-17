@@ -68,12 +68,17 @@ export default function CorrelationHeatmap({ investorNames, correlations }: Prop
                   }`}
                   onMouseEnter={(e) => {
                     if (!isDiag) {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        a: rowName, b: colName, val,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top,
-                      });
+                      const cell = e.currentTarget;
+                      const container = cell.closest('.relative') as HTMLElement;
+                      if (container) {
+                        const cellRect = cell.getBoundingClientRect();
+                        const containerRect = container.getBoundingClientRect();
+                        setTooltip({
+                          a: rowName, b: colName, val,
+                          x: cellRect.left - containerRect.left + cellRect.width / 2,
+                          y: cellRect.top - containerRect.top,
+                        });
+                      }
                     }
                   }}
                   onMouseLeave={() => setTooltip(null)}
@@ -102,7 +107,7 @@ export default function CorrelationHeatmap({ investorNames, correlations }: Prop
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 px-3 py-1.5 bg-gray-800 border border-white/10 rounded-lg text-xs shadow-xl pointer-events-none"
+          className="absolute z-50 px-3 py-1.5 bg-gray-800 border border-white/10 rounded-lg text-xs shadow-xl pointer-events-none"
           style={{
             left: tooltip.x,
             top: tooltip.y - 8,

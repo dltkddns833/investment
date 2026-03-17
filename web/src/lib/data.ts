@@ -1269,6 +1269,70 @@ export async function getSeasonHistory(): Promise<SeasonSummary[]> {
   return seasons;
 }
 
+// --- Issue #17: 백테스트 ---
+
+export interface BacktestRanking {
+  investor_id: string;
+  name: string;
+  strategy: string;
+  final_asset: number;
+  cumulative_return_pct: number;
+  annualized_return_pct: number;
+  sharpe_ratio: number;
+  mdd_pct: number;
+  volatility_pct: number;
+  win_rate_pct: number;
+  best_day_pct: number;
+  worst_day_pct: number;
+  trading_days: number;
+}
+
+export interface BacktestRun {
+  id: string;
+  start_date: string;
+  end_date: string;
+  trading_days: number;
+  investors: string[];
+  parameters: { initial_capital: number; trading_costs: Record<string, unknown> };
+  summary: { rankings: BacktestRanking[] };
+  created_at: string;
+}
+
+export interface BacktestSnapshot {
+  investor_id: string;
+  date: string;
+  total_asset: number;
+  cash: number;
+}
+
+export async function getBacktestRuns(): Promise<BacktestRun[]> {
+  const { data } = await supabase
+    .from("backtest_runs")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return (data ?? []) as BacktestRun[];
+}
+
+export async function getBacktestRun(runId: string): Promise<BacktestRun | null> {
+  const { data } = await supabase
+    .from("backtest_runs")
+    .select("*")
+    .eq("id", runId)
+    .single();
+  return (data as BacktestRun) ?? null;
+}
+
+export async function getBacktestSnapshots(
+  runId: string
+): Promise<BacktestSnapshot[]> {
+  const { data } = await supabase
+    .from("backtest_snapshots")
+    .select("investor_id, date, total_asset, cash")
+    .eq("run_id", runId)
+    .order("date", { ascending: true });
+  return (data ?? []) as BacktestSnapshot[];
+}
+
 export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date: string; points: Record<string, number> }[]> {
   const now = new Date();
   const label = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;

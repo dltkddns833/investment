@@ -34,6 +34,7 @@ src/
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
+    backtest/page.tsx        ← 백테스트 결과 (기간 탭, 자산 추이, 성과 순위, 레이더 차트)
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 전일 순위)
   components/
     RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
@@ -65,6 +66,9 @@ src/
     InvestorRadarChart.tsx    ← 성과 지표 레이더 차트 (5축, 상위 5명 기본, 클릭 토글)
     AssetCompositionChart.tsx ← 투자자별 자산 구성 변화 Stacked Area 차트
     SentimentTrendChart.tsx   ← G 문여론 감성 점수 추이 바 차트
+    BacktestRunSelector.tsx  ← 백테스트 기간 탭 (1개월~1년, useTransition 로딩)
+    BacktestAssetChart.tsx   ← 백테스트 자산 추이 라인 차트
+    TooltipIcon.tsx          ← ? 아이콘 + 호버 툴팁 (범용)
     StockAttributionChart.tsx ← 종목별 수익 기여도 수평 바 차트
     SectorAttributionChart.tsx ← 섹터별 수익 기여도 Treemap
     AttributionComparisonChart.tsx ← 투자자 간 섹터 기여도 교차 비교 (토글 선택)
@@ -110,6 +114,9 @@ src/
 - `getSeasonHistory()` → 완료된 시즌 목록 (periodic_reports에서 league_standings 있는 월간 리포트)
 - `getDailyLeaguePoints(seasonLabel?)` → 일별 누적 승점 (차트용)
 - `getAllDailyStories()` → `daily_stories` 테이블에서 전체 코멘터리 & 투자자 일기 (날짜 역순)
+- `getBacktestRuns()` → `backtest_runs` 테이블에서 전체 백테스트 실행 목록 (최신순)
+- `getBacktestRun(runId)` → 특정 백테스트 실행 상세
+- `getBacktestSnapshots(runId)` → 특정 백테스트의 일별 포트폴리오 스냅샷
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

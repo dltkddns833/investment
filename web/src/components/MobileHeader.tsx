@@ -12,6 +12,7 @@ import {
   TrendingUp,
   PieChart,
   BarChart2,
+  FlaskConical,
 } from "lucide-react";
 
 interface Investor {
@@ -153,6 +154,7 @@ export default function MobileHeader({
             <MobileNavLink href="/stocks" label="종목 분석" icon={<TrendingUp size={15} />} active={pathname.startsWith("/stocks")} />
             <MobileNavLink href="/analysis" label="분석" icon={<PieChart size={15} />} active={pathname === "/analysis"} />
             <MobileNavLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} active={pathname === "/reports"} />
+            <MobileNavLink href="/backtest" label="백테스트" icon={<FlaskConical size={15} />} active={pathname === "/backtest"} />
           </nav>
         </>
       )}
