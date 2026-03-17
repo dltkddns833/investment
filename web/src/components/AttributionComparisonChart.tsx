@@ -111,7 +111,8 @@ export default function AttributionComparisonChart({ attributions }: Props) {
                 }}
                 labelStyle={{ color: "#9ca3af" }}
                 itemStyle={{ color: "#e5e7eb" }}
-                formatter={(value: number, name: string) => [`${value}%`, name]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: number, name: string) => [`${value}%`, name]) as any}
               />
               <Legend
                 wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}

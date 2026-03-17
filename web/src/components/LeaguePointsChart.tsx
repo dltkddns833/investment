@@ -60,7 +60,8 @@ export default function LeaguePointsChart({ data, investorNames, investorIds }: 
                 fontSize: "12px",
               }}
               labelStyle={{ color: "#9ca3af" }}
-              formatter={(value: number, name: string) => [`${value}점`, name]}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={((value: number, name: string) => [`${value}점`, name]) as any}
             />
             <Legend
               wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
