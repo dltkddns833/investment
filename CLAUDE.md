@@ -46,6 +46,12 @@ python3 scripts/core/simulate.py 2026-03-10 --close  # 종가 반영 (장마감 
 # 파이프라인 상태 확인
 python3 scripts/core/daily_pipeline.py 2026-03-10
 
+# 백테스트 실행
+python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01        # 전체
+python3 scripts/core/run_backtest.py --start 2025-06-01 --end 2025-12-31 --investors A,B,E  # 특정 투자자
+python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01 --cache  # 캐시 재사용
+python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01 --no-save  # DB 저장 안 함
+
 # 테스트 실행
 python3 -m pytest tests/ -v
 
@@ -116,6 +122,13 @@ scripts/
     simulate.py          일일 시뮬레이션 오케스트레이터 + 종가 업데이트
     daily_pipeline.py    뉴스/배분/스토리 저장 헬퍼
     event_detector.py    이벤트 감지 & 텔레그램 알림 (시뮬레이션 후 자동 호출)
+    run_backtest.py      백테스트 CLI 진입점
+  backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
+    engine.py            InMemoryPortfolio + run_backtest() 루프
+    strategies.py        14개 투자자별 결정론적 배분 함수
+    price_cache.py       yfinance 일괄 다운로드 + pickle 캐시
+    metrics.py           Sharpe/MDD/변동성/승률 계산
+    historical_indicators.py  캐시된 DataFrame에서 모멘텀/RSI/MACD 등 계산
   modules/           # 투자자별 데이터 분석 모듈
     momentum_data.py       모멘텀/수익률 (A, D용)
     sector_analysis.py     섹터별 성과 (B, F용)
@@ -135,7 +148,7 @@ scripts/
     daily_pipeline_cron.sh   09:05 통합 파이프라인
 ```
 
-**Supabase 테이블 (12개):**
+**Supabase 테이블 (14개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
@@ -151,6 +164,8 @@ scripts/
 | `portfolio_snapshots` | (investor_id, date) | holdings(jsonb), cash, total_asset, snapshot_at | 일별 포트폴리오 스냅샷 |
 | `periodic_reports` | (period_type, period_label) | period_start, period_end, trading_days, rankings(jsonb), highlights(jsonb), league_standings(jsonb), summary | 월간/분기 리포트 + 리그 승점 |
 | `institutional_flows` | (date, ticker) | foreign_net_5d, institutional_net_5d, foreign_net_today, institutional_net_today, foreign_ownership_pct, data_source | 외국인/기관 수급 캐시 |
+| `backtest_runs` | id (UUID) | start_date, end_date, trading_days, investors(jsonb), parameters(jsonb), summary(jsonb) | 백테스트 실행 메타데이터 |
+| `backtest_snapshots` | (run_id, investor_id, date) | total_asset, cash, holdings(jsonb) | 백테스트 일별 스냅샷 |
 
 
 **환경변수:**
