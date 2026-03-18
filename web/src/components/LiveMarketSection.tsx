@@ -3,7 +3,6 @@
 import { MarketPrice, StockUniverse } from "@/lib/data";
 import { useLivePrices } from "@/lib/live-prices";
 import MarketTable from "./MarketTable";
-import ShowMore from "./ShowMore";
 
 interface Props {
   storedPrices: Record<string, MarketPrice>;
@@ -42,21 +41,14 @@ export default function LiveMarketSection({
   const marketRows = Object.keys(prices).length;
 
   return (
-    <section className="glass-card overflow-hidden animate-in order-2 lg:order-1">
-      <ShowMore
-        maxHeight="max-h-[300px]"
-        remaining={marketRows > 5 ? marketRows - 5 : undefined}
-      >
-        <MarketTable
-          prices={prices}
-          fetchedAt={fetchedAt}
-          onRefresh={(isMarketOpen || isClosingPrice) ? refresh : undefined}
-          isRefreshing={isRefreshing}
-          isLive={isLive}
-          isClosingPrice={isClosingPrice}
-          sectorMap={sectorMap}
-        />
-      </ShowMore>
-    </section>
+    <MarketTable
+      prices={prices}
+      fetchedAt={fetchedAt}
+      onRefresh={(isMarketOpen || isClosingPrice) ? refresh : undefined}
+      isRefreshing={isRefreshing}
+      isLive={isLive}
+      isClosingPrice={isClosingPrice}
+      sectorMap={sectorMap}
+    />
   );
 }

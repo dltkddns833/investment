@@ -13,12 +13,13 @@ import {
 } from "@/lib/data";
 import RankingTable from "@/components/RankingTable";
 import AllInvestorsAssetChart from "@/components/AllInvestorsAssetChart";
-import ShowMore from "@/components/ShowMore";
 import LiveMarketSection from "@/components/LiveMarketSection";
 import LiveSummaryCards from "@/components/LiveSummaryCards";
 import LiveDateLabel from "@/components/LiveDateLabel";
+import ShowMore from "@/components/ShowMore";
 import WeeklyHighlights from "@/components/WeeklyHighlights";
 import NewsCard from "@/components/NewsCard";
+import MatchHeightGrid from "@/components/MatchHeightGrid";
 import { getMarketStatus, STATUS_CONFIG } from "@/lib/market-status";
 
 export const dynamic = "force-dynamic";
@@ -220,43 +221,7 @@ export default async function Home() {
 
   /* ── 시간대별 섹션 배치 ── */
 
-  // 장 시작 전: 뉴스 → 시장현황 → 순위표 → 자산추이 → 요약카드
-  if (status === "pre") {
-    return (
-      <div className="space-y-6 md:space-y-8">
-        {headerSection}
-        {newsSection}
-        {marketSection}
-        {rankingsSection}
-        {highlightsSection}
-        {commentarySection}
-        {chartSection}
-        {summarySection}
-        {footerSection}
-      </div>
-    );
-  }
-
-  // 장 진행 중: 뉴스+시장(그리드) → 요약카드 → 순위표 → 자산추이
-  if (status === "open") {
-    return (
-      <div className="space-y-6 md:space-y-8">
-        {headerSection}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-          {marketSection}
-          {newsSection}
-        </div>
-        {summarySection}
-        {rankingsSection}
-        {highlightsSection}
-        {commentarySection}
-        {chartSection}
-        {footerSection}
-      </div>
-    );
-  }
-
-  // 장 마감 후: 요약카드 → 순위표 → 자산추이 → 시장현황+뉴스(그리드)
+  // 장 상태(pre/open/closed) 무관 동일 레이아웃
   return (
     <div className="space-y-6 md:space-y-8">
       {headerSection}
@@ -265,10 +230,7 @@ export default async function Home() {
       {highlightsSection}
       {commentarySection}
       {chartSection}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        {marketSection}
-        {newsSection}
-      </div>
+      <MatchHeightGrid left={marketSection} right={newsSection} />
       {footerSection}
     </div>
   );

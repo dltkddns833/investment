@@ -77,28 +77,12 @@ export default async function StocksPage() {
 
       {/* 국내 주식 목록 */}
       <section className="glass-card overflow-hidden animate-in">
-        <div className="py-4 px-4 border-b border-white/5">
-          <h2 className="text-lg font-bold section-header">
-            국내 주식
-            <span className="text-sm font-normal text-gray-400 ml-2">
-              {stockList.length}종목
-            </span>
-          </h2>
-        </div>
-        <LiveStockList stocks={stockList} />
+        <LiveStockList stocks={stockList} title="국내 주식" count={stockList.length} />
       </section>
 
       {/* ETF 목록 */}
       <section className="glass-card overflow-hidden animate-in">
-        <div className="py-4 px-4 border-b border-white/5">
-          <h2 className="text-lg font-bold section-header">
-            ETF
-            <span className="text-sm font-normal text-gray-400 ml-2">
-              {etfList.length}종목
-            </span>
-          </h2>
-        </div>
-        <LiveStockList stocks={etfList} />
+        <LiveStockList stocks={etfList} title="ETF" count={etfList.length} />
       </section>
     </div>
   );

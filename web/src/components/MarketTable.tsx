@@ -1,79 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { createColumnHelper } from "@tanstack/react-table";
 import { MarketPrice } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
-import DataTable from "./DataTable";
 import { SectorIcon } from "@/lib/sector-icons";
 
 interface Props {
   prices: Record<string, MarketPrice>;
   fetchedAt?: string;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
+  onRefresh?: () => void;    // deprecated, kept for compat
+  isRefreshing?: boolean;    // deprecated, kept for compat
   isLive?: boolean;
   isClosingPrice?: boolean;
   sectorMap?: Record<string, string>;
 }
 
 type MarketRow = MarketPrice & { ticker: string; sector?: string };
-
-const col = createColumnHelper<MarketRow>();
-
-function buildColumns(hasSector: boolean) {
-  return [
-    col.accessor("name", {
-      header: "종목",
-      cell: (info) => (
-        <Link href={`/stocks/${info.row.original.ticker}`} className="block hover:text-blue-400 transition-colors">
-          <div className="font-medium">{info.getValue()}</div>
-        </Link>
-      ),
-    }),
-    ...(hasSector
-      ? [
-          col.accessor("sector", {
-            header: "섹터",
-            meta: { className: "text-left hidden sm:table-cell" },
-            cell: (info) => (
-              <span className="inline-flex items-center gap-1 text-gray-400">
-                <SectorIcon sector={info.getValue() ?? ""} className="w-3 h-3 text-gray-500" />
-                {info.getValue()}
-              </span>
-            ),
-          }),
-        ]
-      : []),
-    col.accessor("price", {
-      header: "현재가",
-      meta: { className: "text-right" },
-      cell: (info) => (
-        <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
-      ),
-    }),
-    col.accessor("change_pct", {
-      header: "등락률",
-      meta: { className: "text-right" },
-      cell: (info) => {
-        const v = info.getValue();
-        const cls =
-          v > 0
-            ? "bg-red-500/10 text-red-400"
-            : v < 0
-              ? "bg-blue-500/10 text-blue-400"
-              : "bg-gray-500/10 text-gray-400";
-        return (
-          <span
-            className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold font-mono tabular-nums ${cls}`}
-          >
-            {pct(v)}
-          </span>
-        );
-      },
-    }),
-  ];
-}
+type SortKey = "price" | "change_pct";
+type SortDir = "asc" | "desc";
 
 export default function MarketTable({
   prices,
@@ -85,11 +30,38 @@ export default function MarketTable({
   sectorMap,
 }: Props) {
   const hasSector = !!sectorMap && Object.keys(sectorMap).length > 0;
-  const columns = buildColumns(hasSector);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("change_pct");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const isStale = query !== debouncedQuery;
 
-  const data: MarketRow[] = Object.entries(prices)
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  };
+
+  function sortArrow(key: SortKey) {
+    if (sortKey !== key) return <span className="text-gray-600 ml-0.5">↕</span>;
+    return <span className="text-gray-300 ml-0.5">{sortDir === "desc" ? "↓" : "↑"}</span>;
+  }
+
+  const allData: MarketRow[] = Object.entries(prices)
     .map(([ticker, p]) => ({ ...p, ticker, sector: sectorMap?.[ticker] }))
-    .sort((a, b) => b.change_pct - a.change_pct);
+    .sort((a, b) => {
+      const mul = sortDir === "desc" ? 1 : -1;
+      return mul * (b[sortKey] - a[sortKey]);
+    });
+
+  const q = debouncedQuery.trim().toLowerCase();
+  const data = q
+    ? allData.filter((r) => r.name.toLowerCase().includes(q) || r.ticker.toLowerCase().includes(q))
+    : allData;
 
   const timeStr = fetchedAt
     ? new Date(fetchedAt).toLocaleTimeString("ko-KR", {
@@ -101,8 +73,8 @@ export default function MarketTable({
     : null;
 
   return (
-    <>
-      <div className="py-4 px-4 border-b border-white/5 flex items-center justify-between">
+    <div className="flex flex-col h-full">
+      <div className="py-4 px-4 border-b border-white/5 flex items-center justify-between shrink-0">
         <h2 className="text-xl font-bold section-header flex items-center gap-2">
           시장 현황
           {isLive && (
@@ -121,35 +93,77 @@ export default function MarketTable({
             </span>
           )}
         </h2>
-        <div className="flex items-center gap-2">
-          {timeStr && (
-            <span className="text-xs text-gray-500">{timeStr} 조회</span>
-          )}
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
-              aria-label="새로고침"
-            >
-              <svg
-                className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-            </button>
-          )}
+        <div className="flex items-center">
+          <input
+            type="text"
+            placeholder="종목 검색..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-32 sm:w-40 px-2.5 py-1 bg-slate-800 border border-white/10 rounded-lg text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+          />
         </div>
       </div>
-      <DataTable columns={columns} data={data} />
-    </>
+      <table className="w-full text-xs sm:text-sm shrink-0" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "40%" }} />
+          {hasSector && <col className="hidden sm:table-column" style={{ width: "25%" }} />}
+          <col style={{ width: hasSector ? "17.5%" : "30%" }} />
+          <col style={{ width: hasSector ? "17.5%" : "30%" }} />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-white/10 text-gray-400 text-xs uppercase tracking-wider">
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-left whitespace-nowrap">종목</th>
+            {hasSector && <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-left whitespace-nowrap hidden sm:table-cell">섹터</th>}
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap cursor-pointer select-none hover:text-gray-200 transition-colors" onClick={() => toggleSort("price")}>현재가 {sortArrow("price")}</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap cursor-pointer select-none hover:text-gray-200 transition-colors" onClick={() => toggleSort("change_pct")}>등락률 {sortArrow("change_pct")}</th>
+          </tr>
+        </thead>
+      </table>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <table className="w-full text-xs sm:text-sm" style={{ tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "40%" }} />
+            {hasSector && <col className="hidden sm:table-column" style={{ width: "25%" }} />}
+            <col style={{ width: hasSector ? "17.5%" : "30%" }} />
+            <col style={{ width: hasSector ? "17.5%" : "30%" }} />
+          </colgroup>
+          <tbody className={`transition-opacity duration-150 ${isStale ? "opacity-50" : "opacity-100"}`}>
+            {data.map((row) => {
+              const changeCls =
+                row.change_pct > 0
+                  ? "bg-red-500/10 text-red-400"
+                  : row.change_pct < 0
+                    ? "bg-blue-500/10 text-blue-400"
+                    : "bg-gray-500/10 text-gray-400";
+              return (
+                <tr key={row.ticker} className="border-b border-white/5 table-row-hover">
+                  <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap">
+                    <Link href={`/stocks/${row.ticker}`} className="block hover:text-blue-400 transition-colors">
+                      <div className="font-medium">{row.name}</div>
+                    </Link>
+                  </td>
+                  {hasSector && (
+                    <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap hidden sm:table-cell">
+                      <span className="inline-flex items-center gap-1 text-gray-400">
+                        <SectorIcon sector={row.sector ?? ""} className="w-3 h-3 text-gray-500" />
+                        {row.sector}
+                      </span>
+                    </td>
+                  )}
+                  <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right">
+                    <span className="font-mono tabular-nums">{krw(row.price)}</span>
+                  </td>
+                  <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold font-mono tabular-nums ${changeCls}`}>
+                      {pct(row.change_pct)}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

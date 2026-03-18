@@ -1,82 +1,79 @@
 "use client";
 
-import { createColumnHelper } from "@tanstack/react-table";
+import Link from "next/link";
 import { Transaction } from "@/lib/data";
 import { krw } from "@/lib/format";
-import DataTable from "./DataTable";
 
 interface Props {
   transactions: Transaction[];
+  maxHeight?: string;
 }
 
-const col = createColumnHelper<Transaction>();
-
-const columns = [
-  col.accessor("date", {
-    header: "날짜",
-    cell: (info) => (
-      <span className="text-gray-400">{info.getValue()}</span>
-    ),
-  }),
-  col.accessor("type", {
-    header: "유형",
-    meta: { className: "text-center" },
-    cell: (info) => {
-      const t = info.getValue();
-      return (
-        <span
-          className={`text-xs font-bold px-2 py-0.5 rounded ${
-            t === "buy"
-              ? "bg-red-900/30 text-red-400"
-              : "bg-blue-900/30 text-blue-400"
-          }`}
-        >
-          {t === "buy" ? "매수" : "매도"}
-        </span>
-      );
-    },
-  }),
-  col.accessor("name", {
-    header: "종목",
-  }),
-  col.accessor("shares", {
-    header: "수량",
-    meta: { className: "text-right hidden sm:table-cell" },
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{info.getValue()}주</span>
-    ),
-  }),
-  col.accessor("price", {
-    header: "단가",
-    meta: { className: "text-right hidden sm:table-cell" },
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
-    ),
-  }),
-  col.accessor("amount", {
-    header: "금액",
-    meta: { className: "text-right" },
-    cell: (info) => (
-      <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
-    ),
-  }),
-  col.accessor("fee", {
-    header: "수수료",
-    meta: { className: "text-right hidden md:table-cell" },
-    cell: (info) => {
-      const v = info.getValue();
-      return v ? (
-        <span className="font-mono tabular-nums text-yellow-500 text-xs">
-          {krw(v)}
-        </span>
-      ) : (
-        <span className="text-gray-600">-</span>
-      );
-    },
-  }),
-];
-
-export default function TransactionTable({ transactions }: Props) {
+export default function TransactionTable({ transactions, maxHeight = "max-h-[320px]" }: Props) {
   const data = transactions.slice().reverse();
-  return <DataTable columns={columns} data={data} />;
+
+  return (
+    <div className="flex flex-col">
+      {/* thead 고정 */}
+      <table className="w-full text-xs sm:text-sm shrink-0">
+        <thead>
+          <tr className="border-b border-white/10 text-gray-400 text-xs uppercase tracking-wider">
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-left whitespace-nowrap">날짜</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-center whitespace-nowrap">유형</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-left whitespace-nowrap">종목</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap hidden sm:table-cell">수량</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap hidden sm:table-cell">단가</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap">금액</th>
+            <th className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 text-right whitespace-nowrap hidden md:table-cell">수수료</th>
+          </tr>
+        </thead>
+      </table>
+      {/* tbody 스크롤 */}
+      <div className={`${maxHeight} overflow-y-auto`}>
+        <table className="w-full text-xs sm:text-sm">
+          <tbody>
+            {data.map((t, i) => (
+              <tr key={i} className="border-b border-white/5 table-row-hover">
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap">
+                  <span className="text-gray-400">{t.date}</span>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-center">
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded ${
+                      t.type === "buy"
+                        ? "bg-red-900/30 text-red-400"
+                        : "bg-blue-900/30 text-blue-400"
+                    }`}
+                  >
+                    {t.type === "buy" ? "매수" : "매도"}
+                  </span>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap">
+                  <Link href={`/stocks/${encodeURIComponent(t.ticker)}`} className="hover:text-blue-400 transition-colors">
+                    {t.name}
+                  </Link>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right hidden sm:table-cell">
+                  <span className="font-mono tabular-nums">{t.shares}주</span>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right hidden sm:table-cell">
+                  <span className="font-mono tabular-nums">{krw(t.price)}</span>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right">
+                  <span className="font-mono tabular-nums">{krw(t.amount)}</span>
+                </td>
+                <td className="py-2.5 px-2 sm:px-3 md:py-3 md:px-4 whitespace-nowrap text-right hidden md:table-cell">
+                  {t.fee ? (
+                    <span className="font-mono tabular-nums text-yellow-500 text-xs">{krw(t.fee)}</span>
+                  ) : (
+                    <span className="text-gray-600">-</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

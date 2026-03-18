@@ -38,7 +38,7 @@ src/
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 전일 순위)
   components/
     RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
-    MarketTable.tsx           ← 시장 현황 테이블
+    MarketTable.tsx           ← 시장 현황 테이블 (검색, 현재가/등락률 정렬)
     PortfolioChart.tsx        ← 포트폴리오 파이차트 (recharts)
     HoldingsTable.tsx         ← 보유종목 테이블
     CalendarHeatmap.tsx       ← 달력 히트맵 (수익률 색상)
@@ -72,6 +72,8 @@ src/
     StockAttributionChart.tsx ← 종목별 수익 기여도 수평 바 차트
     SectorAttributionChart.tsx ← 섹터별 수익 기여도 Treemap
     AttributionComparisonChart.tsx ← 투자자 간 섹터 기여도 교차 비교 (토글 선택)
+    LiveStockList.tsx        ← 종목 목록 테이블 (검색, 현재가/등락률/보유 정렬, debounce)
+    LiveDateLabel.tsx        ← 날짜+시간 라벨 + 새로고침 버튼 (장중/종가 시)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)

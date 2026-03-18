@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { createColumnHelper } from "@tanstack/react-table";
 import { HoldingDetail } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
@@ -17,10 +18,10 @@ const columns = [
   col.accessor("name", {
     header: "종목",
     cell: (info) => (
-      <div>
+      <Link href={`/stocks/${encodeURIComponent(info.row.original.ticker)}`} className="block hover:text-blue-400 transition-colors">
         <div className="font-medium">{info.getValue()}</div>
         <div className="text-xs text-gray-500">{info.row.original.ticker}</div>
-      </div>
+      </Link>
     ),
   }),
   col.accessor("shares", {
