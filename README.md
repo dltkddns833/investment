@@ -27,6 +27,7 @@
 - 시장: KOSPI + KOSDAQ — 일반주 85종목 + ETF 15종목 = **100종목** (yfinance 기반 실시간 시세)
 - 데이터 저장소: Supabase (PostgreSQL)
 - 거래 비용: 매수 수수료 0.015% + 매도 수수료 0.015% + 증권거래세 0.18% + 슬리피지 0.05%
+- 리스크 관리: 포지션 제한(단일종목 30%/섹터 50%/최소현금 5%) + 리스크 이벤트 감지(일일손실/누적손실/MDD/연속손실/종목급변)
 
 ## 시뮬레이션 흐름
 
@@ -37,6 +38,7 @@
    → 각 에이전트에 전용 데이터 모듈 결과 전달 → allocations 테이블
 3. python3 scripts/core/simulate.py 실행
    → 시가(Open) 조회 → 리밸런싱 due 체크 → 매매 → daily_reports + portfolio_snapshots 저장
+   → 이벤트 감지 + 리스크 체크 → 텔레그램 알림
 
 [장마감 후 — 스토리텔링]
 4. 코멘터리 & 투자자 일기 생성 → daily_stories 테이블
@@ -86,6 +88,7 @@ cd web && pnpm install && pnpm dev
 │   │   ├── portfolio.py                매수/매도/평가/리밸런싱
 │   │   ├── simulate.py                 시뮬레이션 오케스트레이터
 │   │   ├── daily_pipeline.py           뉴스/배분/스토리 저장 헬퍼
+│   │   ├── risk_manager.py            리스크 관리 (포지션 제한/이벤트 감지)
 │   │   └── run_backtest.py             백테스트 CLI 진입점
 │   ├── backtest/                     # 백테스트 엔진 (인메모리, DB 비접근)
 │   │   ├── engine.py                   InMemoryPortfolio + 시뮬레이션 루프
@@ -121,6 +124,29 @@ cd web && pnpm install && pnpm dev
             ├── data.ts                 데이터 조회 (async)
             └── live-prices.tsx         실시간 가격 Context (장중 LIVE / 장후 종가)
 ```
+
+## 리스크 관리
+
+실전 자동 투자 전환을 대비한 안전장치. 현재 시뮬레이션 단계에서는 감지 + 기록 + 알림만 수행.
+
+### 포지션 제한 (allocation 저장 시 자동 적용)
+| 제한 | 기본값 | 예외 |
+|------|--------|------|
+| 단일 종목 최대 비중 | 30% | N 전몰빵: 100% |
+| 단일 섹터 최대 비중 | 50% | N 전몰빵, K 로로캅: 100% |
+| 최소 현금 보유 | 5% | N 전몰빵, M 오판단: 0% |
+
+### 리스크 이벤트 감지 (시뮬레이션 후 자동 실행)
+| 이벤트 | 기준 | 심각도 |
+|--------|------|--------|
+| 일일 손실 | 전일 대비 -3% | critical |
+| 누적 손실 | 시드 대비 -10% | critical |
+| MDD | 최근 30일 고점 대비 -8% | critical |
+| 연속 손실 | 5일 연속 하락 | warning |
+| 종목 급변 | 개별 종목 ±10% | warning |
+
+- 이벤트 발생 시 `risk_events` 테이블 기록 + 텔레그램 알림
+- 설정: `config.risk_limits` (Supabase)에서 조정 가능
 
 ## 자동 실행 (현재 잠정 중단)
 

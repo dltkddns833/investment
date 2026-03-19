@@ -52,6 +52,10 @@ python3 scripts/core/run_backtest.py --start 2025-06-01 --end 2025-12-31 --inves
 python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01 --cache  # 캐시 재사용
 python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01 --no-save  # DB 저장 안 함
 
+# 리스크 체크 (단독 실행)
+python3 scripts/core/risk_manager.py              # 오늘 날짜
+python3 scripts/core/risk_manager.py 2026-03-19   # 특정 날짜
+
 # 테스트 실행
 python3 -m pytest tests/ -v
 
@@ -186,6 +190,9 @@ scripts/
 - 포트폴리오의 `last_rebalanced: null`이면 첫 리밸런싱 무조건 실행
 - 거래 비용: 매수 수수료 0.015% + 매도 수수료 0.015% + 증권거래세 0.18% + 슬리피지 0.05% (config.trading_costs에서 조정 가능)
 - 슬리피지는 체결가 조정 방식 (매수 +0.05%, 매도 -0.05%), 수수료/세금은 현금에서 별도 차감
+- 리스크 관리: allocation 저장 시 포지션 제한 자동 검증 (`risk_manager.validate_allocation()`), 시뮬레이션 후 리스크 이벤트 감지 (`risk_manager.check_risk_limits()`)
+- 리스크 제한 기본값: 단일종목 30%, 섹터 50%, 최소현금 5%, 일일손실 -3%, 누적손실 -10%, MDD -8%, 연속손실 5일, 종목급변 ±10%
+- 리스크 예외: N(종목/섹터/현금 무제한), M(현금 무제한), K(섹터 무제한) — config.risk_limits.exceptions에서 관리
 
 ## Web Dashboard
 
@@ -276,7 +283,7 @@ cd web && pnpm build  # 빌드
 - `notify("⚙️ Step 3: 시뮬레이션 실행")`
 - `python3 scripts/core/simulate.py {date}` 실행
 - 시가(Open) 기준 주가 조회 → 리밸런싱 due 체크 → 매매 실행 → 리포트 생성
-- (simulate.py 내부에서 이벤트 감지 & 텔레그램 자동 발송)
+- (simulate.py 내부에서 이벤트 감지 & 리스크 체크 & 텔레그램 자동 발송)
 
 #### Step 4: 결과 요약
 - 각 투자자별 총자산, 수익률, 오늘 거래 내역 보고
