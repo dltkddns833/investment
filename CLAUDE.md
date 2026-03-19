@@ -122,6 +122,7 @@ scripts/
     simulate.py          일일 시뮬레이션 오케스트레이터 + 종가 업데이트
     daily_pipeline.py    뉴스/배분/스토리 저장 헬퍼
     event_detector.py    이벤트 감지 & 텔레그램 알림 (시뮬레이션 후 자동 호출)
+    risk_manager.py      리스크 관리 (포지션 제한 검증 + 리스크 이벤트 감지/알림)
     run_backtest.py      백테스트 CLI 진입점
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프
@@ -148,11 +149,11 @@ scripts/
     daily_pipeline_cron.sh   09:05 통합 파이프라인
 ```
 
-**Supabase 테이블 (14개):**
+**Supabase 테이블 (15개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
-| `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories, trading_costs (모두 jsonb) | 시뮬레이션 설정 |
+| `config` | id=1 (싱글턴) | simulation, investors, stock_universe, news_categories, trading_costs, risk_limits (모두 jsonb) | 시뮬레이션 설정 |
 | `profiles` | id (A~K) | name, strategy, description, rebalance_frequency_days, risk_tolerance, risk_grade, analysis_criteria(jsonb), investment_style(jsonb) | 투자자 성향 |
 | `portfolios` | investor_id | investor, strategy, initial_capital, cash, holdings(jsonb), last_rebalanced | 보유 현황 |
 | `transactions` | serial id | investor_id(FK), date, type(buy/sell), ticker, name, shares, price, amount, profit, fee | 거래 내역 |
@@ -166,6 +167,7 @@ scripts/
 | `institutional_flows` | (date, ticker) | foreign_net_5d, institutional_net_5d, foreign_net_today, institutional_net_today, foreign_ownership_pct, data_source | 외국인/기관 수급 캐시 |
 | `backtest_runs` | id (UUID) | start_date, end_date, trading_days, investors(jsonb), parameters(jsonb), summary(jsonb) | 백테스트 실행 메타데이터 |
 | `backtest_snapshots` | (run_id, investor_id, date) | total_asset, cash, holdings(jsonb) | 백테스트 일별 스냅샷 |
+| `risk_events` | serial id | date, investor_id, event_type, severity, details(jsonb), action_taken | 리스크 이벤트 기록 |
 
 
 **환경변수:**

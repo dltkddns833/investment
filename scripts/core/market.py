@@ -17,6 +17,7 @@ def load_config():
         "investors": row["investors"],
         "stock_universe": row["stock_universe"],
         "news_categories": row["news_categories"],
+        "risk_limits": row.get("risk_limits", {}),
     }
 
 

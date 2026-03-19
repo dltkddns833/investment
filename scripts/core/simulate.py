@@ -140,6 +140,15 @@ def run_simulation(date_str=None):
     except Exception as e:
         logger.warning(f"이벤트 감지 실패 (무시): {e}")
 
+    # 7. 리스크 관리 체크
+    try:
+        from risk_manager import check_risk_limits
+        risk_events = check_risk_limits(date_str)
+        if risk_events:
+            logger.info(f"리스크 이벤트 {len(risk_events)}건 감지")
+    except Exception as e:
+        logger.warning(f"리스크 체크 실패 (무시): {e}")
+
     logger.info(f"{'='*60}\n")
 
     return report

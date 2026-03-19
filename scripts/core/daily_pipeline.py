@@ -53,6 +53,17 @@ def save_allocation(investor_id, date_str, allocation, rationale="", sentiment_s
         rationale: 배분 근거 설명
         sentiment_scores: G 문여론 전용. {"005930.KS": {"score": 0.6, "label": "긍정", "reason": "..."}, ...}
     """
+    # 리스크 제한 검증
+    try:
+        from risk_manager import validate_allocation
+        adjusted, violations = validate_allocation(investor_id, allocation)
+        if violations:
+            violation_text = "; ".join(v["type"] for v in violations)
+            rationale += f"\n[리스크 조정] {violation_text}"
+            allocation = adjusted
+    except Exception as e:
+        logger.warning(f"리스크 검증 실패 (원본 유지): {e}")
+
     # 프로필 로드
     profile = supabase.table("profiles").select("name, strategy").eq("id", investor_id).single().execute().data
 
