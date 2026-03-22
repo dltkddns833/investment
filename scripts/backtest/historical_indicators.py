@@ -165,33 +165,90 @@ def compute_technical_signals(price_df, date, tickers=None):
 
 
 def compute_market_regime(price_df, date, kospi_proxy="069500.KS"):
-    """KOSPI 레짐 판단 (market_regime.py 로직)
+    """KOSPI 레짐 판단 (market_regime.py bull_score 로직과 동일)
 
     Args:
         kospi_proxy: KODEX 200 ETF 티커 (KOSPI 프록시)
 
     Returns:
-        "bull", "neutral", "bear"
+        dict: {"regime": "bull"|"neutral"|"bear", "bull_score": int,
+               "kospi_price": float, "ma20": float, "ma60": float,
+               "ma20_slope": float, "volume_ratio": float, "volatility_20d": float}
     """
+    default = {"regime": "neutral", "bull_score": 0, "kospi_price": 0,
+               "ma20": 0, "ma60": 0, "ma20_slope": 0, "volume_ratio": 1.0, "volatility_20d": 0}
     ts = pd.Timestamp(date)
     try:
         closes = price_df[("Close", kospi_proxy)][:ts].dropna()
         if len(closes) < 60:
-            return "neutral"
+            return default
 
         current = float(closes.iloc[-1])
-        ma_20 = float(closes.rolling(20).mean().iloc[-1])
-        ma_60 = float(closes.rolling(60).mean().iloc[-1])
+        ma20_series = closes.rolling(20).mean()
+        ma60_series = closes.rolling(60).mean()
+        ma20_val = float(ma20_series.iloc[-1])
+        ma60_val = float(ma60_series.iloc[-1])
 
-        # 이평선 배열로 레짐 판단
-        if current > ma_20 > ma_60:
-            return "bull"
-        elif current < ma_20 < ma_60:
-            return "bear"
+        # MA20 기울기 (최근 5일)
+        if len(ma20_series.dropna()) >= 6:
+            ma20_slope = float(ma20_series.iloc[-1] - ma20_series.iloc[-6]) / float(ma20_series.iloc[-6]) * 100
         else:
-            return "neutral"
+            ma20_slope = 0.0
+
+        # MA 신호
+        if ma20_val > ma60_val and ma20_slope > 0:
+            ma_signal = "bull"
+        elif ma20_val < ma60_val and ma20_slope < 0:
+            ma_signal = "bear"
+        else:
+            ma_signal = "neutral"
+
+        # 거래량 추세
+        volumes = price_df[("Volume", kospi_proxy)][:ts].dropna()
+        vol_5d = float(volumes.tail(5).mean()) if len(volumes) >= 5 else float(volumes.mean())
+        vol_20d = float(volumes.tail(20).mean()) if len(volumes) >= 20 else float(volumes.mean())
+        volume_ratio = round(vol_5d / vol_20d, 2) if vol_20d > 0 else 1.0
+        volume_trend = "increasing" if volume_ratio > 1.2 else ("decreasing" if volume_ratio < 0.8 else "flat")
+
+        # 변동성 (20일 일간수익률 표준편차, 연환산)
+        returns = closes.pct_change().dropna()
+        vol_20d_val = float(returns.tail(20).std() * np.sqrt(252) * 100) if len(returns) >= 20 else 0.0
+        vol_signal = "high" if vol_20d_val > 25 else ("low" if vol_20d_val < 15 else "moderate")
+
+        # bull_score 종합
+        bull_score = 0
+        if ma_signal == "bull":
+            bull_score += 2
+        elif ma_signal == "bear":
+            bull_score -= 2
+        if current > ma20_val:
+            bull_score += 1
+        else:
+            bull_score -= 1
+        if volume_trend == "increasing" and ma_signal == "bull":
+            bull_score += 1
+        if vol_signal == "high":
+            bull_score -= 1
+
+        if bull_score >= 2:
+            regime = "bull"
+        elif bull_score <= -2:
+            regime = "bear"
+        else:
+            regime = "neutral"
+
+        return {
+            "regime": regime,
+            "bull_score": bull_score,
+            "kospi_price": round(current, 0),
+            "ma20": round(ma20_val, 0),
+            "ma60": round(ma60_val, 0),
+            "ma20_slope": round(ma20_slope, 2),
+            "volume_ratio": volume_ratio,
+            "volatility_20d": round(vol_20d_val, 1),
+        }
     except Exception:
-        return "neutral"
+        return default
 
 
 def compute_sector_returns(price_df, date, universe_map):

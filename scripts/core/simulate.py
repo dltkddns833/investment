@@ -149,6 +149,15 @@ def run_simulation(date_str=None):
     except Exception as e:
         logger.warning(f"리스크 체크 실패 (무시): {e}")
 
+    # 8. 마켓 레짐 저장
+    try:
+        from market_regime import get_market_regime
+        regime_data = get_market_regime()
+        from daily_pipeline import save_market_regime
+        save_market_regime(date_str, regime_data)
+    except Exception as e:
+        logger.warning(f"레짐 저장 실패 (무시): {e}")
+
     logger.info(f"{'='*60}\n")
 
     return report

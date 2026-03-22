@@ -56,6 +56,9 @@ python3 scripts/core/run_backtest.py --start 2025-03-01 --end 2026-03-01 --no-sa
 python3 scripts/core/risk_manager.py              # 오늘 날짜
 python3 scripts/core/risk_manager.py 2026-03-19   # 특정 날짜
 
+# 과거 마켓 레짐 소급 계산
+python3 scripts/core/backfill_regimes.py
+
 # 테스트 실행
 python3 -m pytest tests/ -v
 
@@ -128,6 +131,7 @@ scripts/
     event_detector.py    이벤트 감지 & 텔레그램 알림 (시뮬레이션 후 자동 호출)
     risk_manager.py      리스크 관리 (포지션 제한 검증 + 리스크 이벤트 감지/알림)
     run_backtest.py      백테스트 CLI 진입점
+    backfill_regimes.py  과거 마켓 레짐 소급 계산
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프
     strategies.py        14개 투자자별 결정론적 배분 함수
@@ -153,7 +157,7 @@ scripts/
     daily_pipeline_cron.sh   09:05 통합 파이프라인
 ```
 
-**Supabase 테이블 (15개):**
+**Supabase 테이블 (16개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
@@ -172,6 +176,7 @@ scripts/
 | `backtest_runs` | id (UUID) | start_date, end_date, trading_days, investors(jsonb), parameters(jsonb), summary(jsonb) | 백테스트 실행 메타데이터 |
 | `backtest_snapshots` | (run_id, investor_id, date) | total_asset, cash, holdings(jsonb) | 백테스트 일별 스냅샷 |
 | `risk_events` | serial id | date, investor_id, event_type, severity, details(jsonb), action_taken | 리스크 이벤트 기록 |
+| `market_regimes` | date | regime(bull/neutral/bear), bull_score, kospi_price, ma20, ma60, ma20_slope, volume_ratio, volatility_20d, details(jsonb) | 일별 마켓 레짐 |
 
 
 **환경변수:**

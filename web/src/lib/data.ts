@@ -1333,6 +1333,29 @@ export async function getBacktestSnapshots(
   return (data ?? []) as BacktestSnapshot[];
 }
 
+// --- Market Regimes ---
+
+export interface MarketRegime {
+  date: string;
+  regime: "bull" | "neutral" | "bear";
+  bull_score: number;
+  kospi_price: number;
+  ma20: number;
+  ma60: number;
+  ma20_slope: number;
+  volume_ratio: number;
+  volatility_20d: number;
+  details: Record<string, unknown>;
+}
+
+export async function getMarketRegimes(): Promise<MarketRegime[]> {
+  const { data } = await supabase
+    .from("market_regimes")
+    .select("*")
+    .order("date", { ascending: true });
+  return (data ?? []) as MarketRegime[];
+}
+
 export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date: string; points: Record<string, number> }[]> {
   const now = new Date();
   const label = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;

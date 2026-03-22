@@ -30,7 +30,7 @@ src/
     reports/page.tsx         ← 리포트 (좌우 분할: 달력+날짜목록 | 코멘터리+순위+일기+뉴스)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
-    analysis/page.tsx        ← 투자자 분석 (성과 지표, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
+    analysis/page.tsx        ← 투자자 분석 (성과 지표, 국면별 성과, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
@@ -74,6 +74,10 @@ src/
     AttributionComparisonChart.tsx ← 투자자 간 섹터 기여도 교차 비교 (토글 선택)
     LiveStockList.tsx        ← 종목 목록 테이블 (검색, 현재가/등락률/보유 정렬, debounce)
     LiveDateLabel.tsx        ← 날짜+시간 라벨 + 새로고침 버튼 (장중/종가 시)
+    RegimeTimeline.tsx       ← 시장 국면 타임라인 (KOSPI 가격 라인 + 레짐 배경)
+    RegimePerformanceChart.tsx ← 국면별 수익률 Grouped BarChart
+    RegimePerformanceTable.tsx ← 국면별 수익률 테이블 (클릭 정렬)
+    OptimalCombinationPanel.tsx ← 국면별 최적 투자자 조합 패널
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -81,6 +85,7 @@ src/
     investor-colors.ts        ← 투자자 고유 컬러 시스템 (A~N, 전체 앱에서 일관 사용)
     methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터 (A~N)
     etf-data.ts               ← ETF 구성정보 정적 데이터 (12개 ETF 섹터 비중/구성 종목)
+    regime-analysis.ts        ← 국면별 성과 분석 순수 함수 (세그먼트/성과/최적 조합)
     sector-icons.tsx          ← 섹터별 SVG 아이콘 (ETF 카테고리 포함)
 ```
 
@@ -119,6 +124,7 @@ src/
 - `getBacktestRuns()` → `backtest_runs` 테이블에서 전체 백테스트 실행 목록 (최신순)
 - `getBacktestRun(runId)` → 특정 백테스트 실행 상세
 - `getBacktestSnapshots(runId)` → 특정 백테스트의 일별 포트폴리오 스냅샷
+- `getMarketRegimes()` → `market_regimes` 테이블에서 전체 레짐 이력 (날짜 오름차순)
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

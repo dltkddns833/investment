@@ -137,6 +137,35 @@ def save_snapshots(date_str, snapshot_rows):
     logger.info(f"포트폴리오 스냅샷 {len(data)}건 저장 완료: portfolio_snapshots/{date_str}")
 
 
+def save_market_regime(date_str, regime_data):
+    """마켓 레짐 데이터 저장 (Supabase market_regimes 테이블)
+
+    Args:
+        date_str: "2026-03-10" 형식
+        regime_data: get_market_regime() 반환값
+    """
+    data = {
+        "date": date_str,
+        "regime": regime_data["regime"],
+        "bull_score": regime_data.get("details", {}).get("bull_score", 0),
+        "kospi_price": regime_data.get("kospi_current", regime_data.get("kospi_price", 0)),
+        "ma20": regime_data.get("kospi_ma20", regime_data.get("ma20", 0)),
+        "ma60": regime_data.get("kospi_ma60", regime_data.get("ma60", 0)),
+        "ma20_slope": regime_data.get("ma20_slope", 0),
+        "volume_ratio": regime_data.get("volume_ratio", 1.0),
+        "volatility_20d": regime_data.get("volatility_20d", 0),
+        "details": regime_data.get("details", {}),
+    }
+    try:
+        supabase.table("market_regimes").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"마켓 레짐 저장 실패: {e}")
+        raise
+
+    logger.info(f"마켓 레짐 저장 완료: {date_str} → {regime_data['regime']}")
+    return data
+
+
 def check_pipeline_status(date_str):
     """파이프라인 진행 상태 확인 (Supabase)"""
     news_result = supabase.table("news").select("date").eq("date", date_str).execute()

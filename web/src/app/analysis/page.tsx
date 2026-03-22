@@ -7,6 +7,8 @@ import {
   getStockPopularity,
   getPerformanceStats,
   computeAllAttributions,
+  getMarketRegimes,
+  getAllAssetHistory,
 } from "@/lib/data";
 import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 import OverlapMatrix from "@/components/OverlapMatrix";
@@ -14,6 +16,15 @@ import StockPopularityChart from "@/components/StockPopularityChart";
 import PerformanceStatsTable from "@/components/PerformanceStatsTable";
 import InvestorRadarChart from "@/components/InvestorRadarChart";
 import AttributionComparisonChart from "@/components/AttributionComparisonChart";
+import RegimeTimeline from "@/components/RegimeTimeline";
+import RegimePerformanceChart from "@/components/RegimePerformanceChart";
+import RegimePerformanceTable from "@/components/RegimePerformanceTable";
+import OptimalCombinationPanel from "@/components/OptimalCombinationPanel";
+import {
+  computeRegimeSegments,
+  computeRegimePerformance,
+  computeOptimalCombination,
+} from "@/lib/regime-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -39,15 +50,22 @@ export default async function AnalysisPage() {
   const investorIds: Record<string, string> = {};
   for (const inv of config.investors) investorIds[inv.name] = inv.id;
 
-  const [report, correlations, perfStats] = await Promise.all([
+  const [report, correlations, perfStats, regimes, assetHistory] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getReturnCorrelationMatrix(investorNames),
     getPerformanceStats(investorNames, investorIdList),
+    getMarketRegimes(),
+    getAllAssetHistory(investorNames),
   ]);
 
   const overlaps = getPositionOverlaps(report.investor_details);
   const popularity = getStockPopularity(report.investor_details, config.stock_universe);
   const allAttributions = computeAllAttributions(report.investor_details, investorIds, config.stock_universe);
+
+  // 국면별 성과 분석
+  const regimeSegments = computeRegimeSegments(regimes);
+  const regimePerformances = computeRegimePerformance(regimes, assetHistory, investorNames, investorIds);
+  const optimalCombination = computeOptimalCombination(regimePerformances);
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -69,6 +87,44 @@ export default async function AnalysisPage() {
           <PerformanceStatsTable stats={perfStats} investorIds={investorIds} />
         </div>
       </section>
+
+      {/* Market Regime Performance */}
+      {regimes.length > 0 && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-1 section-header">국면별 성과</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            KOSPI 레짐(강세/중립/약세)별 투자자 수익률 비교. 각 전략이 어떤 시장 환경에서 강한지 분석합니다.
+          </p>
+
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-gray-300 mb-2">시장 국면 타임라인</h3>
+            <RegimeTimeline segments={regimeSegments} regimes={regimes} />
+            <p className="text-[11px] text-gray-600 mt-2">
+              KODEX 200(KOSPI 대용) 가격 흐름 위에 이동평균·거래량·변동성 기반으로 판단한 시장 국면을 표시합니다.
+              초록 구간은 강세(bull score ≥ 2), 빨강은 약세(≤ -2), 회색은 중립입니다.
+            </p>
+          </div>
+
+          {regimePerformances.length > 0 && (
+            <>
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-300 mb-2">국면별 수익률 비교</h3>
+                <RegimePerformanceChart performances={regimePerformances} />
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-300 mb-2">국면별 수익률 테이블</h3>
+                <RegimePerformanceTable performances={regimePerformances} />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">최적 투자자 조합</h3>
+                <OptimalCombinationPanel combination={optimalCombination} investorIds={investorIds} />
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Correlation Matrix */}
       <section className="glass-card p-4 md:p-5 animate-in">

@@ -238,7 +238,7 @@ def strategy_J(price_df, date, universe_map, **kwargs):
 # K 로로캅: ETF 전용 글로벌 자산배분 / 4~8종목
 # ============================================================
 def strategy_K(price_df, date, universe_map, **kwargs):
-    regime = compute_market_regime(price_df, date)
+    regime = compute_market_regime(price_df, date)["regime"]
 
     etf_tickers = [t for t, info in universe_map.items() if _is_etf(info)]
     if not etf_tickers:
@@ -303,7 +303,7 @@ def strategy_L(price_df, date, universe_map, **kwargs):
 # M 오판단: 마켓 타이밍 / 레짐별 현금비중 조절
 # ============================================================
 def strategy_M(price_df, date, universe_map, **kwargs):
-    regime = compute_market_regime(price_df, date)
+    regime = compute_market_regime(price_df, date)["regime"]
     momentum = compute_momentum(price_df, date, universe_map)
 
     # 레짐별 투자 비중 (나머지는 현금)
