@@ -20,6 +20,7 @@ import ShowMore from "@/components/ShowMore";
 import WeeklyHighlights from "@/components/WeeklyHighlights";
 import NewsCard from "@/components/NewsCard";
 import MatchHeightGrid from "@/components/MatchHeightGrid";
+import TradesToday from "@/components/TradesToday";
 import { getMarketStatus, STATUS_CONFIG } from "@/lib/market-status";
 
 export const dynamic = "force-dynamic";
@@ -227,6 +228,10 @@ export default async function Home() {
       {headerSection}
       {summarySection}
       {rankingsSection}
+      <TradesToday
+        investorDetails={report.investor_details}
+        marketPrices={report.market_prices}
+      />
       {highlightsSection}
       {commentarySection}
       {chartSection}

@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
     stories,
     news,
     rankings: report?.rankings ?? null,
+    investorDetails: report?.investor_details ?? null,
+    marketPrices: report?.market_prices ?? null,
     prevRankMap,
   });
 }

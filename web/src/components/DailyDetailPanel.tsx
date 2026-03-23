@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { DailyStories, News, RankingEntry } from "@/lib/data";
+import type { DailyStories, News, RankingEntry, InvestorDetail, MarketPrice } from "@/lib/data";
 import { krw, signColor } from "@/lib/format";
 import Link from "next/link";
 import InvestorAvatar, { investorIdByName } from "./InvestorAvatar";
@@ -16,6 +16,8 @@ interface DailyDetail {
   stories: DailyStories | null;
   news: News | null;
   rankings: RankingEntry[] | null;
+  investorDetails: Record<string, InvestorDetail> | null;
+  marketPrices: Record<string, MarketPrice> | null;
   prevRankMap: Record<string, number> | null;
 }
 
@@ -94,7 +96,7 @@ export default function DailyDetailPanel({ selectedDate, hideHeader }: Props) {
         </section>
       )}
 
-      {/* Investor Rankings + Diaries */}
+      {/* Investor Rankings + Diaries + Trades */}
       {hasRankings && (
         <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-4 section-header">투자자 현황</h2>
@@ -170,6 +172,30 @@ export default function DailyDetailPanel({ selectedDate, hideHeader }: Props) {
                       &ldquo;{diary}&rdquo;
                     </p>
                   )}
+                  {(() => {
+                    const trades = data?.investorDetails?.[r.investor]?.trades_today;
+                    if (!trades || trades.length === 0) return null;
+                    return (
+                      <div className="mt-2 ml-[2.125rem] flex flex-wrap gap-1.5">
+                        {trades.map((t, i) => (
+                          <span
+                            key={i}
+                            className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded ${
+                              t.type === "buy"
+                                ? "bg-red-500/10 text-red-400/80"
+                                : "bg-blue-500/10 text-blue-400/80"
+                            }`}
+                          >
+                            <span className="font-medium">
+                              {t.type === "buy" ? "매수" : "매도"}
+                            </span>
+                            {data?.marketPrices?.[t.ticker]?.name || t.ticker}
+                            <span className="text-gray-500">{t.shares}주</span>
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </Link>
               );
             })}

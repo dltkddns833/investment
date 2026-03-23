@@ -23,7 +23,7 @@ Node 18+ 필요. nvm 사용 시: `nvm use 18`
 ```
 src/
   app/
-    page.tsx                 ← 메인 대시보드 (순위, 주간 MVP/연승, 코멘터리, 시장현황, 뉴스)
+    page.tsx                 ← 메인 대시보드 (순위, 매매내역, 주간 MVP/연승, 코멘터리, 시장현황, 뉴스)
     layout.tsx               ← 루트 레이아웃 (다크 테마)
     investors/page.tsx       ← 투자자 목록 (카드 그리드, 순위/수익률)
     investors/[id]/page.tsx  ← 투자자 상세 (요약→뱃지+리그→일기→포트폴리오→기여도→차트→거래→방법론)
@@ -35,7 +35,7 @@ src/
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
     backtest/page.tsx        ← 백테스트 결과 (기간 탭, 자산 추이, 성과 순위, 레이더 차트)
-    api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 전일 순위)
+    api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 매매내역, 전일 순위)
   components/
     RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
     MarketTable.tsx           ← 시장 현황 테이블 (검색, 현재가/등락률 정렬)
@@ -43,7 +43,8 @@ src/
     HoldingsTable.tsx         ← 보유종목 테이블
     CalendarHeatmap.tsx       ← 달력 히트맵 (수익률 색상)
     ReportsContent.tsx        ← 리포트 좌우 분할 레이아웃 (데스크탑: 마스터-디테일, 모바일: 접기/펼치기)
-    DailyDetailPanel.tsx      ← 날짜별 상세 패널 (코멘터리, 투자자 현황+일기 통합, 뉴스)
+    DailyDetailPanel.tsx      ← 날짜별 상세 패널 (코멘터리, 투자자 현황+일기+매매내역 통합, 뉴스)
+    TradesToday.tsx           ← 오늘의 매매 테이블 (투자자별 매수/매도, 정렬, 8행 스크롤)
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바
     CorrelationHeatmap.tsx    ← 수익률 상관관계 11×11 히트맵
