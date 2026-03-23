@@ -227,6 +227,7 @@ cd web && pnpm build  # 빌드
 - stock_universe 종목 변경은 반드시 사용자 확인 후 진행 (임의 선정 금지)
 - 현재 100종목 (일반주 85개 + ETF 15개)
 - 뉴스 파일에는 원문만 저장, 투자 판단은 투자자별 독립 수행
+- "문서 업데이트"는 다음 세 곳을 모두 포함한다: **CLAUDE.md** (프로젝트 지침) + **README.md** (프로젝트 소개) + **GitHub 해당 이슈** (진행 상황 코멘트)
 
 ## Daily Pipeline Trigger
 
