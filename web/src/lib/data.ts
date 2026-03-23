@@ -1081,6 +1081,35 @@ export async function getPerformanceStats(
   return results;
 }
 
+export async function getTransactionSummary(
+  investorIds: string[]
+): Promise<Record<string, { totalBuyAmount: number; totalSellAmount: number; totalFees: number; sellCount: number }>> {
+  const { data } = await supabase
+    .from("transactions")
+    .select("investor_id, type, amount, fee");
+
+  const result: Record<string, { totalBuyAmount: number; totalSellAmount: number; totalFees: number; sellCount: number }> = {};
+  for (const id of investorIds) {
+    result[id] = { totalBuyAmount: 0, totalSellAmount: 0, totalFees: 0, sellCount: 0 };
+  }
+
+  for (const row of data ?? []) {
+    const entry = result[row.investor_id];
+    if (!entry) continue;
+    const amount = row.amount ?? 0;
+    const fee = row.fee ?? 0;
+    if (row.type === "buy") {
+      entry.totalBuyAmount += amount;
+    } else {
+      entry.totalSellAmount += amount;
+      entry.sellCount++;
+    }
+    entry.totalFees += fee;
+  }
+
+  return result;
+}
+
 export async function getVersusData(
   investorA: string,
   investorB: string,

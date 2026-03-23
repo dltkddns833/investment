@@ -9,6 +9,8 @@ import {
   computeAllAttributions,
   getMarketRegimes,
   getAllAssetHistory,
+  getTransactionSummary,
+  getBacktestRuns,
 } from "@/lib/data";
 import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 import OverlapMatrix from "@/components/OverlapMatrix";
@@ -20,11 +22,15 @@ import RegimeTimeline from "@/components/RegimeTimeline";
 import RegimePerformanceChart from "@/components/RegimePerformanceChart";
 import RegimePerformanceTable from "@/components/RegimePerformanceTable";
 import OptimalCombinationPanel from "@/components/OptimalCombinationPanel";
+import ScorecardTable from "@/components/ScorecardTable";
+import ScorecardRadarChart from "@/components/ScorecardRadarChart";
+import BacktestDivergenceChart from "@/components/BacktestDivergenceChart";
 import {
   computeRegimeSegments,
   computeRegimePerformance,
   computeOptimalCombination,
 } from "@/lib/regime-analysis";
+import { computeScorecards } from "@/lib/scorecard";
 
 export const dynamic = "force-dynamic";
 
@@ -50,17 +56,26 @@ export default async function AnalysisPage() {
   const investorIds: Record<string, string> = {};
   for (const inv of config.investors) investorIds[inv.name] = inv.id;
 
-  const [report, correlations, perfStats, regimes, assetHistory] = await Promise.all([
+  const [report, correlations, perfStats, regimes, assetHistory, txnSummary, backtestRuns] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getReturnCorrelationMatrix(investorNames),
     getPerformanceStats(investorNames, investorIdList),
     getMarketRegimes(),
     getAllAssetHistory(investorNames),
+    getTransactionSummary(investorIdList),
+    getBacktestRuns(),
   ]);
 
   const overlaps = getPositionOverlaps(report.investor_details);
   const popularity = getStockPopularity(report.investor_details, config.stock_universe);
   const allAttributions = computeAllAttributions(report.investor_details, investorIds, config.stock_universe);
+
+  // 스코어카드 계산
+  const scorecards = computeScorecards(
+    perfStats, assetHistory, txnSummary, backtestRuns,
+    investorIds, config.simulation.initial_capital
+  );
+  const hasBacktestData = backtestRuns.length > 0;
 
   // 국면별 성과 분석
   const regimeSegments = computeRegimeSegments(regimes);
@@ -73,6 +88,26 @@ export default async function AnalysisPage() {
         <h1 className="text-2xl md:text-3xl font-bold">투자자 분석</h1>
         <p className="text-gray-400 text-sm mt-1">상관관계 & 포지션 비교 · {latestDate} 기준</p>
       </div>
+
+      {/* Strategy Scorecard */}
+      {scorecards.length > 0 && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-1 section-header">전략 스코어카드</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            6개 카테고리별 0~100점 종합 평가. 상위 3개 전략에 실전 추천 뱃지 부여.
+          </p>
+          <ScorecardRadarChart scorecards={scorecards} />
+          <div className="mt-4">
+            <ScorecardTable scorecards={scorecards} />
+          </div>
+          {hasBacktestData && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-300 mb-2">백테스트 vs 라이브 괴리율</h3>
+              <BacktestDivergenceChart scorecards={scorecards} />
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Performance Stats */}
       <section className="glass-card p-4 md:p-5 animate-in">

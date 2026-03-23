@@ -30,7 +30,7 @@ src/
     reports/page.tsx         ← 리포트 (좌우 분할: 달력+날짜목록 | 코멘터리+순위+일기+뉴스)
     stocks/page.tsx          ← 종목 분석 (섹터 히트맵, 섹터 비중, 국내주식/ETF 분리 목록)
     stocks/[ticker]/page.tsx ← 종목 상세 (가격 차트, ETF 구성정보, 보유자, 거래내역)
-    analysis/page.tsx        ← 투자자 분석 (성과 지표, 국면별 성과, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
+    analysis/page.tsx        ← 투자자 분석 (전략 스코어카드, 성과 지표, 국면별 성과, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
@@ -78,6 +78,9 @@ src/
     RegimePerformanceChart.tsx ← 국면별 수익률 Grouped BarChart
     RegimePerformanceTable.tsx ← 국면별 수익률 테이블 (클릭 정렬)
     OptimalCombinationPanel.tsx ← 국면별 최적 투자자 조합 패널
+    ScorecardTable.tsx       ← 전략 스코어카드 종합 점수 테이블 (정렬, 추천 뱃지)
+    ScorecardRadarChart.tsx  ← 전략 스코어카드 6축 레이더 차트
+    BacktestDivergenceChart.tsx ← 백테스트 vs 라이브 괴리율 바차트
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -86,6 +89,7 @@ src/
     methodology.ts            ← 투자자별 방법론/대표인물/참고링크 데이터 (A~N)
     etf-data.ts               ← ETF 구성정보 정적 데이터 (12개 ETF 섹터 비중/구성 종목)
     regime-analysis.ts        ← 국면별 성과 분석 순수 함수 (세그먼트/성과/최적 조합)
+    scorecard.ts              ← 전략 스코어카드 엔진 (6개 카테고리 0-100점 종합 평가)
     sector-icons.tsx          ← 섹터별 SVG 아이콘 (ETF 카테고리 포함)
 ```
 
@@ -112,6 +116,7 @@ src/
 - `getBadges()` → 마일스톤 감지 (첫 수익, 600만 돌파, 연속 1위 등)
 - `getVersusData(investorA, investorB)` → 1:1 대결 데이터 (자산 추이, 수익률 차이, 승패)
 - `getPerformanceStats(investorNames, investorIds)` → 샤프비율/MDD/변동성/알파/승률 (tradingDays < 5이면 sharpe/mdd/volatility = null)
+- `getTransactionSummary(investorIds)` → 투자자별 매수/매도 총액, 수수료 합계 (스코어카드 효율성 카테고리용)
 - `getAssetComposition(investorId)` → `portfolio_snapshots` 테이블에서 일별 종목+현금 구성 (stacked area용)
 - `getSentimentHistory(investorId)` → `allocations` 테이블에서 G의 감성 점수 시계열
 - `getPeriodicReports(periodType)` → `periodic_reports` 테이블에서 월간/분기 리포트
