@@ -90,7 +90,11 @@ cd web && pnpm install && pnpm dev
 │   │   ├── daily_pipeline.py           뉴스/배분/스토리 저장 헬퍼
 │   │   ├── risk_manager.py            리스크 관리 (포지션 제한/이벤트 감지)
 │   │   ├── run_backtest.py             백테스트 CLI 진입점
-│   │   └── backfill_regimes.py         과거 마켓 레짐 소급 계산
+│   │   ├── backfill_regimes.py         과거 마켓 레짐 소급 계산
+│   │   ├── broker_client.py            한국투자증권 KIS API 클라이언트
+│   │   ├── meta_manager.py             메타 매니저 (14명 데이터 종합 → 실전 배분)
+│   │   ├── scorecard.py                전략 스코어카드 엔진 (6카테고리)
+│   │   └── safety.py                   실전 투자 안전 장치
 │   ├── backtest/                     # 백테스트 엔진 (인메모리, DB 비접근)
 │   │   ├── engine.py                   InMemoryPortfolio + 시뮬레이션 루프
 │   │   ├── strategies.py               14개 투자자별 결정론적 배분 함수
@@ -107,7 +111,7 @@ cd web && pnpm install && pnpm dev
 │   │   ├── asset_allocation.py         ETF 카테고리별 수익률/변동성/추세 (K용)
 │   │   └── market_regime.py            KOSPI 레짐 판단 — 이평선/거래량/변동성 (M용)
 │   ├── notifications/                # 알림 발송
-│   │   └── send_telegram.py            텔레그램 알림
+│   │   └── send_telegram.py            텔레그램 알림 + 승인 플로우
 │   ├── reports/                      # 리포트 생성
 │   │   ├── weekly_report.py            주간 성과 리포트
 │   │   ├── monthly_report.py           월간 성과 리포트
@@ -148,6 +152,22 @@ cd web && pnpm install && pnpm dev
 
 - 이벤트 발생 시 `risk_events` 테이블 기록 + 텔레그램 알림
 - 설정: `config.risk_limits` (Supabase)에서 조정 가능
+
+## 실전 투자 (메타 매니저)
+
+14명 시뮬레이션 데이터를 종합 분석하여 실전 매매를 결정하는 메타 전략 시스템.
+
+- **증권사**: 한국투자증권 (KIS Developers REST API)
+- **운영**: 반자동 — 분석→결정→텔레그램 승인→API 체결
+- **실행 시점**: 매일 13:30 (오전장 흐름 확인 후)
+- **핵심 원칙**: 코스피 대비 초과 수익 (알파 양수 유지)
+
+```
+[13:30] 데이터 수집 → 정량 분석 (스코어카드/레짐/모멘텀/상관관계)
+      → Claude 배분 결정 → 텔레그램 승인 → KIS API 시장가 주문
+```
+
+**안전 장치**: 일일 손실 -3% 자동 중단 / 누적 -10% 전량 청산 / 킬스위치 / 승인 필수
 
 ## 자동 실행 (현재 잠정 중단)
 

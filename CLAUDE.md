@@ -59,6 +59,22 @@ python3 scripts/core/risk_manager.py 2026-03-19   # 특정 날짜
 # 과거 마켓 레짐 소급 계산
 python3 scripts/core/backfill_regimes.py
 
+# 메타 매니저 (실전 투자)
+python3 scripts/core/meta_manager.py                    # 실행 (분석 → 배분 대기)
+python3 scripts/core/meta_manager.py --dry-run           # 드라이런 (분석만, 주문 스킵)
+python3 scripts/core/meta_manager.py --analyze-only      # 분석 결과만 출력
+python3 scripts/core/meta_manager.py --date 2026-03-28   # 특정 날짜
+
+# KIS API 테스트
+python3 scripts/core/broker_client.py --test             # 삼성전자 현재가 조회
+python3 scripts/core/broker_client.py --balance           # 예수금 조회
+python3 scripts/core/broker_client.py --holdings          # 보유종목 조회
+
+# 안전 장치
+python3 scripts/core/safety.py --status                  # 킬스위치 상태
+python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화
+python3 scripts/core/safety.py --kill-switch off         # 킬스위치 해제
+
 # 테스트 실행
 python3 -m pytest tests/ -v
 
@@ -132,6 +148,10 @@ scripts/
     risk_manager.py      리스크 관리 (포지션 제한 검증 + 리스크 이벤트 감지/알림)
     run_backtest.py      백테스트 CLI 진입점
     backfill_regimes.py  과거 마켓 레짐 소급 계산
+    broker_client.py     한국투자증권 KIS API 클라이언트 (인증/잔고/주문)
+    meta_manager.py      메타 매니저 — 14명 데이터 종합 → 실전 배분 결정
+    scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
+    safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프
     strategies.py        14개 투자자별 결정론적 배분 함수
@@ -148,7 +168,7 @@ scripts/
     asset_allocation.py    ETF 카테고리별 수익률/변동성/추세 (K용)
     market_regime.py       KOSPI 레짐 판단 — 이평선/거래량/변동성 (M용)
   notifications/     # 알림 발송
-    send_telegram.py     텔레그램 알림
+    send_telegram.py     텔레그램 알림 + 승인 플로우 (InlineKeyboard)
   reports/           # 리포트 생성
     weekly_report.py     주간 성과 리포트
     monthly_report.py    월간 성과 리포트 (월 첫 영업일 자동 생성)
@@ -157,7 +177,7 @@ scripts/
     daily_pipeline_cron.sh   09:05 통합 파이프라인
 ```
 
-**Supabase 테이블 (16개):**
+**Supabase 테이블 (18개):**
 
 | 테이블 | PK | 주요 컬럼 | 설명 |
 |--------|-----|-----------|------|
@@ -177,12 +197,13 @@ scripts/
 | `backtest_snapshots` | (run_id, investor_id, date) | total_asset, cash, holdings(jsonb) | 백테스트 일별 스냅샷 |
 | `risk_events` | serial id | date, investor_id, event_type, severity, details(jsonb), action_taken | 리스크 이벤트 기록 |
 | `market_regimes` | date | regime(bull/neutral/bear), bull_score, kospi_price, ma20, ma60, ma20_slope, volume_ratio, volatility_20d, details(jsonb) | 일별 마켓 레짐 |
+| `meta_decisions` | date | regime, morning_session(jsonb), selected_strategies(jsonb), rationale, target_allocation(jsonb), orders(jsonb), approved, executed, kospi_return_pct, meta_return_pct, alpha_pct | 메타 매니저 일별 의사결정 |
+| `real_portfolio` | date | cash, holdings(jsonb), total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct | 실전 포트폴리오 스냅샷 |
 
 
 **환경변수:**
-- `/.env` — Python용 (`SUPABASE_URL`, `SUPABASE_KEY`)
+- `/.env` — Python용 (`SUPABASE_URL`, `SUPABASE_KEY`, `KIS_APP_KEY`, `KIS_APP_SECRET_KEY`, `KIS_ACCOUNT_NO`)
 - `/web/.env.local` — Next.js용 (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
-- 테이블 생성 SQL: `supabase_schema.sql`
 
 ## Key Conventions
 
@@ -198,6 +219,46 @@ scripts/
 - 리스크 관리: allocation 저장 시 포지션 제한 자동 검증 (`risk_manager.validate_allocation()`), 시뮬레이션 후 리스크 이벤트 감지 (`risk_manager.check_risk_limits()`)
 - 리스크 제한 기본값: 단일종목 30%, 섹터 50%, 최소현금 5%, 일일손실 -3%, 누적손실 -10%, MDD -8%, 연속손실 5일, 종목급변 ±10%
 - 리스크 예외: N(종목/섹터/현금 무제한), M(현금 무제한), K(섹터 무제한) — config.risk_limits.exceptions에서 관리
+
+## Meta Manager (실전 투자)
+
+14명 시뮬레이션 데이터를 종합 분석하여 실전 매매를 결정하는 AI 시스템.
+
+**핵심 원칙**: 코스피 대비 초과 수익 (알파 양수 유지)
+
+**운영 방식**: 반자동 — 분석→결정→텔레그램 승인→KIS API 체결
+- 실행 시점: 매일 13:30 (오전장 흐름 확인 후, 장마감까지 2시간 여유)
+- 증권사: 한국투자증권 (KIS Developers REST API)
+- 초기 자금: 200만원
+
+**파이프라인 흐름:**
+```
+[13:30] MetaManager.run()
+  1. 안전 체크 (킬스위치, 일일/누적 손실 한도)
+  2. 데이터 수집 (Supabase + KIS API)
+     - market_regimes, daily_reports, portfolio_snapshots
+     - KIS 시장 요약 (KOSPI, 외인/기관 수급)
+  3. 정량 분석
+     - 스코어카드 (6카테고리 종합 점수)
+     - 레짐별 최적 전략 조합
+     - 최근 5일 모멘텀 순위
+     - 포지션 겹침률 (Jaccard)
+  4. Claude에게 분석 결과 전달 → 배분 결정
+
+[결정 후] MetaManager.execute_allocation()
+  1. 배분 검증 (단일종목 30%, 최소현금 5%)
+  2. 주문 생성 (매도 먼저 → 매수)
+  3. 텔레그램 승인 요청 (InlineKeyboard)
+  4. 사용자 승인 → KIS API 시장가 주문
+  5. meta_decisions + real_portfolio 저장
+```
+
+**안전 장치:**
+- 일일 손실 -3% → 자동 거래 중단
+- 누적 손실 -10% → 전량 청산
+- 킬스위치: `config.risk_limits.meta_manager.kill_switch`
+- 장 운영시간(09:00~15:20) 외 주문 차단
+- 텔레그램 승인 필수 (5분 타임아웃 시 취소)
 
 ## Web Dashboard
 
