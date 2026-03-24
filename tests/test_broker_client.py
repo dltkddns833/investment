@@ -42,12 +42,17 @@ def test_authenticate(mock_post):
     mock_post.return_value = mock_resp
 
     from broker_client import KISClient
-    client = KISClient()
-    token = client.authenticate()
-
-    assert token == "test_token_123"
-    assert client._token == "test_token_123"
-    mock_post.assert_called_once()
+    # 토큰 파일 저장 방지 (테스트용 mock 토큰이 실전 토큰을 덮어쓰지 않도록)
+    original_save = KISClient._save_token
+    KISClient._save_token = lambda self: None
+    try:
+        client = KISClient()
+        token = client.authenticate()
+        assert token == "test_token_123"
+        assert client._token == "test_token_123"
+        mock_post.assert_called_once()
+    finally:
+        KISClient._save_token = original_save
 
 
 @patch("broker_client.requests.get")
