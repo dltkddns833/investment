@@ -87,23 +87,56 @@ python3 -m pytest tests/ -v
 pip3 install -r requirements.txt
 ```
 
-## 자동 실행 (launchd) — 잠정 중단 (2026-03-13~)
-
-> **현재 상태: 수동 실행** — 휴직 기간(~2026-04-13) 동안 launchd 스케줄 해제. 사용자가 직접 Claude CLI로 시뮬레이션 실행.
-> 재개 시: `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
+## 자동 실행 (launchd)
 
 macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사용).
 
 ### 오전 9:05 — 시뮬레이션 (시가 체결)
 - plist: `~/Library/LaunchAgents/com.investment.pipeline.plist`
 - `scripts/cron/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행
-  - 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 텔레그램 발송
+  - 뉴스 수집 → 15명 배분 결정 → 시뮬레이션(시가 체결) → 텔레그램 발송
 - `scripts/reports/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - `scripts/reports/monthly_report.py` — 월 첫 영업일이면 지난달 성과 텔레그램 발송 + Supabase 저장
 - `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
 - 로그: `logs/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
-- **스토리텔링은 장마감 후 별도 실행** (cron 자동화 시 16:00 스케줄 추가 필요)
+
+### 오전 9:10 — O 정익절 장중 모니터링
+- plist: `~/Library/LaunchAgents/com.investment.o-monitor.plist`
+- `scripts/cron/o_monitor_cron.sh` → `scripts/core/o_monitor.py`
+  - 10분 간격 현재가 체크, +5% 익절 / -3% 손절 자동 체결
+  - 장마감(15:20) 자동 종료
+- 로그: `logs/o_monitor_YYYY-MM-DD.log`
+
+### 오후 1:30 — 메타 매니저 (실전 투자)
+- plist: `~/Library/LaunchAgents/com.investment.meta.plist`
+- `scripts/cron/meta_cron.sh` → `scripts/core/meta_manager.py`
+  - 15명 데이터 종합 → 실전 배분 → 텔레그램 승인 → KIS 체결
+- 로그: `logs/meta_YYYY-MM-DD.log`
+
+### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
+- plist: `~/Library/LaunchAgents/com.investment.storytelling.plist`
+- `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행
+  - 종가 반영 → 코멘터리 → 투자자 일기
+- 로그: `logs/storytelling_YYYY-MM-DD.log`
+
+### launchd 관리 명령
+```bash
+# 전체 등록
+launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
+launchctl load ~/Library/LaunchAgents/com.investment.o-monitor.plist
+launchctl load ~/Library/LaunchAgents/com.investment.meta.plist
+launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
+
+# 전체 해제
+launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
+launchctl unload ~/Library/LaunchAgents/com.investment.o-monitor.plist
+launchctl unload ~/Library/LaunchAgents/com.investment.meta.plist
+launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
+
+# 상태 확인
+launchctl list | grep com.investment
+```
 
 ### 재개 시 필요 설정: macOS 전체 디스크 접근 권한
 launchd 프로세스가 `~/Desktop` 하위 프로젝트에 접근할 때 macOS 권한 팝업이 뜰 수 있다.
