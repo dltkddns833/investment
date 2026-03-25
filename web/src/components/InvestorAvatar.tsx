@@ -417,6 +417,35 @@ function FaceN() {
   );
 }
 
+function FaceO() {
+  // Mark Minervini — 슬릭백 다크헤어, 날카로운 눈매, 자신감 넘치는 트레이더
+  return (
+    <>
+      {/* 머리카락 — 슬릭백 다크헤어 */}
+      <path d="M26 44 Q26 26 50 24 Q74 26 74 44" fill="#292524" />
+      <path d="M28 44 Q30 30 50 28 Q70 30 72 44" fill="#3f3f46" />
+      {/* 얼굴 */}
+      <ellipse cx="50" cy="52" rx="21" ry="23" fill={SKIN} />
+      <ellipse cx="50" cy="54" rx="19" ry="19" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 눈 — 날카로운 */}
+      <path d="M31 48 Q38 44 46 48" fill="white" />
+      <circle cx="38" cy="48" r="3.5" fill="#1a1a2e" />
+      <circle cx="39" cy="47" r="1.2" fill="white" />
+      <path d="M54 48 Q62 44 69 48" fill="white" />
+      <circle cx="62" cy="48" r="3.5" fill="#1a1a2e" />
+      <circle cx="63" cy="47" r="1.2" fill="white" />
+      {/* 눈썹 — 각진 강한 */}
+      <path d="M30 43 L46 42" stroke="#292524" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M54 42 L70 43" stroke="#292524" strokeWidth="2.5" strokeLinecap="round" />
+      {/* 코 */}
+      <path d="M48 52 Q50 58 52 52" stroke={SKIN_SHADOW} strokeWidth="1.5" fill="none" />
+      {/* 입 — 자신감 있는 미소 */}
+      <path d="M40 64 Q50 68 60 64" stroke="#8b5a42" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M42 65 Q50 67 58 65" fill="#c4937a" opacity="0.3" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -432,6 +461,7 @@ const FACES: Record<string, () => JSX.Element> = {
   L: FaceL,
   M: FaceM,
   N: FaceN,
+  O: FaceO,
 };
 
 export default function InvestorAvatar({

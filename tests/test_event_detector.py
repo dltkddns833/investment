@@ -39,7 +39,7 @@ def _make_report(date, rank_order, details_override=None):
     return {"date": date, "rankings": rankings, "investor_details": investor_details}
 
 
-NAMES = ["강돌진", "김균형", "이든든", "장반대", "정기준", "윤순환", "문여론", "박기술", "최배당", "한따라", "로로캅"]
+NAMES = ["강돌진", "김균형", "이든든", "장반대", "정기준", "윤순환", "문여론", "박기술", "최배당", "한따라", "로로캅", "신장모", "오판단", "전몰빵", "정익절"]
 
 
 class TestStreakEvents:

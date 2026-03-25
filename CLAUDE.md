@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 14명의 투자자(A~N)가 동일한 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
+한국 주식 모의 투자 시뮬레이션. 15명의 투자자(A~O)가 동일한 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험.
 
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. 현재는 전략 검증(R&D) 단계이며, 충분한 데이터 축적과 백테스트를 거친 후 증권사 API 연동을 통한 완전 자동 매매를 목표로 한다.
 
@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - L 신장모: 분할매도 전략 / 매일 체크 / 5~8종목 코스닥 성장주 (+15%/+30%/+50% 분할매도, -10% 손절)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
 - N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (모멘텀+펀더멘털+수급 3중 필터)
+- O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (+5% 전량 익절, -3% 전량 손절)
 
 ## Session Start Check
 
@@ -74,6 +75,10 @@ python3 scripts/core/broker_client.py --holdings          # 보유종목 조회
 python3 scripts/core/safety.py --status                  # 킬스위치 상태
 python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화
 python3 scripts/core/safety.py --kill-switch off         # 킬스위치 해제
+
+# O 정익절 장중 모니터링
+python3 scripts/core/o_monitor.py              # 실행 (09:10~15:20)
+python3 scripts/core/o_monitor.py --dry-run     # 매도 없이 로그만
 
 # 테스트 실행
 python3 -m pytest tests/ -v
@@ -149,12 +154,13 @@ scripts/
     run_backtest.py      백테스트 CLI 진입점
     backfill_regimes.py  과거 마켓 레짐 소급 계산
     broker_client.py     한국투자증권 KIS API 클라이언트 (인증/잔고/주문)
-    meta_manager.py      메타 매니저 — 14명 데이터 종합 → 실전 배분 결정
+    meta_manager.py      메타 매니저 — 15명 데이터 종합 → 실전 배분 결정
     scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
     safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
+    o_monitor.py         O 정익절 장중 실시간 모니터링 (+5%익절/-3%손절)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프
-    strategies.py        14개 투자자별 결정론적 배분 함수
+    strategies.py        15개 투자자별 결정론적 배분 함수
     price_cache.py       yfinance 일괄 다운로드 + pickle 캐시
     metrics.py           Sharpe/MDD/변동성/승률 계산
     historical_indicators.py  캐시된 DataFrame에서 모멘텀/RSI/MACD 등 계산
@@ -222,7 +228,7 @@ scripts/
 
 ## Meta Manager (실전 투자)
 
-14명 시뮬레이션 데이터를 종합 분석하여 실전 매매를 결정하는 AI 시스템.
+15명 시뮬레이션 데이터를 종합 분석하여 실전 매매를 결정하는 AI 시스템.
 
 **핵심 원칙**: 코스피 대비 초과 수익 (알파 양수 유지)
 
@@ -266,7 +272,7 @@ scripts/
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위(전일 대비 변동 표시), 오늘의 매매(매수/매도 테이블, 정렬), 주간 MVP/연승, 시장 현황(종목 검색+정렬), 뉴스
-- 투자자 목록(`/investors`): 전체 14명 카드 그리드, 순위/수익률 표시
+- 투자자 목록(`/investors`): 전체 15명 카드 그리드, 순위/수익률 표시
 - 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 자산 구성 변화(stacked area), 성과 기여도(종목별 바차트+섹터별 Treemap), 보유종목, 거래내역, 투자 방법론(대표인물/참고링크), G는 감성 점수 추이
 - 리포트(`/reports`): 좌우 분할 마스터-디테일 레이아웃 (데스크탑: 왼쪽 달력+날짜목록 sticky | 오른쪽 코멘터리+투자자 현황+일기+매매내역+뉴스, 모바일: 접기/펼치기 캘린더), 전일 대비 순위 변동 표시
 - 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(85개)/ETF(15개) 분리 목록, 종목 검색(debounce), 현재가/등락률/보유 정렬
@@ -274,7 +280,7 @@ scripts/
 - 분석(`/analysis`): 전략 스코어카드(6개 카테고리 종합 평가, 실전 추천 뱃지, 백테스트 괴리율), 성과 지표(샤프/MDD/변동성/알파/승률), 수익률 상관관계 히트맵, 포지션 겹침률, 종목 인기도, 성과 기여도 분석(투자자별 섹터 기여도 비교)
 - 대결(`/versus`): 추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승 기록
 - 대결 상세(`/versus/[matchup]`): 1:1 자산 비교, 일별 수익률 차이, 포지션 비교
-- 리그(`/league`): 월간 시즌제 승점 순위(1위=14점~14위=1점), 누적 승점 추이 차트, 시즌 아카이브
+- 리그(`/league`): 월간 시즌제 승점 순위(1위=15점~15위=1점), 누적 승점 추이 차트, 시즌 아카이브
 - Supabase에서 데이터를 읽어 서버 컴포넌트에서 렌더링 (DB 직접 쿼리)
 - Node 20+ 필요, 상세 내용은 `web/CLAUDE.md` 참조
 
@@ -309,9 +315,9 @@ cd web && pnpm build  # 빌드
 - 각 기사에 `url` 필드 포함: `{"title": ..., "summary": ..., "category": ..., "source": ..., "url": "https://..."}`
 - `notify("✅ Step 1 완료: 뉴스 {N}건 수집")`
 
-#### Step 2: 투자자별 배분 결정 (14개 독립 AI 에이전트 병렬 실행)
-- `notify("🧠 Step 2: 투자자별 배분 결정 시작 (14명 병렬)")`
-**반드시 14개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
+#### Step 2: 투자자별 배분 결정 (15개 독립 AI 에이전트 병렬 실행)
+- `notify("🧠 Step 2: 투자자별 배분 결정 시작 (15명 병렬)")`
+**반드시 15개의 서브에이전트(Agent tool)를 동시에 병렬 실행**하여 각 투자자의 배분을 독립적으로 결정한다.
 - 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
 - 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
 - A 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (모멘텀 상위 종목 집중)
@@ -326,6 +332,7 @@ cd web && pnpm build  # 빌드
 - L 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (코스닥 성장주 발굴). 분할매도 규칙: +15% 1/3매도, +30% 1/2매도, +50% 전량매도, -10% 손절. allocation은 **신규 진입 종목만** 포함 (기존 보유종목의 목표가 매도는 simulate.py가 자동 처리)
 - M 에이전트에는 추가로 `scripts/modules/market_regime.py`의 `get_market_regime()` 결과를 전달. 레짐에 따라 allocation 합계를 조절: bull→0.9, neutral→0.5, bear→0.3 (나머지는 현금)
 - N 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/institutional_flow.py`의 `get_institutional_flows()` 결과를 전달 (3중 필터로 최고 확신 2~3종목 선별)
+- O 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (모멘텀+기술적 진입점 판단)
 - 에이전트는 분석 후 `save_allocation()`으로 Supabase에 저장
 - rationale(배분 근거) 텍스트는 논점별로 줄바꿈(`\n`) 삽입하여 가독성 확보
 - allocation 합계 ≤ 1.0 (M 오판단은 현금비중만큼 합계 < 1.0), stock_universe 종목만 사용
@@ -343,8 +350,9 @@ cd web && pnpm build  # 빌드
 - L (분할매도 전략): 코스닥 성장주 위주 5~8종목. **신규 진입 종목만 allocation에 포함**. 기존 보유종목의 +15%/+30%/+50% 분할매도 및 -10% 손절은 simulate.py의 `check_target_prices()`가 자동 처리
 - M (마켓 타이밍): 레짐에 따라 현금비중 조절. **allocation 합계 = 1.0 - 현금비중** (bull: 0.9, neutral: 0.5, bear: 0.3). 3~10종목
 - N (집중투자): **최대 2~3종목만** (4종목 초과 금지). 모멘텀+펀더멘털+수급 모두 양호한 최고 확신 종목에 올인. allocation 합계 = 1.0
+- O (단기 스윙 수익실현): 모멘텀+기술적 분석으로 단기 반등 종목 선별, 5~8종목. **신규 진입 종목만 allocation에 포함**. +5% 전량 익절 및 -3% 전량 손절은 장중 o_monitor.py(실시간) 또는 simulate.py(과거 날짜)의 check_target_prices()가 자동 처리
 
-- `notify("✅ Step 2 완료: 14명 배분 결정 저장")`
+- `notify("✅ Step 2 완료: 15명 배분 결정 저장")`
 
 #### Step 3: 시뮬레이션 실행 (시가 체결)
 - `notify("⚙️ Step 3: 시뮬레이션 실행")`
@@ -391,12 +399,13 @@ cd web && pnpm build  # 빌드
 - L 신장모: 실현주의자, 확고한 ("수익은 실현해야 내 돈이다", "욕심부리면 다 날린다", "15% 찍고 1/3 정리했다")
 - M 오판단: 냉정한 타이머 ("지금은 쉴 때다", "시장이 부를 때만 들어간다", "이평선이 말해주고 있다")
 - N 전몰빵: 확신의 투자자, 당당한 ("확신이 없으면 안 한다", "분산은 무지에 대한 방어일 뿐이다", "이 종목 하나면 충분하다")
+- O 정익절: 냉철한 트레이더, 기계적 ("5% 찍고 바로 정리했다", "손절은 보험료다", "작은 수익이 모여 큰 돈이 된다")
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
-- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "전몰빵": "..."}` 형태 (투자자 이름 키)
+- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "전몰빵": "...", "정익절": "..."}` 형태 (투자자 이름 키)
 - `notify("✅ *Part B 완료* ({date}) — 코멘터리 & 투자자 일기가 저장되었습니다.")`
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵
-- A/G/H/L/M은 매일, D는 3영업일마다, B/J/N은 7영업일마다, E/F는 14영업일마다, C/K는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외)
+- A/G/H/L/M/O은 매일, D는 3영업일마다, B/J/N은 7영업일마다, E/F는 14영업일마다, C/K는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외)
 - 첫날은 `last_rebalanced: null`이므로 모두 실행

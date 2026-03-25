@@ -178,7 +178,7 @@ class InMemoryPortfolio:
 
     def check_target_prices(self, current_prices, date_str,
                             sell_tranches=None, stop_loss=-0.10):
-        """portfolio.py:check_target_prices()와 동일 (L 전용)"""
+        """portfolio.py:check_target_prices()와 동일 (L, O 전용)"""
         if sell_tranches is None:
             sell_tranches = [
                 {"threshold": 0.15, "sell_ratio": 1/3},
@@ -383,6 +383,14 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
             # L은 매일 분할매도 체크
             if inv_id == "L" and pf.holdings:
                 pf.check_target_prices(prices, date_str)
+
+            # O는 매일 익절/손절 체크 (+5% 전량 익절, -3% 전량 손절)
+            if inv_id == "O" and pf.holdings:
+                pf.check_target_prices(
+                    prices, date_str,
+                    sell_tranches=[{"threshold": 0.05, "sell_ratio": 1.0}],
+                    stop_loss=-0.03,
+                )
 
             # 스냅샷
             pf.snapshot(date_str, prices)

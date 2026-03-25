@@ -360,6 +360,17 @@ def strategy_N(price_df, date, universe_map, **kwargs):
 
 
 # ============================================================
+# O 정익절: 단기 스윙 수익실현 / 모멘텀 상위 5~8종목 (신규 진입만)
+# +5% 전량 익절, -3% 전량 손절은 engine.py에서 check_target_prices()로 처리
+# ============================================================
+def strategy_O(price_df, date, universe_map, **kwargs):
+    momentum = compute_momentum(price_df, date, universe_map)
+    # 전 종목 대상 (L과 달리 KOSDAQ 제한 없음), 모멘텀 상위 6종목
+    top = _top_n_by_key(momentum, "return_1w", 6)
+    return _equal_weight(top)
+
+
+# ============================================================
 # 전략 매핑
 # ============================================================
 STRATEGY_MAP = {
@@ -377,6 +388,7 @@ STRATEGY_MAP = {
     "L": strategy_L,
     "M": strategy_M,
     "N": strategy_N,
+    "O": strategy_O,
 }
 
 

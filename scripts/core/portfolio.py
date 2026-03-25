@@ -305,7 +305,7 @@ def is_rebalance_due(investor_id, current_date):
 
 def check_target_prices(investor_id, current_prices, date_str,
                         sell_tranches=None, stop_loss=-0.10):
-    """목표가/손절 체크 후 분할매도 실행 (L 신장모 전용)
+    """목표가/손절 체크 후 분할매도 실행 (L 신장모, O 정익절)
 
     보유종목의 수익률을 체크하여:
     - stop_loss 이하: 전량 손절

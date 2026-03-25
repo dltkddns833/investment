@@ -330,6 +330,29 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
+  O: {
+    method: "SEPA 스윙 트레이딩 (Specific Entry Point Analysis)",
+    representative:
+      'Mark Minervini — U.S. Investing Championship 우승자, "Stock Market Wizard"',
+    core: "모멘텀 상위 종목에 진입하여 +5%에서 전량 익절, -3%에서 전량 손절하는 기계적 스윙 트레이딩. 손익비 1.67:1로 승률 38% 이상이면 수익.",
+    evidence:
+      "Minervini의 SEPA — 좁은 손절과 빠른 수익 실현으로 복리 수익 추구. 연평균 220% 수익률 기록 (1994-2000)",
+    similar: "CAN SLIM 단기 변형, 스윙 트레이딩, Fixed R-Multiple",
+    links: [
+      {
+        label: "Mark Minervini — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Mark_Minervini",
+      },
+      {
+        label: "Swing Trading — Investopedia",
+        url: "https://www.investopedia.com/terms/s/swingtrading.asp",
+      },
+      {
+        label: "Trade Like a Stock Market Wizard (Book)",
+        url: "https://www.amazon.com/Trade-Like-Stock-Market-Wizard/dp/0071807225",
+      },
+    ],
+  },
 };
 
 export type { Methodology, Link };
