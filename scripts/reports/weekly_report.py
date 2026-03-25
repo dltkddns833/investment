@@ -95,6 +95,35 @@ def build_weekly_report(today):
         arrow = "▲" if weekly_change >= 0 else "▼"
         lines.append(f"  {name}: {arrow} {abs(weekly_change):,.0f}원")
 
+    # 실전 투자 (메타 매니저) 성과
+    real_rows = (
+        supabase.table("real_portfolio")
+        .select("date, total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct")
+        .gte("date", last_monday.strftime("%Y-%m-%d"))
+        .lte("date", last_friday.strftime("%Y-%m-%d"))
+        .order("date")
+        .execute()
+        .data
+    )
+
+    if real_rows:
+        first_row = real_rows[0]
+        last_row = real_rows[-1]
+        total_asset = last_row.get("total_asset", 0)
+        cumulative_pct = last_row.get("cumulative_return_pct", 0)
+        kospi_cum_pct = last_row.get("kospi_cumulative_pct", 0)
+        alpha_cum_pct = last_row.get("alpha_cumulative_pct", 0)
+
+        first_asset = first_row.get("total_asset", 0)
+        weekly_pct = ((total_asset / first_asset) - 1) * 100 if first_asset else 0
+
+        lines.append("")
+        lines.append("*💰 실전 투자 (메타 매니저)*")
+        lines.append(f"총자산: {total_asset:,.0f}원 ({cumulative_pct:+.2f}%)")
+        lines.append(f"주간 수익률: {weekly_pct:+.2f}%")
+        lines.append(f"코스피 누적: {kospi_cum_pct:+.2f}%")
+        lines.append(f"알파: {alpha_cum_pct:+.2f}%")
+
     lines.append("")
     lines.append(f"_생성: {today.strftime('%Y-%m-%d %H:%M')}_")
 

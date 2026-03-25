@@ -35,6 +35,7 @@ src/
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
     backtest/page.tsx        ← 백테스트 결과 (기간 탭, 자산 추이, 성과 순위, 레이더 차트)
+    live/page.tsx            ← 실전 투자 (실전 포트폴리오 현황, 자산 추이, 보유종목, 매매 히스토리)
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 매매내역, 전일 순위)
   components/
     RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
@@ -82,6 +83,9 @@ src/
     ScorecardTable.tsx       ← 전략 스코어카드 종합 점수 테이블 (정렬, 추천 뱃지)
     ScorecardRadarChart.tsx  ← 전략 스코어카드 6축 레이더 차트
     BacktestDivergenceChart.tsx ← 백테스트 vs 라이브 괴리율 바차트
+    LiveAssetChart.tsx        ← 실전 포트폴리오 자산 추이 라인 차트
+    LiveHoldingsTable.tsx     ← 실전 보유종목 테이블
+    LiveDecisionHistory.tsx   ← 메타 매니저 매매 히스토리 (접기/펼치기, 레짐 뱃지, 주문 상세)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)
@@ -131,6 +135,9 @@ src/
 - `getBacktestRun(runId)` → 특정 백테스트 실행 상세
 - `getBacktestSnapshots(runId)` → 특정 백테스트의 일별 포트폴리오 스냅샷
 - `getMarketRegimes()` → `market_regimes` 테이블에서 전체 레짐 이력 (날짜 오름차순)
+- `getRealPortfolioHistory()` → `real_portfolio` 테이블 전체 조회 (날짜 오름차순)
+- `getLatestRealPortfolio()` → `real_portfolio` 최신 1건 조회
+- `getMetaDecisions()` → `meta_decisions` 테이블 조회 (날짜 내림차순)
 
 모든 데이터 함수가 async이므로 페이지 컴포넌트도 `async function`으로 선언.
 

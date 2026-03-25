@@ -1410,3 +1410,52 @@ export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date
     return { date: r.date, points: { ...cumulative } };
   });
 }
+
+// --- Real Portfolio (실전 투자) ---
+
+export interface RealPortfolioEntry {
+  date: string;
+  cash: number;
+  holdings: Record<string, { shares: number; avg_price: number; name: string }>;
+  total_asset: number;
+  daily_return_pct: number;
+  cumulative_return_pct: number;
+  kospi_cumulative_pct: number | null;
+  alpha_cumulative_pct: number | null;
+}
+
+export interface MetaDecision {
+  date: string;
+  regime: string;
+  selected_strategies: Record<string, number> | null;
+  rationale: string;
+  target_allocation: Record<string, number> | null;
+  orders: Array<{ ticker: string; name: string; side: string; qty: number; price: number; status: string }> | null;
+  approved: boolean;
+  executed: boolean;
+}
+
+export async function getRealPortfolioHistory(): Promise<RealPortfolioEntry[]> {
+  const { data } = await supabase
+    .from("real_portfolio")
+    .select("*")
+    .order("date", { ascending: true });
+  return (data ?? []) as RealPortfolioEntry[];
+}
+
+export async function getLatestRealPortfolio(): Promise<RealPortfolioEntry | null> {
+  const { data } = await supabase
+    .from("real_portfolio")
+    .select("*")
+    .order("date", { ascending: false })
+    .limit(1);
+  return (data && data.length > 0 ? data[0] : null) as RealPortfolioEntry | null;
+}
+
+export async function getMetaDecisions(): Promise<MetaDecision[]> {
+  const { data } = await supabase
+    .from("meta_decisions")
+    .select("date, regime, selected_strategies, rationale, target_allocation, orders, approved, executed")
+    .order("date", { ascending: false });
+  return (data ?? []) as MetaDecision[];
+}

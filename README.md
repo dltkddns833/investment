@@ -170,21 +170,25 @@ cd web && pnpm install && pnpm dev
 
 **안전 장치**: 일일 손실 -3% 자동 중단 / 누적 -10% 전량 청산 / 킬스위치 / 승인 필수
 
-## 자동 실행 (현재 잠정 중단)
+## 자동 실행 (launchd)
 
-> 휴직 기간(~2026-04-13) 동안 수동 실행. 재개 시: `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
+macOS launchd로 평일 4개 스케줄 자동 실행.
 
-macOS launchd로 평일 09:05에 통합 파이프라인 실행.
+| 시간 | 작업 | 실행 방식 |
+|------|------|----------|
+| **09:05** | 시뮬레이션 (뉴스 수집 → 15명 배분 → 시가 체결) | Claude CLI |
+| **09:10** | O 정익절 장중 모니터링 (+5% 익절 / -3% 손절) | Python |
+| **13:30** | 메타 매니저 (분석 → AI 배분 → 텔레그램 승인 → KIS 체결) | Claude CLI |
+| **15:35** | 스토리텔링 (종가 반영 → 코멘터리 → 투자자 일기) | Claude CLI |
 
-- **09:05**: 뉴스 수집 → 배분 결정 → 시뮬레이션(시가 체결) → 텔레그램 알림 (`scripts/cron/daily_pipeline_cron.sh`)
-- **스토리텔링**: 장마감 후 별도 실행 (수동 또는 추후 16:00 cron 추가)
-- 로그: `logs/pipeline_YYYY-MM-DD.log`
+- 로그: `logs/{pipeline,o_monitor,meta,storytelling}_YYYY-MM-DD.log`
 
 ## 웹 대시보드
 
 Next.js + TypeScript + Tailwind CSS + Recharts로 구성된 시각화 대시보드.
 
 - **메인** (`/`): 투자자 순위, 오늘의 매매(매수/매도 테이블), 마켓 코멘터리, 시장 현황(실시간/종가), 뉴스
+- **실전 투자** (`/live`): 실전 포트폴리오 현황(총자산/일일수익률/KOSPI누적/알파), 자산 추이 차트, 보유종목, 매매 히스토리
 - **투자자 목록** (`/investors`): 전체 15명 카드 그리드, 순위/수익률/투자성향 뱃지
 - **투자자 상세** (`/investors/[id]`): 투자자 일기, 포트폴리오 차트, 자산 구성 변화(stacked area), 성과 기여도(종목별·섹터별), 목표 배분, 보유종목, 거래내역, 투자성향 뱃지, G는 감성 점수 추이
 - **리포트** (`/reports`): 달력 히트맵, 월간 수익률, 투자자별 매매내역

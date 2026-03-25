@@ -110,8 +110,8 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 
 ### 오후 1:30 — 메타 매니저 (실전 투자)
 - plist: `~/Library/LaunchAgents/com.investment.meta.plist`
-- `scripts/cron/meta_cron.sh` → `scripts/core/meta_manager.py`
-  - 15명 데이터 종합 → 실전 배분 → 텔레그램 승인 → KIS 체결
+- `scripts/cron/meta_cron.sh` → Claude CLI로 메타 매니저 실행
+  - `meta_manager.py` 분석 → Claude AI 배분 결정 → `execute_allocation()` → 텔레그램 승인 → KIS 체결
 - 로그: `logs/meta_YYYY-MM-DD.log`
 
 ### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
@@ -299,12 +299,50 @@ scripts/
 - 장 운영시간(09:00~15:20) 외 주문 차단
 - 텔레그램 승인 필수 (5분 타임아웃 시 취소)
 
+### 메타 매니저 자동 실행 ("메타 매니저 실행해줘")
+
+> `meta_cron.sh`에서 Claude CLI로 호출됨. 아래 절차를 순서대로 수행한다.
+
+#### Step 1: 분석 리포트 생성
+- `python3 scripts/core/meta_manager.py` 실행
+- 출력된 분석 리포트(스코어카드, 레짐, 모멘텀, 리스크, 포지션 겹침, 현재 포트폴리오)를 읽는다
+- status가 `awaiting_decision`이 아니면(killed, daily_loss_halt 등) 해당 상태를 텔레그램으로 알리고 종료
+
+#### Step 2: 배분 결정 (Claude AI 판단)
+분석 리포트를 바탕으로 최적 종목 배분을 결정한다. 판단 기준:
+- **스코어카드 추천(⭐) 전략의 현재 포지션**을 우선 참고
+- **현재 마켓 레짐**에 맞는 공격/방어 비중 조절 (bull→공격적, bear→방어적)
+- **리스크 플래그**가 많은 전략은 회피
+- **최근 5일 모멘텀** 상위 전략의 종목을 우선 고려
+- **포지션 겹침률**이 높은 종목은 분산 효과가 낮으므로 주의
+- stock_universe 종목만 사용, 배분 합계 ≤ 0.95, 최소 현금 5% 유지
+- 결과: `target_allocation` ({"005930.KS": 0.15, ...}), `rationale` (근거 텍스트), `selected_strategies` (참고한 전략)
+
+#### Step 3: execute_allocation() 호출
+배분 결정 후 아래 Python 코드를 Bash로 실행:
+```bash
+cd scripts/core && python3 -c "
+from meta_manager import MetaManager
+mm = MetaManager(date_str='YYYY-MM-DD')
+result = mm.execute_allocation(
+    target_allocation={...},      # Step 2에서 결정한 배분
+    rationale='...',              # Step 2에서 작성한 근거
+    selected_strategies={...},    # 참고한 전략 {'H': 0.4, 'O': 0.3, ...}
+    regime='bull',                # Step 1 리포트의 레짐
+)
+print(result)
+"
+```
+- `execute_allocation()`이 내부적으로: 배분 검증 → 주문 생성 → 텔레그램 승인 요청 → 승인 시 KIS API 체결 → meta_decisions + real_portfolio 저장
+- 결과를 확인하고 최종 상태를 텔레그램으로 알린다
+
 ## Web Dashboard
 
 **배포 URL**: https://investment-phi-six.vercel.app/
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위(전일 대비 변동 표시), 오늘의 매매(매수/매도 테이블, 정렬), 주간 MVP/연승, 시장 현황(종목 검색+정렬), 뉴스
+- 실전 투자(`/live`): 실전 포트폴리오 현황(총자산/일일수익률/KOSPI누적/알파), 자산 추이 차트, 보유종목, 메타 매니저 매매 히스토리(레짐/전략/주문 상세)
 - 투자자 목록(`/investors`): 전체 15명 카드 그리드, 순위/수익률 표시
 - 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 자산 구성 변화(stacked area), 성과 기여도(종목별 바차트+섹터별 Treemap), 보유종목, 거래내역, 투자 방법론(대표인물/참고링크), G는 감성 점수 추이
 - 리포트(`/reports`): 좌우 분할 마스터-디테일 레이아웃 (데스크탑: 왼쪽 달력+날짜목록 sticky | 오른쪽 코멘터리+투자자 현황+일기+매매내역+뉴스, 모바일: 접기/펼치기 캘린더), 전일 대비 순위 변동 표시

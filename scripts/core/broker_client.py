@@ -267,7 +267,7 @@ class KISClient:
             "FID_COND_MRKT_DIV_CODE": "U",
             "FID_INPUT_ISCD": "0001",  # KOSPI 지수
         }
-        resp = requests.get(url, headers=self._headers("FHPST02100000"), params=params, timeout=10)
+        resp = requests.get(url, headers=self._headers("FHPUP02100000"), params=params, timeout=10)
         data = self._check_response(resp, "get_market_summary")
         output = data.get("output", {})
         return {

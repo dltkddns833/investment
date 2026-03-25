@@ -13,6 +13,7 @@ import {
   PieChart,
   BarChart2,
   FlaskConical,
+  Wallet,
 } from "lucide-react";
 
 interface Investor {
@@ -155,6 +156,10 @@ export default function MobileHeader({
             <MobileNavLink href="/analysis" label="분석" icon={<PieChart size={15} />} active={pathname === "/analysis"} />
             <MobileNavLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} active={pathname === "/reports"} />
             <MobileNavLink href="/backtest" label="백테스트" icon={<FlaskConical size={15} />} active={pathname === "/backtest"} />
+
+            <div className="my-2 border-t border-white/5" />
+            <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">실전</p>
+            <MobileNavLink href="/live" label="실전 투자" icon={<Wallet size={15} />} active={pathname === "/live"} />
           </nav>
         </>
       )}

@@ -9,6 +9,7 @@ import {
   PieChart,
   BarChart2,
   FlaskConical,
+  Wallet,
 } from "lucide-react";
 
 export default async function Sidebar() {
@@ -39,6 +40,12 @@ export default async function Sidebar() {
         <SidebarLink href="/analysis" label="분석" icon={<PieChart size={15} />} />
         <SidebarLink href="/reports" label="리포트" icon={<BarChart2 size={15} />} />
         <SidebarLink href="/backtest" label="백테스트" icon={<FlaskConical size={15} />} />
+
+        <div className="my-2 border-t border-white/5" />
+        <p className="px-3 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
+          실전
+        </p>
+        <SidebarLink href="/live" label="실전 투자" icon={<Wallet size={15} />} />
       </nav>
       <div className="gradient-separator mx-4" />
       <div className="p-4 text-xs text-gray-600 text-center">
