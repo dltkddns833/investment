@@ -384,27 +384,42 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
             if inv_id == "L" and pf.holdings:
                 pf.check_target_prices(prices, date_str)
 
-            # O는 매일 포트폴리오 전체 수익률 체크 (전일 대비 +5% 익절, -3% 손절 → 전 종목 매도)
+            # O: 종목별 손절(-3%) + 총자산 익절(+5%)
             if inv_id == "O" and pf.holdings:
-                prev_total = pf.daily_snapshots[-1][1] if pf.daily_snapshots else initial_capital
-                eval_total = pf.cash + sum(
-                    pf.holdings[t]["shares"] * prices[t]["price"]
-                    for t in pf.holdings if t in prices
-                )
-                daily_ret = (eval_total / prev_total - 1) if prev_total > 0 else 0
-                if daily_ret >= 0.05 or daily_ret <= -0.03:
-                    reason = f"{'익절' if daily_ret >= 0.05 else '손절'} (총자산 {daily_ret*100:+.2f}%)"
-                    for ticker in list(pf.holdings.keys()):
-                        if ticker not in prices:
-                            continue
-                        h = pf.holdings[ticker]
-                        price = prices[ticker]["price"]
+                # 1) 종목별 손절 (매수가 대비 -3%)
+                for ticker in list(pf.holdings.keys()):
+                    if ticker not in prices:
+                        continue
+                    h = pf.holdings[ticker]
+                    price = prices[ticker]["price"]
+                    if price / h["avg_price"] - 1 <= -0.03:
                         exec_price, fee = pf.calc_fees(ticker, price, h["shares"], "sell")
                         revenue = h["shares"] * exec_price
                         profit = (exec_price - h["avg_price"]) * h["shares"]
                         pf.cash += revenue - fee
                         pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
                         del pf.holdings[ticker]
+
+                # 2) 총자산 익절 (전일 대비 +5%)
+                if pf.holdings:
+                    prev_total = pf.daily_snapshots[-1][1] if pf.daily_snapshots else initial_capital
+                    eval_total = pf.cash + sum(
+                        pf.holdings[t]["shares"] * prices[t]["price"]
+                        for t in pf.holdings if t in prices
+                    )
+                    daily_ret = (eval_total / prev_total - 1) if prev_total > 0 else 0
+                    if daily_ret >= 0.05:
+                        for ticker in list(pf.holdings.keys()):
+                            if ticker not in prices:
+                                continue
+                            h = pf.holdings[ticker]
+                            price = prices[ticker]["price"]
+                            exec_price, fee = pf.calc_fees(ticker, price, h["shares"], "sell")
+                            revenue = h["shares"] * exec_price
+                            profit = (exec_price - h["avg_price"]) * h["shares"]
+                            pf.cash += revenue - fee
+                            pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
+                            del pf.holdings[ticker]
 
             # 스냅샷
             pf.snapshot(date_str, prices)

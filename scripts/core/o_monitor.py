@@ -27,7 +27,7 @@ logger = get_logger("o_monitor")
 
 INVESTOR_ID = "O"
 TAKE_PROFIT = 0.05   # 총자산 전일 대비 +5% → 전 종목 매도
-STOP_LOSS = -0.03     # 총자산 전일 대비 -3% → 전 종목 매도
+STOP_LOSS = -0.03     # 개별 종목 매수가 대비 -3% → 해당 종목만 매도
 CHECK_INTERVAL = 600  # 10분 (초)
 MARKET_OPEN_HOUR, MARKET_OPEN_MIN = 9, 10
 MARKET_CLOSE_HOUR, MARKET_CLOSE_MIN = 15, 20
@@ -63,7 +63,7 @@ def get_prev_total_asset():
 
 
 def sell_all_holdings(portfolio, current_prices, date_str, reason):
-    """전 종목 매도 실행"""
+    """전 종목 매도 실행 (익절용)"""
     trades = []
     pending_transactions = []
 
@@ -99,12 +99,54 @@ def sell_all_holdings(portfolio, current_prices, date_str, reason):
     return trades
 
 
+def check_stop_loss(portfolio, current_prices, date_str):
+    """개별 종목 매수가 대비 -3% 손절"""
+    trades = []
+    pending_transactions = []
+
+    for ticker in list(portfolio["holdings"].keys()):
+        if ticker not in current_prices:
+            continue
+
+        h = portfolio["holdings"][ticker]
+        price = current_prices[ticker]["price"]
+        profit_pct = price / h["avg_price"] - 1
+
+        if profit_pct <= STOP_LOSS:
+            sell_shares = h["shares"]
+            exec_price, fee = calc_fees(ticker, price, sell_shares, "sell")
+            revenue = sell_shares * exec_price
+            profit = (exec_price - h["avg_price"]) * sell_shares
+            name = h["name"]
+
+            portfolio["cash"] += revenue - fee
+            del portfolio["holdings"][ticker]
+
+            reason = f"손절 ({profit_pct*100:+.1f}%)"
+            trades.append({
+                "type": "sell", "ticker": ticker, "shares": sell_shares,
+                "price": exec_price, "reason": reason,
+            })
+            pending_transactions.append({
+                "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
+                "ticker": ticker, "name": name, "shares": sell_shares,
+                "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+            })
+
+    if pending_transactions:
+        supabase.table("transactions").insert(pending_transactions).execute()
+
+    if trades:
+        save_portfolio(INVESTOR_ID, portfolio)
+    return trades
+
+
 def run_monitor(dry_run=False):
     """메인 모니터링 루프"""
     today_str = date.today().isoformat()
     prev_total_asset = get_prev_total_asset()
     logger.info(f"O 정익절 모니터링 시작 ({today_str}, 전일 자산: {prev_total_asset:,}원, dry_run={dry_run})")
-    notify(f"👁️ *정익절 모니터링 시작* ({today_str})\n전일 자산: {prev_total_asset:,}원 | 익절 +5% = {int(prev_total_asset * 1.05):,}원 | 손절 -3% = {int(prev_total_asset * 0.97):,}원")
+    notify(f"👁️ *정익절 모니터링 시작* ({today_str})\n전일 자산: {prev_total_asset:,}원 | 익절 +5% = {int(prev_total_asset * 1.05):,}원 | 종목별 손절 -3%")
 
     check_count = 0
     total_trades = []
@@ -149,7 +191,28 @@ def run_monitor(dry_run=False):
             f"현금: {portfolio['cash']:,.0f}원 | 종목수: {len(tickers)}"
         )
 
-        # 익절/손절 판단
+        # 1) 종목별 손절 체크 (매수가 대비 -3%)
+        if not dry_run:
+            stop_trades = check_stop_loss(portfolio, prices, today_str)
+            if stop_trades:
+                total_trades.extend(stop_trades)
+                for t in stop_trades:
+                    logger.info(f"  🛑 {t['ticker']} {t['shares']}주 ({t['reason']})")
+                msg = f"🛑 *정익절 손절* ({datetime.now().strftime('%H:%M')})\n" + \
+                    "\n".join(f"• {t['ticker']} {t['shares']}주 ({t['reason']})" for t in stop_trades)
+                notify(msg)
+                # 손절 후 포트폴리오 재로드
+                portfolio = load_portfolio(INVESTOR_ID)
+                holdings = portfolio.get("holdings", {})
+        else:
+            for ticker in tickers:
+                if ticker in prices and ticker in holdings:
+                    h = holdings[ticker]
+                    pct = (prices[ticker]["price"] / h["avg_price"] - 1) * 100
+                    if pct <= STOP_LOSS * 100:
+                        logger.info(f"  [dry-run] 손절 대상: {h['name']} ({pct:+.2f}%)")
+
+        # 2) 총자산 익절 체크 (전일 대비 +5%)
         if daily_return_pct >= TAKE_PROFIT * 100:
             reason = f"익절 (총자산 {daily_return_pct:+.2f}%)"
             logger.info(f"  🎯 익절 트리거! {reason}")
@@ -159,21 +222,6 @@ def run_monitor(dry_run=False):
                 if trades:
                     total_trades.extend(trades)
                     msg = f"💰 *정익절 익절 달성!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
-                    notify(msg)
-            else:
-                logger.info(f"  [dry-run] 전 종목 매도 스킵")
-
-            # 익절 후 모니터링 계속 (재매수 가능)
-
-        elif daily_return_pct <= STOP_LOSS * 100:
-            reason = f"손절 (총자산 {daily_return_pct:+.2f}%)"
-            logger.info(f"  🛑 손절 트리거! {reason}")
-
-            if not dry_run:
-                trades = sell_all_holdings(portfolio, prices, today_str, reason)
-                if trades:
-                    total_trades.extend(trades)
-                    msg = f"🛑 *정익절 손절 발동!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
                     notify(msg)
             else:
                 logger.info(f"  [dry-run] 전 종목 매도 스킵")
