@@ -116,25 +116,54 @@ def run_simulation(date_str=None):
             for t in target_trades:
                 logger.info(f"    [신장모 목표가] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
 
-    # 2.6 O 정익절: 익절/손절 체크 (+5% 전량 익절, -3% 전량 손절)
+    # 2.6 O 정익절: 포트폴리오 전체 수익률 기반 익절/손절
+    # 전일 대비 총자산 +5% → 전 종목 매도, -3% → 전 종목 매도
     # 오늘 날짜: 장중 모니터링(o_monitor.py)이 담당하므로 스킵
     # 과거 날짜: 시뮬레이션에서 일괄 체크
     if "O" in investors:
         from datetime import date as date_cls
         is_past = date_str < date_cls.today().isoformat()
         if is_past:
-            target_trades = check_target_prices(
-                "O", current_prices, date_str,
-                sell_tranches=[{"threshold": 0.05, "sell_ratio": 1.0}],
-                stop_loss=-0.03,
-            )
-            if target_trades:
-                if "O" not in rebalance_results:
-                    rebalance_results["O"] = {"rebalanced": False, "trades": []}
-                rebalance_results["O"]["trades"].extend(target_trades)
-                rebalance_results["O"]["rebalanced"] = True
-                for t in target_trades:
-                    logger.info(f"    [정익절 목표가] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
+            portfolio_o = load_portfolio("O")
+            holdings_o = portfolio_o.get("holdings", {})
+            if holdings_o:
+                # 전일 총자산 (portfolio_snapshots에서 조회)
+                prev_snap = (
+                    supabase.table("portfolio_snapshots")
+                    .select("total_asset")
+                    .eq("investor_id", "O")
+                    .lt("date", date_str)
+                    .order("date", desc=True)
+                    .limit(1)
+                    .execute()
+                    .data
+                )
+                prev_total = prev_snap[0]["total_asset"] if prev_snap else 5_000_000
+
+                # 현재 총자산 계산 (고가/저가 기반 근사)
+                eval_amount = sum(
+                    holdings_o[t]["shares"] * current_prices[t]["price"]
+                    for t in holdings_o if t in current_prices
+                )
+                current_total = portfolio_o["cash"] + eval_amount
+                daily_return_pct = (current_total / prev_total - 1) if prev_total > 0 else 0
+
+                trigger = None
+                if daily_return_pct >= 0.05:
+                    trigger = f"익절 (총자산 {daily_return_pct*100:+.2f}%)"
+                elif daily_return_pct <= -0.03:
+                    trigger = f"손절 (총자산 {daily_return_pct*100:+.2f}%)"
+
+                if trigger:
+                    from o_monitor import sell_all_holdings
+                    target_trades = sell_all_holdings(portfolio_o, current_prices, date_str, trigger)
+                    if target_trades:
+                        if "O" not in rebalance_results:
+                            rebalance_results["O"] = {"rebalanced": False, "trades": []}
+                        rebalance_results["O"]["trades"].extend(target_trades)
+                        rebalance_results["O"]["rebalanced"] = True
+                        for t in target_trades:
+                            logger.info(f"    [정익절] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
 
     # 3. 포트폴리오 평가
     logger.info(f"\n [포트폴리오 평가]")

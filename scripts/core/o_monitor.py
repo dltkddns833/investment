@@ -1,7 +1,7 @@
 """O 정익절 장중 실시간 모니터링
 
-장중(09:10~15:20) 10분 간격으로 보유종목 현재가를 체크하여
-+5% 익절 / -3% 손절을 자동 실행한다.
+장중(09:10~15:20) 10분 간격으로 포트폴리오 총자산을 체크하여
+전일 대비 +5% 달성 시 전 종목 익절, -3% 이하 시 전 종목 손절.
 
 Usage:
     python3 scripts/core/o_monitor.py              # 실행
@@ -10,7 +10,7 @@ Usage:
 import sys
 import time
 import argparse
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications")
 
 from supabase_client import supabase
 from market import get_stock_prices
-from portfolio import check_target_prices, load_portfolio, evaluate
+from portfolio import load_portfolio, save_portfolio, evaluate, calc_fees
 from safety import check_kill_switch
 from daily_pipeline import notify
 from logger import get_logger
@@ -26,8 +26,8 @@ from logger import get_logger
 logger = get_logger("o_monitor")
 
 INVESTOR_ID = "O"
-SELL_TRANCHES = [{"threshold": 0.05, "sell_ratio": 1.0}]  # +5% 전량 매도
-STOP_LOSS = -0.03  # -3% 전량 손절
+TAKE_PROFIT = 0.05   # 총자산 전일 대비 +5% → 전 종목 매도
+STOP_LOSS = -0.03     # 총자산 전일 대비 -3% → 전 종목 매도
 CHECK_INTERVAL = 600  # 10분 (초)
 MARKET_OPEN_HOUR, MARKET_OPEN_MIN = 9, 10
 MARKET_CLOSE_HOUR, MARKET_CLOSE_MIN = 15, 20
@@ -43,28 +43,68 @@ def is_market_hours():
     return market_open <= now <= market_close
 
 
-def get_holding_tickers():
-    """O의 현재 보유종목 티커 목록"""
-    portfolio = load_portfolio(INVESTOR_ID)
-    return list(portfolio.get("holdings", {}).keys())
+def get_prev_total_asset():
+    """전일 O의 총자산 (portfolio_snapshots에서 조회)"""
+    today_str = date.today().isoformat()
+    rows = (
+        supabase.table("portfolio_snapshots")
+        .select("date, total_asset")
+        .eq("investor_id", INVESTOR_ID)
+        .lt("date", today_str)
+        .order("date", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if rows:
+        return rows[0]["total_asset"]
+    # 스냅샷 없으면 초기 자본
+    return 5_000_000
 
 
-def format_trade_message(trades):
-    """매매 결과를 텔레그램 메시지로 포맷"""
-    lines = [f"🎯 *정익절 장중 체결* ({datetime.now().strftime('%H:%M')})"]
-    for t in trades:
-        emoji = "💰" if "익절" in t.get("reason", "") else "🛑"
-        lines.append(
-            f"{emoji} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t['reason']})"
-        )
-    return "\n".join(lines)
+def sell_all_holdings(portfolio, current_prices, date_str, reason):
+    """전 종목 매도 실행"""
+    trades = []
+    pending_transactions = []
+
+    for ticker in list(portfolio["holdings"].keys()):
+        if ticker not in current_prices:
+            continue
+
+        h = portfolio["holdings"][ticker]
+        price = current_prices[ticker]["price"]
+        sell_shares = h["shares"]
+        exec_price, fee = calc_fees(ticker, price, sell_shares, "sell")
+        revenue = sell_shares * exec_price
+        profit = (exec_price - h["avg_price"]) * sell_shares
+        name = h["name"]
+
+        portfolio["cash"] += revenue - fee
+        del portfolio["holdings"][ticker]
+
+        trades.append({
+            "type": "sell", "ticker": ticker, "shares": sell_shares,
+            "price": exec_price, "reason": reason,
+        })
+        pending_transactions.append({
+            "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
+            "ticker": ticker, "name": name, "shares": sell_shares,
+            "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+        })
+
+    if pending_transactions:
+        supabase.table("transactions").insert(pending_transactions).execute()
+
+    save_portfolio(INVESTOR_ID, portfolio)
+    return trades
 
 
 def run_monitor(dry_run=False):
     """메인 모니터링 루프"""
     today_str = date.today().isoformat()
-    logger.info(f"O 정익절 모니터링 시작 ({today_str}, dry_run={dry_run})")
-    notify(f"👁️ *정익절 모니터링 시작* ({today_str})")
+    prev_total_asset = get_prev_total_asset()
+    logger.info(f"O 정익절 모니터링 시작 ({today_str}, 전일 자산: {prev_total_asset:,}원, dry_run={dry_run})")
+    notify(f"👁️ *정익절 모니터링 시작* ({today_str})\n전일 자산: {prev_total_asset:,}원 | 익절 +5% = {int(prev_total_asset * 1.05):,}원 | 손절 -3% = {int(prev_total_asset * 0.97):,}원")
 
     check_count = 0
     total_trades = []
@@ -79,13 +119,15 @@ def run_monitor(dry_run=False):
             break
 
         # 보유종목 확인
-        tickers = get_holding_tickers()
-        if not tickers:
+        portfolio = load_portfolio(INVESTOR_ID)
+        holdings = portfolio.get("holdings", {})
+        if not holdings:
             logger.info(f"[#{check_count}] 보유종목 없음 — 대기")
             time.sleep(CHECK_INTERVAL)
             continue
 
         # 현재가 조회
+        tickers = list(holdings.keys())
         try:
             prices = get_stock_prices(tickers=tickers)
         except Exception as e:
@@ -93,38 +135,48 @@ def run_monitor(dry_run=False):
             time.sleep(CHECK_INTERVAL)
             continue
 
-        # 수익률 로그
-        portfolio = load_portfolio(INVESTOR_ID)
-        for ticker in tickers:
-            if ticker in prices and ticker in portfolio.get("holdings", {}):
-                h = portfolio["holdings"][ticker]
-                pct = (prices[ticker]["price"] / h["avg_price"] - 1) * 100
-                logger.info(
-                    f"[#{check_count}] {h['name']} "
-                    f"{prices[ticker]['price']:,}원 "
-                    f"({'+'if pct>=0 else ''}{pct:.2f}%)"
-                )
+        # 총자산 계산
+        eval_amount = sum(
+            holdings[t]["shares"] * prices[t]["price"]
+            for t in tickers if t in prices
+        )
+        total_asset = portfolio["cash"] + eval_amount
+        daily_return_pct = (total_asset / prev_total_asset - 1) * 100 if prev_total_asset > 0 else 0
 
-        if dry_run:
-            logger.info(f"[#{check_count}] dry-run — 매도 스킵")
-            time.sleep(CHECK_INTERVAL)
-            continue
-
-        # 익절/손절 체크 + 실행
-        trades = check_target_prices(
-            INVESTOR_ID, prices, today_str,
-            sell_tranches=SELL_TRANCHES,
-            stop_loss=STOP_LOSS,
+        logger.info(
+            f"[#{check_count}] 총자산: {total_asset:,.0f}원 "
+            f"(전일 대비 {daily_return_pct:+.2f}%) "
+            f"현금: {portfolio['cash']:,.0f}원 | 종목수: {len(tickers)}"
         )
 
-        if trades:
-            total_trades.extend(trades)
-            for t in trades:
-                logger.info(
-                    f"  ✅ 체결: {t['type'].upper()} {t['ticker']} "
-                    f"{t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})"
-                )
-            notify(format_trade_message(trades))
+        # 익절/손절 판단
+        if daily_return_pct >= TAKE_PROFIT * 100:
+            reason = f"익절 (총자산 {daily_return_pct:+.2f}%)"
+            logger.info(f"  🎯 익절 트리거! {reason}")
+
+            if not dry_run:
+                trades = sell_all_holdings(portfolio, prices, today_str, reason)
+                if trades:
+                    total_trades.extend(trades)
+                    msg = f"💰 *정익절 익절 달성!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
+                    notify(msg)
+            else:
+                logger.info(f"  [dry-run] 전 종목 매도 스킵")
+
+            # 익절 후 모니터링 계속 (재매수 가능)
+
+        elif daily_return_pct <= STOP_LOSS * 100:
+            reason = f"손절 (총자산 {daily_return_pct:+.2f}%)"
+            logger.info(f"  🛑 손절 트리거! {reason}")
+
+            if not dry_run:
+                trades = sell_all_holdings(portfolio, prices, today_str, reason)
+                if trades:
+                    total_trades.extend(trades)
+                    msg = f"🛑 *정익절 손절 발동!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
+                    notify(msg)
+            else:
+                logger.info(f"  [dry-run] 전 종목 매도 스킵")
 
         time.sleep(CHECK_INTERVAL)
 
