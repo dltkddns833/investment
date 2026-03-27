@@ -15,6 +15,7 @@ interface HoldingEntry {
   shares: number;
   avg_price: number;
   sector: string;
+  acquired_date?: string | null;
 }
 
 interface Props {
@@ -288,6 +289,7 @@ function LiveHoldingsTableWithPrice({
     evalAmount: number;
     profitPct: number;
     isLivePrice: boolean;
+    acquired_date?: string | null;
   }>;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("evalAmount");
@@ -340,6 +342,7 @@ function LiveHoldingsTableWithPrice({
             >
               수익률{sortIcon("profitPct")}
             </th>
+            <th className="text-right pb-2 font-medium">보유일</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
@@ -367,6 +370,9 @@ function LiveHoldingsTableWithPrice({
               </td>
               <td className={`py-2.5 text-right font-medium ${signColor(h.profitPct)}`}>
                 {pct(h.profitPct)}
+              </td>
+              <td className="py-2.5 text-right text-gray-400 text-xs">
+                {h.acquired_date ? h.acquired_date.slice(5) : "-"}
               </td>
             </tr>
           ))}

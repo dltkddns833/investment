@@ -1,10 +1,13 @@
 """실전 투자 안전 장치
 
-메타 매니저의 안전 메커니즘: 손실 한도, 킬스위치, 배분 검증, 긴급 청산.
+메타 매니저의 안전 메커니즘: 손실 한도, 킬스위치, 배분 검증, 긴급 청산,
+리밸런싱 주기, 손절/익절, 보유기간, 회전율, 안정화 기간.
 """
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import holidays
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications"))
@@ -215,6 +218,234 @@ def get_prev_real_portfolio():
     except Exception as e:
         logger.error(f"전일 실전 포트폴리오 조회 실패: {e}")
     return None
+
+
+# --- 메타 매니저 설정 관리 ---
+
+# 안정화 기간 대형주 30개 (stock_universe 내 시가총액 상위)
+STABILIZATION_LARGE_CAPS = {
+    "005930.KS",  # 삼성전자
+    "000660.KS",  # SK하이닉스
+    "373220.KS",  # LG에너지솔루션
+    "207940.KS",  # 삼성바이오로직스
+    "005380.KS",  # 현대자동차
+    "000270.KS",  # 기아
+    "068270.KS",  # 셀트리온
+    "035420.KS",  # NAVER
+    "035720.KS",  # 카카오
+    "005490.KS",  # POSCO홀딩스
+    "051910.KS",  # LG화학
+    "006400.KS",  # 삼성SDI
+    "055550.KS",  # 신한지주
+    "105560.KS",  # KB금융
+    "086790.KS",  # 하나금융지주
+    "028260.KS",  # 삼성물산
+    "012330.KS",  # 현대모비스
+    "032830.KS",  # 삼성생명
+    "000810.KS",  # 삼성화재
+    "066570.KS",  # LG전자
+    "017670.KS",  # SK텔레콤
+    "030200.KS",  # KT
+    "259960.KS",  # 크래프톤
+    "329180.KS",  # HD현대중공업
+    "012450.KS",  # 한화에어로스페이스
+    "047810.KS",  # 한국항공우주
+    "267260.KS",  # HD현대일렉트릭
+    "009540.KS",  # HD한국조선해양
+    "352820.KS",  # 하이브
+    "097950.KS",  # CJ제일제당
+}
+
+
+def get_meta_config():
+    """config.risk_limits.meta_manager JSONB 전체 로드"""
+    try:
+        row = supabase.table("config").select("risk_limits").eq("id", 1).single().execute().data
+        return row.get("risk_limits", {}).get("meta_manager", {})
+    except Exception as e:
+        logger.error(f"메타 설정 로드 실패: {e}")
+        return {}
+
+
+def update_meta_config(updates):
+    """config.risk_limits.meta_manager 부분 업데이트"""
+    try:
+        row = supabase.table("config").select("risk_limits").eq("id", 1).single().execute().data
+        risk_limits = row.get("risk_limits", {})
+        meta = risk_limits.get("meta_manager", {})
+        meta.update(updates)
+        risk_limits["meta_manager"] = meta
+        supabase.table("config").update({"risk_limits": risk_limits}).eq("id", 1).execute()
+        logger.info(f"메타 설정 업데이트: {list(updates.keys())}")
+    except Exception as e:
+        logger.error(f"메타 설정 업데이트 실패: {e}")
+        raise
+
+
+# --- 리밸런싱 주기 (#43) ---
+
+def is_rebalance_day(date_str, meta_config=None):
+    """오늘이 정규 리밸런싱 요일인지 (기본: 수요일)
+
+    Args:
+        date_str: "YYYY-MM-DD"
+        meta_config: get_meta_config() 결과 (없으면 자동 로드)
+
+    Returns:
+        True이면 정규 리밸런싱 실행
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    target_day = meta_config.get("rebalance_day", "wednesday")
+    day_map = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4}
+    target_weekday = day_map.get(target_day, 2)
+
+    d = datetime.strptime(date_str, "%Y-%m-%d")
+    if d.weekday() != target_weekday:
+        return False
+
+    kr_holidays = holidays.KR(years=d.year)
+    if d.date() in kr_holidays:
+        return False
+
+    return True
+
+
+# --- 손절/익절 (#44) ---
+
+def check_stop_loss_take_profit(current_holdings, meta_config=None):
+    """종목별 -7% 손절 / +10% 익절 대상 분류
+
+    Args:
+        current_holdings: KIS get_holdings() 결과
+        meta_config: get_meta_config() 결과
+
+    Returns:
+        {"stop_loss": [holdings...], "take_profit": [holdings...]}
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    sl_pct = meta_config.get("stop_loss_pct", -7)
+    tp_pct = meta_config.get("take_profit_pct", 10)
+
+    stop_loss = []
+    take_profit = []
+    for h in current_holdings:
+        pnl = h.get("profit_pct", 0)
+        if pnl <= sl_pct:
+            stop_loss.append(h)
+        elif pnl >= tp_pct:
+            take_profit.append(h)
+
+    return {"stop_loss": stop_loss, "take_profit": take_profit}
+
+
+# --- 최소 보유 기간 (#45) ---
+
+def _count_business_days(start_date, end_date):
+    """두 날짜 사이의 영업일 수 계산 (공휴일 제외)"""
+    if start_date >= end_date:
+        return 0
+    kr_holidays = holidays.KR(years=[start_date.year, end_date.year])
+    count = 0
+    current = start_date + timedelta(days=1)
+    while current <= end_date:
+        if current.weekday() < 5 and current not in kr_holidays:
+            count += 1
+        current += timedelta(days=1)
+    return count
+
+
+def check_holding_period(ticker, prev_holdings, date_str, meta_config=None):
+    """최소 보유 기간 충족 여부 (3영업일)
+
+    Args:
+        ticker: 종목 티커
+        prev_holdings: real_portfolio.holdings (acquired_date 포함)
+        date_str: 오늘 날짜
+        meta_config: get_meta_config() 결과
+
+    Returns:
+        True이면 매도 가능, False이면 보유 필수
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    min_days = meta_config.get("min_holding_days", 3)
+
+    holding = prev_holdings.get(ticker, {})
+    acquired = holding.get("acquired_date")
+    if not acquired:
+        return True  # acquired_date 없으면 매도 허용 (하위 호환)
+
+    acq_date = datetime.strptime(acquired, "%Y-%m-%d").date()
+    curr_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    bdays = _count_business_days(acq_date, curr_date)
+
+    return bdays >= min_days
+
+
+# --- 회전율 제한 (#46) ---
+
+def enforce_turnover_limit(orders, total_asset, meta_config=None):
+    """회전율 한도 초과 시 주문 비례 축소
+
+    Args:
+        orders: compute_orders() 결과
+        total_asset: 총자산
+        meta_config: get_meta_config() 결과
+
+    Returns:
+        (adjusted_orders, was_truncated)
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    max_turnover = meta_config.get("max_turnover_pct", 40)
+    if total_asset <= 0:
+        return orders, False
+
+    sell_total = sum(o["qty"] * o["price"] for o in orders if o["side"] == "sell")
+    buy_total = sum(o["qty"] * o["price"] for o in orders if o["side"] == "buy")
+    turnover = (sell_total + buy_total) / total_asset * 100
+
+    if turnover <= max_turnover:
+        return orders, False
+
+    # 비례 축소
+    scale = max_turnover / turnover
+    adjusted = []
+    for o in orders:
+        new_qty = max(1, int(o["qty"] * scale))
+        adjusted.append({**o, "qty": new_qty})
+
+    logger.warning(f"회전율 {turnover:.1f}% → {max_turnover}% 제한 (scale: {scale:.2f})")
+    return adjusted, True
+
+
+# --- 안정화 기간 (#47) ---
+
+def is_stabilization_period(date_str, meta_config=None):
+    """안정화 기간인지 확인
+
+    Returns:
+        True이면 대형주만 매매 가능
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    end_date = meta_config.get("stabilization_end_date")
+    if not end_date:
+        return False
+
+    return date_str <= end_date
+
+
+def get_stabilization_tickers():
+    """안정화 기간 허용 종목 목록 (대형주 30개)"""
+    return STABILIZATION_LARGE_CAPS
 
 
 if __name__ == "__main__":

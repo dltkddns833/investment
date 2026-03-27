@@ -23,9 +23,12 @@ fi
 
 echo "=== 메타 매니저 시작: $(date) ===" >> "$LOG_FILE"
 
-# Claude CLI로 메타 매니저 실행 (분석 → 배분 결정 → 텔레그램 승인 → KIS 체결)
+# Claude CLI로 메타 매니저 실행 (주 1회 정규 리밸런싱 + 매일 긴급 손절/익절 체크)
 cd "$PROJECT_DIR"
-/Users/isang-un/.local/bin/claude -p "오늘($DATE) 메타 매니저 실행해줘. python3 scripts/core/meta_manager.py 로 분석 리포트를 생성한 뒤, 분석 결과를 바탕으로 최적 배분을 결정하고 execute_allocation()까지 완료해줘." \
+/Users/isang-un/.local/bin/claude -p "오늘($DATE) 메타 매니저 실행해줘. python3 scripts/core/meta_manager.py 로 실행한 뒤, status에 따라 처리해줘:
+- awaiting_decision → 배분 결정 후 execute_allocation() 실행
+- emergency_triggered → execute_emergency_orders() 실행
+- skip/killed/daily_loss_halt → 텔레그램으로 상태 알리고 종료" \
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
     --dangerously-skip-permissions >> "$LOG_FILE" 2>&1
 

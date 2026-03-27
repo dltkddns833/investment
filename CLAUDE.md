@@ -268,30 +268,28 @@ scripts/
 
 **운영 방식**: 반자동 — 분석→결정→텔레그램 승인→KIS API 체결
 - 실행 시점: 매일 13:30 (오전장 흐름 확인 후, 장마감까지 2시간 여유)
+- 리밸런싱: **주 1회 수요일** 정규 리밸런싱 + **매일** 긴급 손절/익절 체크
 - 증권사: 한국투자증권 (KIS Developers REST API)
 - 초기 자금: 200만원
 
 **파이프라인 흐름:**
 ```
-[13:30] MetaManager.run()
-  1. 안전 체크 (킬스위치, 일일/누적 손실 한도)
-  2. 데이터 수집 (Supabase + KIS API)
-     - market_regimes, daily_reports, portfolio_snapshots
-     - KIS 시장 요약 (KOSPI, 외인/기관 수급)
-  3. 정량 분석
-     - 스코어카드 (6카테고리 종합 점수)
-     - 레짐별 최적 전략 조합
-     - 최근 5일 모멘텀 순위
-     - 포지션 겹침률 (Jaccard)
-  4. Claude에게 분석 결과 전달 → 배분 결정
+[13:30] MetaManager.run() — 매일 실행, 3단계 분기
 
-[결정 후] MetaManager.execute_allocation()
-  1. 배분 검증 (단일종목 30%, 최소현금 5%)
-  2. 주문 생성 (매도 먼저 → 매수)
-  3. 텔레그램 승인 요청 (InlineKeyboard)
-  4. 사용자 승인 → KIS API 시장가 주문
-  5. meta_decisions + real_portfolio 저장
+0. 안전 체크 (킬스위치, 일일/누적 손실 한도)
+1. 매일: 긴급 체크 (손절 -7% / 익절 +10%)
+   ├─ 트리거 있으면 → execute_emergency_orders()
+   └─ 트리거 없으면 → 계속
+2. 수요일이면 → 전체 분석 → Claude 배분 결정 → execute_allocation()
+   수요일 아니면 → 스킵 (save_decision(decision_type="skip"))
 ```
+
+**보호 장치 (config.risk_limits.meta_manager):**
+- 리밸런싱 주기: 주 1회 수요일 (`rebalance_day: "wednesday"`)
+- 손절/익절: -7% 손절 (보유기간 무시), +10% 익절 (보유기간 충족 시)
+- 최소 보유기간: 3영업일 (`min_holding_days: 3`) — 중간 구간(-7%~+10%)은 홀딩 강제
+- 회전율 한도: 총자산 40% (`max_turnover_pct: 40`) — 초과 시 비례 축소
+- 안정화 기간: ~2026-04-10 대형주 위주 (`stabilization_end_date`)
 
 **안전 장치:**
 - 일일 손실 -3% → 자동 거래 중단
@@ -304,22 +302,27 @@ scripts/
 
 > `meta_cron.sh`에서 Claude CLI로 호출됨. 아래 절차를 순서대로 수행한다.
 
-#### Step 1: 분석 리포트 생성
+#### Step 1: 실행 + 상태 확인
 - `python3 scripts/core/meta_manager.py` 실행
-- 출력된 분석 리포트(스코어카드, 레짐, 모멘텀, 리스크, 포지션 겹침, 현재 포트폴리오)를 읽는다
-- status가 `awaiting_decision`이 아니면(killed, daily_loss_halt 등) 해당 상태를 텔레그램으로 알리고 종료
+- status에 따라 분기:
+  - `awaiting_decision` → Step 2로 (정규 리밸런싱, 수요일)
+  - `emergency_triggered` → Step 3b로 (긴급 손절/익절)
+  - `skip` → 비리밸런싱일 + 긴급 매매 없음 → 종료
+  - `killed` / `daily_loss_halt` / `emergency_liquidated` → 해당 상태를 텔레그램으로 알리고 종료
 
-#### Step 2: 배분 결정 (Claude AI 판단)
+#### Step 2: 배분 결정 (Claude AI 판단, 수요일만)
 분석 리포트를 바탕으로 최적 종목 배분을 결정한다. 판단 기준:
 - **스코어카드 추천(⭐) 전략의 현재 포지션**을 우선 참고
 - **현재 마켓 레짐**에 맞는 공격/방어 비중 조절 (bull→공격적, bear→방어적)
 - **리스크 플래그**가 많은 전략은 회피
 - **최근 5일 모멘텀** 상위 전략의 종목을 우선 고려
 - **포지션 겹침률**이 높은 종목은 분산 효과가 낮으므로 주의
+- **보유기간 제약** 확인: 리포트에 표시된 "보유필수" 종목은 매도 불가
+- **안정화 기간**이면 대형주(시총 상위 30)만 배분 가능
 - stock_universe 종목만 사용, 배분 합계 ≤ 0.95, 최소 현금 5% 유지
 - 결과: `target_allocation` ({"005930.KS": 0.15, ...}), `rationale` (근거 텍스트), `selected_strategies` (참고한 전략)
 
-#### Step 3: execute_allocation() 호출
+#### Step 3a: execute_allocation() 호출 (정규 리밸런싱)
 배분 결정 후 아래 Python 코드를 Bash로 실행:
 ```bash
 cd scripts/core && python3 -c "
@@ -334,7 +337,24 @@ result = mm.execute_allocation(
 print(result)
 "
 ```
-- `execute_allocation()`이 내부적으로: 배분 검증 → 주문 생성 → 텔레그램 승인 요청 → 승인 시 KIS API 체결 → meta_decisions + real_portfolio 저장
+- `execute_allocation()` 내부: 배분 검증 → 보유기간/안정화/회전율 필터 → 주문 생성 → 텔레그램 승인 → KIS API 체결 → meta_decisions + real_portfolio 저장
+
+#### Step 3b: execute_emergency_orders() 호출 (긴급 손절/익절)
+Step 1에서 `emergency_triggered` 반환 시:
+```bash
+cd scripts/core && python3 -c "
+from meta_manager import MetaManager
+mm = MetaManager(date_str='YYYY-MM-DD')
+result = mm.execute_emergency_orders(
+    orders=[...],               # Step 1에서 반환된 emergency_orders
+    decision_type='emergency_stop_loss',  # 또는 'emergency_take_profit'
+    regime='neutral',
+)
+print(result)
+"
+```
+- 긴급 매도만 실행 (신규 매수 없음)
+- 텔레그램 승인 필수 → KIS API 매도 → 저장
 - 결과를 확인하고 최종 상태를 텔레그램으로 알린다
 
 ## Web Dashboard

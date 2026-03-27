@@ -11,6 +11,12 @@ const REGIME_LABEL: Record<string, { text: string; color: string }> = {
   bear: { text: "Bear", color: "bg-blue-500/20 text-blue-400" },
 };
 
+const DECISION_TYPE_LABEL: Record<string, { text: string; color: string }> = {
+  emergency_stop_loss: { text: "손절", color: "bg-red-500/20 text-red-400" },
+  emergency_take_profit: { text: "익절", color: "bg-emerald-500/20 text-emerald-400" },
+  skip: { text: "스킵", color: "bg-gray-500/20 text-gray-400" },
+};
+
 export default function LiveDecisionHistory({
   decisions,
 }: {
@@ -52,6 +58,13 @@ export default function LiveDecisionHistory({
               >
                 {regime.text}
               </span>
+              {d.decision_type && DECISION_TYPE_LABEL[d.decision_type] && (
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full ${DECISION_TYPE_LABEL[d.decision_type].color}`}
+                >
+                  {DECISION_TYPE_LABEL[d.decision_type].text}
+                </span>
+              )}
               <span className="text-gray-500 text-xs flex-1 text-left truncate">
                 {strategies}
               </span>

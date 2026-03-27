@@ -23,6 +23,10 @@ from safety import (
     check_daily_loss, check_cumulative_loss, check_kill_switch,
     validate_meta_allocation, is_trading_hours, emergency_liquidate,
     get_prev_real_portfolio,
+    get_meta_config, update_meta_config,
+    is_rebalance_day, check_stop_loss_take_profit,
+    check_holding_period, enforce_turnover_limit,
+    is_stabilization_period, get_stabilization_tickers,
 )
 from send_telegram import send_telegram, send_approval_request, wait_for_approval
 from logger import get_logger
@@ -339,6 +343,39 @@ class MetaManager:
             lines.append("- 보유종목 없음")
         lines.append("")
 
+        # 보유기간 제약
+        prev = get_prev_real_portfolio()
+        prev_holdings = prev.get("holdings", {}) if prev else {}
+        meta_config = get_meta_config()
+        if holdings:
+            lines.append("## 보유기간 제약")
+            from safety import _count_business_days
+            for h in holdings:
+                acq = prev_holdings.get(h["ticker"], {}).get("acquired_date")
+                if acq:
+                    bdays = _count_business_days(
+                        datetime.strptime(acq, "%Y-%m-%d").date(),
+                        datetime.strptime(self.date_str, "%Y-%m-%d").date(),
+                    )
+                    status = "매도가능" if bdays >= meta_config.get("min_holding_days", 3) else "보유필수"
+                    lines.append(f"- {h['name']}: 매수일 {acq}, {bdays}영업일 ({status})")
+                else:
+                    lines.append(f"- {h['name']}: 매수일 미상 (매도가능)")
+            lines.append("")
+
+        # 안정화 기간 경고
+        if is_stabilization_period(self.date_str, meta_config):
+            lines.append("## \u26a0\ufe0f 안정화 기간")
+            lines.append(f"- ~{meta_config.get('stabilization_end_date')}까지 대형주(시총 상위 30)만 매매 가능")
+            lines.append("")
+
+        # 회전율 제한 안내
+        lines.append("## 매매 제약")
+        lines.append(f"- 회전율 한도: 총자산의 {meta_config.get('max_turnover_pct', 40)}% 이내")
+        lines.append(f"- 최소 보유기간: {meta_config.get('min_holding_days', 3)}영업일")
+        lines.append(f"- 손절: {meta_config.get('stop_loss_pct', -7)}% / 익절: +{meta_config.get('take_profit_pct', 10)}%")
+        lines.append("")
+
         lines.append("## 요청")
         lines.append("위 분석을 바탕으로 최적 전략 조합과 종목별 비중(allocation)을 결정해주세요.")
         lines.append("형식: {\"ticker\": weight, ...} (weight 합계 ≤ 0.95, ticker는 yfinance 형식)")
@@ -348,17 +385,41 @@ class MetaManager:
 
     # ─── Step 4: 주문 생성 + 실행 ─────────────────
 
-    def compute_orders(self, target_allocation, current_holdings, total_asset):
+    def compute_orders(self, target_allocation, current_holdings, total_asset,
+                       meta_config=None, prev_holdings=None):
         """현재 vs 목표 비교하여 매매 주문 생성 (매도 먼저)
+
+        보호 장치 적용:
+        - 안정화 기간이면 대형주 외 종목 제거 (#47)
+        - 보유기간 3영업일 미충족 종목은 매도 스킵 (#45)
+        - 회전율 40% 초과 시 주문 비례 축소 (#46)
 
         Args:
             target_allocation: {"005930.KS": 0.15, ...}
             current_holdings: KIS get_holdings() 결과
             total_asset: 총자산 (현금 + 평가액)
+            meta_config: get_meta_config() 결과 (없으면 자동 로드)
+            prev_holdings: real_portfolio.holdings (acquired_date 포함)
 
         Returns:
             [{"ticker": str, "code": str, "side": str, "qty": int, "price": int}, ...]
         """
+        if meta_config is None:
+            meta_config = get_meta_config()
+        if prev_holdings is None:
+            prev = get_prev_real_portfolio()
+            prev_holdings = prev.get("holdings", {}) if prev else {}
+
+        # 안정화 기간 필터: 대형주 외 종목 제거 (#47)
+        if is_stabilization_period(self.date_str, meta_config):
+            allowed = get_stabilization_tickers()
+            filtered = {t: w for t, w in target_allocation.items() if t in allowed}
+            if filtered != target_allocation:
+                removed = set(target_allocation.keys()) - set(filtered.keys())
+                if removed:
+                    logger.info(f"안정화 기간 — 대형주 외 종목 제거: {removed}")
+            target_allocation = filtered
+
         # 현재 보유 매핑
         current_map = {}
         for h in current_holdings:
@@ -377,29 +438,33 @@ class MetaManager:
             target_value = int(total_asset * target_weight)
             current_value = holding["shares"] * holding["current_price"]
 
+            need_sell = False
+            sell_qty = 0
+
             if target_weight == 0:
-                # 전량 매도
+                need_sell = True
+                sell_qty = holding["shares"]
+            elif target_value < current_value * 0.9:
+                need_sell = True
+                sell_value = current_value - target_value
+                sell_qty = max(1, sell_value // holding["current_price"])
+                if sell_qty > holding["shares"]:
+                    sell_qty = holding["shares"]
+
+            if need_sell and sell_qty > 0:
+                # 보유기간 체크 (#45): 3영업일 미충족이면 매도 스킵
+                if not check_holding_period(ticker, prev_holdings, self.date_str, meta_config):
+                    logger.info(f"최소 보유기간 미충족 — 매도 스킵: {ticker}")
+                    continue
+
                 orders.append({
                     "ticker": ticker,
                     "code": holding["code"],
                     "name": holding["name"],
                     "side": "sell",
-                    "qty": holding["shares"],
+                    "qty": sell_qty,
                     "price": holding["current_price"],
                 })
-            elif target_value < current_value * 0.9:
-                # 10% 이상 축소 시 매도
-                sell_value = current_value - target_value
-                sell_qty = max(1, sell_value // holding["current_price"])
-                if sell_qty > 0 and sell_qty <= holding["shares"]:
-                    orders.append({
-                        "ticker": ticker,
-                        "code": holding["code"],
-                        "name": holding["name"],
-                        "side": "sell",
-                        "qty": sell_qty,
-                        "price": holding["current_price"],
-                    })
 
         # 매수 주문 (목표에 있지만 미보유 또는 확대할 종목)
         for ticker, weight in target_allocation.items():
@@ -435,6 +500,13 @@ class MetaManager:
 
         # 매도 먼저, 매수 나중
         orders.sort(key=lambda o: 0 if o["side"] == "sell" else 1)
+
+        # 회전율 제한 (#46): 40% 초과 시 비례 축소
+        if orders:
+            orders, truncated = enforce_turnover_limit(orders, total_asset, meta_config)
+            if truncated:
+                notify(f"\u26a0\ufe0f 회전율 한도(40%) 초과 — 주문 비례 축소")
+
         return orders
 
     def execute_orders(self, orders):
@@ -470,6 +542,7 @@ class MetaManager:
         row = {
             "date": self.date_str,
             "regime": decision.get("regime", ""),
+            "decision_type": decision.get("decision_type", "regular"),
             "morning_session": decision.get("morning_session"),
             "selected_strategies": decision.get("selected_strategies"),
             "rationale": decision.get("rationale", ""),
@@ -485,8 +558,12 @@ class MetaManager:
         except Exception as e:
             logger.error(f"meta_decisions 저장 실패: {e}")
 
-    def save_real_portfolio(self):
-        """KIS 잔고 기반 real_portfolio 테이블 저장"""
+    def save_real_portfolio(self, executed_orders=None):
+        """KIS 잔고 기반 real_portfolio 테이블 저장
+
+        Args:
+            executed_orders: execute_orders() 결과 (매수 종목의 acquired_date 설정용)
+        """
         try:
             holdings_raw = self.kis.get_holdings()
             balance = self.kis.get_balance()
@@ -502,6 +579,20 @@ class MetaManager:
                     "name": h["name"],
                 }
                 total_eval += h["eval_amount"]
+
+            # acquired_date 병합: 이전 포트폴리오에서 계승 + 신규 매수 종목은 오늘 날짜
+            prev = get_prev_real_portfolio()
+            prev_holdings = prev.get("holdings", {}) if prev else {}
+            for ticker, h in holdings.items():
+                if ticker in prev_holdings and prev_holdings[ticker].get("acquired_date"):
+                    h["acquired_date"] = prev_holdings[ticker]["acquired_date"]
+                if executed_orders:
+                    for order in executed_orders:
+                        if (order.get("ticker") == ticker
+                                and order.get("side") == "buy"
+                                and order.get("status") == "submitted"):
+                            h["acquired_date"] = self.date_str
+                            break
 
             if total_asset <= 0:
                 total_asset = cash + total_eval
@@ -575,12 +666,21 @@ class MetaManager:
     # ─── 메인 파이프라인 ──────────────────────────
 
     def run(self, dry_run=False):
-        """메타 매니저 전체 파이프라인 (Step 1~2)
+        """메타 매니저 전체 파이프라인
+
+        3단계 분기:
+        0. 안전 체크 (킬스위치, 일일/누적 손실) — 매일
+        1. 긴급 체크 (손절 -7% / 익절 +10%) — 매일
+        2. 리밸런싱 요일이면 전체 분석, 아니면 스킵
 
         Returns:
-            {"status": str, "analysis": dict, "analysis_text": str}
-            Claude가 analysis_text를 보고 배분을 결정한 뒤 execute_allocation()을 호출한다.
+            {"status": str, ...}
+            - "killed" / "daily_loss_halt" / "emergency_liquidated": 안전 장치 발동
+            - "emergency_triggered": 손절/익절 대상 있음 → execute_emergency_orders() 호출 필요
+            - "awaiting_decision": 정규 리밸런싱 → execute_allocation() 호출 필요
+            - "skip": 비리밸런싱일 + 긴급 매매 없음
         """
+        meta_config = get_meta_config()
         notify(f"\U0001f916 *메타 매니저 시작* ({self.date_str})")
 
         # 0. 안전 체크
@@ -590,7 +690,6 @@ class MetaManager:
 
         prev = get_prev_real_portfolio()
         if prev:
-            # 현재 총자산 조회 (KIS inquire-balance)
             try:
                 balance = self.kis.get_balance()
                 current_total = balance.get("total_asset", 0)
@@ -609,34 +708,176 @@ class MetaManager:
                 emergency_liquidate(self.kis, holdings)
                 return {"status": "emergency_liquidated"}
 
-        # 1. 데이터 수집
+        # 1. 매일: 긴급 손절/익절 체크 (#44)
+        try:
+            current_holdings = self.kis.get_holdings()
+        except Exception as e:
+            logger.error(f"KIS 보유종목 조회 실패: {e}")
+            current_holdings = []
+
+        if current_holdings:
+            triggers = check_stop_loss_take_profit(current_holdings, meta_config)
+            prev_holdings = prev.get("holdings", {}) if prev else {}
+
+            emergency_orders = []
+            # 손절: 보유기간 무시 (항상 실행)
+            for h in triggers["stop_loss"]:
+                emergency_orders.append({
+                    "ticker": h["ticker"], "code": h["code"], "name": h["name"],
+                    "side": "sell", "qty": h["shares"], "price": h["current_price"],
+                    "reason": "stop_loss",
+                })
+            # 익절: 보유기간 충족 시에만
+            for h in triggers["take_profit"]:
+                if check_holding_period(h["ticker"], prev_holdings, self.date_str, meta_config):
+                    emergency_orders.append({
+                        "ticker": h["ticker"], "code": h["code"], "name": h["name"],
+                        "side": "sell", "qty": h["shares"], "price": h["current_price"],
+                        "reason": "take_profit",
+                    })
+
+            if emergency_orders:
+                reasons = set(o["reason"] for o in emergency_orders)
+                decision_type = "emergency_stop_loss" if "stop_loss" in reasons else "emergency_take_profit"
+                notify(f"\U0001f6a8 긴급 매매 감지: {', '.join(o['name'] for o in emergency_orders)}")
+                return {
+                    "status": "emergency_triggered",
+                    "decision_type": decision_type,
+                    "emergency_orders": emergency_orders,
+                    "rebalance_today": is_rebalance_day(self.date_str, meta_config),
+                }
+
+        # 2. 리밸런싱 요일 체크 (#43)
+        if not is_rebalance_day(self.date_str, meta_config):
+            notify(f"\u2139\ufe0f 리밸런싱 요일 아님 + 긴급 매매 없음 — 스킵")
+            self.save_decision({
+                "regime": "",
+                "decision_type": "skip",
+                "rationale": "비리밸런싱일 — 스킵",
+                "target_allocation": None,
+                "orders": [],
+                "approved": True,
+                "executed": False,
+            })
+            return {"status": "skip"}
+
+        # 3. 정규 리밸런싱: 전체 분석 파이프라인
         notify("\U0001f4ca Step 1: 데이터 수집")
         data = self.collect_data()
 
-        # 2. 분석
         notify("\U0001f9e0 Step 2: 정량 분석")
         analysis = self.analyze(data)
 
-        # 3. Claude용 포맷
         analysis_text = self.format_analysis_for_claude(analysis)
 
         notify("\u2705 분석 완료 — Claude의 배분 결정을 기다립니다")
 
-        # regime과 morning_session을 반환하여 execute_allocation()에 전달 가능하게
         regime_str = analysis.get("regime", {}).get("regime", "") if isinstance(analysis.get("regime"), dict) else ""
         morning = analysis.get("morning_session")
 
         return {
             "status": "awaiting_decision",
+            "decision_type": "regular",
             "analysis": analysis,
             "analysis_text": analysis_text,
             "regime": regime_str,
             "morning_session": morning,
         }
 
+    def execute_emergency_orders(self, orders, decision_type="emergency_stop_loss",
+                                regime="", dry_run=False):
+        """긴급 매도 실행 (손절/익절)
+
+        Args:
+            orders: run()에서 반환된 emergency_orders
+            decision_type: "emergency_stop_loss" | "emergency_take_profit"
+            regime: 현재 마켓 레짐
+            dry_run: True이면 주문 스킵
+
+        Returns:
+            {"status": str, "orders": list}
+        """
+        if not orders:
+            return {"status": "no_orders", "orders": []}
+
+        # 주문 요약
+        order_lines = []
+        for o in orders:
+            reason_kr = "손절" if o.get("reason") == "stop_loss" else "익절"
+            order_lines.append(
+                f"\U0001f534 {reason_kr} 매도 {o.get('name', o['code'])} x{o['qty']} "
+                f"(~{o['qty'] * o['price']:,}원)"
+            )
+
+        msg = (
+            f"\U0001f6a8 *긴급 매매 확인* ({self.date_str})\n\n"
+            f"{chr(10).join(order_lines)}"
+        )
+
+        if dry_run:
+            notify(f"\U0001f527 [드라이런] 긴급 매매 {len(orders)}건 (실행 스킵)\n\n" +
+                   "\n".join(order_lines))
+            self.save_decision({
+                "regime": regime,
+                "decision_type": decision_type,
+                "rationale": f"긴급 {decision_type}",
+                "orders": orders,
+                "approved": False,
+                "executed": False,
+            })
+            return {"status": "dry_run", "orders": orders}
+
+        if not is_trading_hours():
+            notify("\u23f0 장 운영시간 외 — 긴급 매매 불가")
+            self.save_decision({
+                "regime": regime,
+                "decision_type": decision_type,
+                "rationale": f"긴급 {decision_type} — 장외시간",
+                "orders": orders,
+                "approved": False,
+                "executed": False,
+            })
+            return {"status": "market_closed", "orders": orders}
+
+        # 텔레그램 승인 요청
+        send_approval_request(msg, self.date_str)
+        approved = wait_for_approval(self.date_str, timeout_sec=300)
+
+        if not approved:
+            notify("\u274c 긴급 매매 거부/타임아웃")
+            self.save_decision({
+                "regime": regime,
+                "decision_type": decision_type,
+                "rationale": f"긴급 {decision_type} — 거부",
+                "orders": orders,
+                "approved": False,
+                "executed": False,
+            })
+            return {"status": "rejected", "orders": orders}
+
+        # 주문 실행
+        notify("\u26a1 긴급 매매 실행 중...")
+        results = self.execute_orders(orders)
+
+        # 저장
+        self.save_decision({
+            "regime": regime,
+            "decision_type": decision_type,
+            "rationale": f"긴급 {decision_type}",
+            "orders": results,
+            "approved": True,
+            "executed": True,
+        })
+        self.save_real_portfolio(executed_orders=results)
+
+        success_count = sum(1 for r in results if r.get("status") == "submitted")
+        notify(f"\u2705 *긴급 매매 완료* — {success_count}/{len(results)}건 체결")
+
+        return {"status": "executed", "orders": results}
+
     def execute_allocation(self, target_allocation, rationale, selected_strategies=None,
                            regime="", morning_session=None, dry_run=False):
-        """Claude가 결정한 배분을 실행
+        """Claude가 결정한 배분을 실행 (정규 리밸런싱)
 
         Args:
             target_allocation: {"005930.KS": 0.15, ...}
@@ -649,25 +890,32 @@ class MetaManager:
         Returns:
             {"status": str, "orders": list}
         """
+        meta_config = get_meta_config()
+
         # 1. 배분 검증
         adjusted, violations = validate_meta_allocation(target_allocation)
         if violations:
             notify(f"\u26a0\ufe0f 배분 검증 위반 {len(violations)}건:\n" +
                    "\n".join(f"- {v['detail']}" for v in violations))
 
-        # 2. 주문 생성
+        # 2. 주문 생성 (보유기간/안정화/회전율 필터 포함)
         current_holdings = self.kis.get_holdings()
         balance = self.kis.get_balance()
         total_asset = balance.get("total_asset", 0)
         if total_asset <= 0:
             total_asset = balance.get("cash", 0) + balance.get("total_eval", 0)
 
-        orders = self.compute_orders(adjusted, current_holdings, total_asset)
+        prev = get_prev_real_portfolio()
+        prev_holdings = prev.get("holdings", {}) if prev else {}
+
+        orders = self.compute_orders(adjusted, current_holdings, total_asset,
+                                     meta_config=meta_config, prev_holdings=prev_holdings)
 
         if not orders:
             notify("\u2139\ufe0f 리밸런싱 불필요 — 현재 포지션이 목표와 유사합니다")
             self.save_decision({
                 "regime": regime,
+                "decision_type": "regular",
                 "morning_session": morning_session,
                 "selected_strategies": selected_strategies,
                 "rationale": rationale,
@@ -699,6 +947,7 @@ class MetaManager:
                    "\n".join(order_lines))
             self.save_decision({
                 "regime": regime,
+                "decision_type": "regular",
                 "morning_session": morning_session,
                 "selected_strategies": selected_strategies,
                 "rationale": rationale,
@@ -714,6 +963,7 @@ class MetaManager:
             notify("\u23f0 장 운영시간 외 — 주문 불가 (09:00~15:20)")
             self.save_decision({
                 "regime": regime,
+                "decision_type": "regular",
                 "morning_session": morning_session,
                 "selected_strategies": selected_strategies,
                 "rationale": rationale,
@@ -732,6 +982,7 @@ class MetaManager:
             notify("\u274c 주문 거부/타임아웃")
             self.save_decision({
                 "regime": regime,
+                "decision_type": "regular",
                 "morning_session": morning_session,
                 "selected_strategies": selected_strategies,
                 "rationale": rationale,
@@ -749,6 +1000,7 @@ class MetaManager:
         # 5. 저장
         self.save_decision({
             "regime": regime,
+            "decision_type": "regular",
             "morning_session": morning_session,
             "selected_strategies": selected_strategies,
             "rationale": rationale,
@@ -758,7 +1010,13 @@ class MetaManager:
             "approved": True,
             "executed": True,
         })
-        self.save_real_portfolio()
+        self.save_real_portfolio(executed_orders=results)
+
+        # 정규 리밸런싱 완료 기록
+        try:
+            update_meta_config({"last_regular_rebalance": self.date_str})
+        except Exception:
+            pass
 
         success_count = sum(1 for r in results if r.get("status") == "submitted")
         notify(f"\u2705 *메타 매니저 완료* — {success_count}/{len(results)}건 체결")
@@ -786,6 +1044,17 @@ if __name__ == "__main__":
             print(f"상태: {result['status']}")
     else:
         result = mm.run(dry_run=args.dry_run)
-        print(json.dumps({"status": result["status"]}, ensure_ascii=False, indent=2))
-        if result.get("analysis_text"):
+        status = result["status"]
+        print(json.dumps({
+            "status": status,
+            "decision_type": result.get("decision_type", ""),
+        }, ensure_ascii=False, indent=2))
+
+        if status == "awaiting_decision" and result.get("analysis_text"):
             print("\n" + result["analysis_text"])
+        elif status == "emergency_triggered":
+            print("\n긴급 매매 대상:")
+            for o in result.get("emergency_orders", []):
+                print(f"  - {o['reason']}: {o['name']} x{o['qty']}")
+        elif status == "skip":
+            print("\n비리밸런싱일 — 긴급 매매 없음")

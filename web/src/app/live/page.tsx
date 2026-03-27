@@ -37,6 +37,7 @@ export default async function LivePage() {
     shares: h.shares,
     avg_price: h.avg_price,
     sector: stockMap[ticker]?.sector || "-",
+    acquired_date: h.acquired_date || null,
   }));
 
   return (
