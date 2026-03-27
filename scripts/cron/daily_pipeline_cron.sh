@@ -21,6 +21,22 @@ if [ "$DAY_OF_WEEK" -ge 6 ]; then
     exit 0
 fi
 
+# Claude CLI 버전 체크 — 업데이트 시 전체 디스크 접근 권한 갱신 필요
+CLAUDE_VERSION_FILE="$PROJECT_DIR/.claude_version"
+CURRENT_VERSION=$(/Users/isang-un/.local/bin/claude --version 2>/dev/null | head -1)
+if [ -f "$CLAUDE_VERSION_FILE" ]; then
+    PREV_VERSION=$(cat "$CLAUDE_VERSION_FILE")
+    if [ "$CURRENT_VERSION" != "$PREV_VERSION" ]; then
+        cd "$PROJECT_DIR/scripts/notifications"
+        /usr/bin/python3 send_telegram.py "⚠️ Claude CLI 업데이트 감지
+이전: $PREV_VERSION → 현재: $CURRENT_VERSION
+[전체 디스크 접근 권한]에서 새 버전을 허용해주세요."
+        echo "$CURRENT_VERSION" > "$CLAUDE_VERSION_FILE"
+    fi
+else
+    echo "$CURRENT_VERSION" > "$CLAUDE_VERSION_FILE"
+fi
+
 # 시작 알림
 osascript -e 'display notification "파이프라인을 시작합니다..." with title "모의 투자"'
 

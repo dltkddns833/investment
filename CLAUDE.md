@@ -24,7 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - L 신장모: 분할매도 전략 / 매일 체크 / 5~8종목 코스닥 성장주 (+15%/+30%/+50% 분할매도, -10% 손절)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
 - N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (모멘텀+펀더멘털+수급 3중 필터)
-- O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (총자산 +5% 전 종목 익절, 종목별 -3% 손절)
+- O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (총자산 +5% 전 종목 익절, 종목별 -3% 손절, 30분마다 모멘텀 이탈→급등 종목 교체, 일일 최대 3회)
 
 ## Session Start Check
 
@@ -105,6 +105,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - plist: `~/Library/LaunchAgents/com.investment.o-monitor.plist`
 - `scripts/cron/o_monitor_cron.sh` → `scripts/core/o_monitor.py`
   - 10분 간격 체크: 총자산 +5% 전 종목 익절 / 종목별 -3% 해당 종목 손절
+  - 30분 간격 능동 트레이딩(09:40~14:50): 모멘텀 이탈 종목 매도 → 급등 종목 편입 (일일 최대 3회)
   - 장마감(15:20) 자동 종료
 - 로그: `logs/o_monitor_YYYY-MM-DD.log`
 

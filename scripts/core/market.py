@@ -2,6 +2,8 @@
 
 대시보드 실시간 가격은 web/src/app/api/live-prices/route.ts 참조
 """
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import yfinance as yf
 from supabase_client import supabase
 from logger import get_logger
@@ -62,6 +64,71 @@ def get_stock_prices(tickers=None, price_type="close"):
             }
         except Exception as e:
             logger.error(f"{ticker}: {e}")
+
+    return prices
+
+
+def _fetch_single_price(ticker, universe, price_type):
+    """단일 종목 시세 조회 (병렬 조회용 내부 함수)"""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="5d")
+        if hist.empty:
+            return ticker, None
+        latest = hist.iloc[-1]
+        prev = hist.iloc[-2] if len(hist) >= 2 else hist.iloc[-1]
+
+        if price_type == "open":
+            current = int(latest["Open"])
+        else:
+            current = int(latest["Close"])
+        prev_close_val = int(prev["Close"])
+
+        info = universe.get(ticker, {})
+        prev_volume = int(prev["Volume"]) if len(hist) >= 2 else 0
+        sma_5 = int(hist["Close"].tail(5).mean()) if len(hist) >= 5 else prev_close_val
+
+        return ticker, {
+            "name": info.get("name", ticker),
+            "sector": info.get("sector", ""),
+            "price": current,
+            "prev_close": prev_close_val,
+            "change": int(current - prev_close_val),
+            "change_pct": round((current / prev_close_val - 1) * 100, 2),
+            "volume": int(latest["Volume"]),
+            "prev_volume": prev_volume,
+            "sma_5": sma_5,
+            "high_5d": int(hist["High"].tail(5).max()) if len(hist) >= 5 else current,
+        }
+    except Exception as e:
+        logger.error(f"{ticker}: {e}")
+        return ticker, None
+
+
+def get_stock_prices_parallel(tickers=None, price_type="close", max_workers=10):
+    """투자 유니버스 종목들의 현재가 병렬 조회
+
+    Args:
+        tickers: 조회할 티커 목록 (None이면 전체)
+        price_type: "close" (종가, 기본) 또는 "open" (시가)
+        max_workers: 병렬 스레드 수 (기본 10)
+    """
+    config = load_config()
+    universe = {s["ticker"]: s for s in config["stock_universe"]}
+
+    if tickers is None:
+        tickers = list(universe.keys())
+
+    prices = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_fetch_single_price, t, universe, price_type): t
+            for t in tickers
+        }
+        for future in as_completed(futures):
+            ticker, result = future.result()
+            if result is not None:
+                prices[ticker] = result
 
     return prices
 

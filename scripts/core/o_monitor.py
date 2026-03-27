@@ -1,7 +1,10 @@
-"""O 정익절 장중 실시간 모니터링
+"""O 정익절 장중 실시간 모니터링 + 능동적 트레이딩
 
 장중(09:10~15:20) 10분 간격으로 포트폴리오 총자산을 체크하여
-전일 대비 +5% 달성 시 전 종목 익절, -3% 이하 시 전 종목 손절.
+전일 대비 +5% 달성 시 전 종목 익절, -3% 이하 시 개별 종목 손절.
+
+30분 간격(09:40~14:50)으로 능동 트레이딩:
+- 모멘텀 이탈 종목 매도 → 급등 종목으로 교체 (일일 최대 3회)
 
 Usage:
     python3 scripts/core/o_monitor.py              # 실행
@@ -17,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications"))
 
 from supabase_client import supabase
-from market import get_stock_prices
+from market import get_stock_prices, get_stock_prices_parallel
 from portfolio import load_portfolio, save_portfolio, evaluate, calc_fees
 from safety import check_kill_switch
 from daily_pipeline import notify
@@ -31,6 +34,17 @@ STOP_LOSS = -0.03     # 개별 종목 매수가 대비 -3% → 해당 종목만 
 CHECK_INTERVAL = 600  # 10분 (초)
 MARKET_OPEN_HOUR, MARKET_OPEN_MIN = 9, 10
 MARKET_CLOSE_HOUR, MARKET_CLOSE_MIN = 15, 20
+
+# 능동 트레이딩 설정
+ACTIVE_TRADE_START = (9, 40)    # 시가 변동성 안정 후
+ACTIVE_TRADE_END = (14, 50)     # 장마감 동시호가 전
+MAX_DAILY_SWAPS = 3             # 일일 최대 교체 횟수
+ACTIVE_CHECK_INTERVAL = 3       # 30분마다 (10분 × 3 사이클)
+MIN_HOLD_CHECKS = 3             # 매수 후 최소 30분(3사이클) 보유
+MOMENTUM_DROP_THRESHOLD = -0.02  # 당일 -2% 이하
+VOLUME_DROP_RATIO = 0.5          # 거래량 전일 50% 미만
+SURGE_PRICE_THRESHOLD = 0.03     # 당일 +3% 이상
+SURGE_VOLUME_RATIO = 1.5         # 거래량 전일 1.5배 이상
 
 
 def is_market_hours():
@@ -141,6 +155,183 @@ def check_stop_loss(portfolio, current_prices, date_str):
     return trades
 
 
+def is_active_trading_hours():
+    """능동 트레이딩 가능 시간 (09:40~14:50)"""
+    now = datetime.now()
+    start = now.replace(hour=ACTIVE_TRADE_START[0], minute=ACTIVE_TRADE_START[1], second=0)
+    end = now.replace(hour=ACTIVE_TRADE_END[0], minute=ACTIVE_TRADE_END[1], second=0)
+    return start <= now <= end
+
+
+def check_momentum_exit(holdings, all_prices, buy_check_map, check_count):
+    """모멘텀 이탈 종목 판별 — 3개 조건 중 2개 충족 시 매도 대상
+
+    Returns:
+        매도 대상 ticker (1개) 또는 None
+    """
+    worst_ticker = None
+    worst_score = 0  # 충족 조건 수
+
+    for ticker in list(holdings.keys()):
+        if ticker not in all_prices:
+            continue
+
+        # 최소 보유 시간 체크
+        bought_at = buy_check_map.get(ticker, 0)
+        if check_count - bought_at < MIN_HOLD_CHECKS:
+            continue
+
+        # 수익률 +3% 이상이면 스킵 (기존 익절 로직에 맡김)
+        h = holdings[ticker]
+        price = all_prices[ticker]["price"]
+        profit_pct = price / h["avg_price"] - 1
+        if profit_pct >= 0.03:
+            continue
+
+        p = all_prices[ticker]
+        signals = 0
+
+        # 조건 1: 당일 하락률 -2% 이하
+        if p["change_pct"] <= MOMENTUM_DROP_THRESHOLD * 100:
+            signals += 1
+
+        # 조건 2: 거래량 급감 (전일의 50% 미만)
+        prev_vol = p.get("prev_volume", 0)
+        if prev_vol > 0 and p["volume"] < prev_vol * VOLUME_DROP_RATIO:
+            signals += 1
+
+        # 조건 3: 5일선 이탈 (현재가 < 5일선 & 전일종가 > 5일선)
+        sma_5 = p.get("sma_5", 0)
+        if sma_5 > 0 and price < sma_5 and p["prev_close"] > sma_5:
+            signals += 1
+
+        if signals >= 2 and signals > worst_score:
+            worst_score = signals
+            worst_ticker = ticker
+
+    return worst_ticker
+
+
+def find_surge_candidate(all_prices, holdings):
+    """급등 종목 스캔 — 매수 후보 1개 반환
+
+    조건: 당일 +3% 이상, 거래량 1.5배 이상, 5일 최고가 미돌파, ETF 제외
+    """
+    candidates = []
+    held_tickers = set(holdings.keys())
+
+    for ticker, p in all_prices.items():
+        if ticker in held_tickers:
+            continue
+
+        # ETF 제외 (sector가 'ETF'인 종목)
+        if p.get("sector", "") == "ETF":
+            continue
+
+        # 조건 1: 당일 +3% 이상
+        if p["change_pct"] < SURGE_PRICE_THRESHOLD * 100:
+            continue
+
+        # 조건 2: 거래량 전일 1.5배 이상
+        prev_vol = p.get("prev_volume", 0)
+        if prev_vol <= 0 or p["volume"] < prev_vol * SURGE_VOLUME_RATIO:
+            continue
+
+        # 조건 3: 5일 최고가 미돌파 (꼭대기 추격 방지)
+        high_5d = p.get("high_5d", 0)
+        if high_5d > 0 and p["price"] >= high_5d:
+            continue
+
+        # 모멘텀 스코어 = 상승률 × 거래량비
+        vol_ratio = p["volume"] / prev_vol if prev_vol > 0 else 1
+        score = p["change_pct"] * vol_ratio
+        candidates.append((ticker, score, vol_ratio))
+
+    if not candidates:
+        return None
+
+    # 스코어 내림차순, 상위 1종목
+    candidates.sort(key=lambda x: x[1], reverse=True)
+    return candidates[0][0]
+
+
+def execute_swap(portfolio, sell_ticker, buy_ticker, all_prices, date_str):
+    """종목 교체 실행 (매도 → 매수)
+
+    Returns:
+        (sell_trade, buy_trade) 또는 None
+    """
+    holdings = portfolio["holdings"]
+    sell_info = holdings.get(sell_ticker)
+    if not sell_info or sell_ticker not in all_prices or buy_ticker not in all_prices:
+        return None
+
+    # 매도
+    sell_price = all_prices[sell_ticker]["price"]
+    sell_shares = sell_info["shares"]
+    sell_exec_price, sell_fee = calc_fees(sell_ticker, sell_price, sell_shares, "sell")
+    sell_revenue = sell_shares * sell_exec_price
+    sell_profit = (sell_exec_price - sell_info["avg_price"]) * sell_shares
+    sell_name = sell_info["name"]
+
+    portfolio["cash"] += sell_revenue - sell_fee
+    del portfolio["holdings"][sell_ticker]
+
+    # 매수 — 매도 대금의 80% 투입
+    buy_budget = int(sell_revenue * 0.8)
+    buy_price = all_prices[buy_ticker]["price"]
+    buy_exec_price, _ = calc_fees(buy_ticker, buy_price, 1, "buy")
+    buy_shares = buy_budget // buy_exec_price
+    if buy_shares <= 0:
+        # 매수 불가 시 매도만 확정
+        save_portfolio(INVESTOR_ID, portfolio)
+        supabase.table("transactions").insert({
+            "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
+            "ticker": sell_ticker, "name": sell_name, "shares": sell_shares,
+            "price": sell_exec_price, "amount": sell_revenue, "fee": sell_fee,
+            "profit": sell_profit,
+        }).execute()
+        return {"sell": sell_ticker, "buy": None}
+
+    buy_exec_price, buy_fee = calc_fees(buy_ticker, buy_price, buy_shares, "buy")
+    buy_cost = buy_shares * buy_exec_price + buy_fee
+    buy_name = all_prices[buy_ticker]["name"]
+
+    portfolio["cash"] -= buy_cost
+    portfolio["holdings"][buy_ticker] = {
+        "name": buy_name,
+        "shares": buy_shares,
+        "avg_price": buy_exec_price,
+    }
+
+    save_portfolio(INVESTOR_ID, portfolio)
+
+    # 거래 기록 저장
+    supabase.table("transactions").insert([
+        {
+            "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
+            "ticker": sell_ticker, "name": sell_name, "shares": sell_shares,
+            "price": sell_exec_price, "amount": sell_revenue, "fee": sell_fee,
+            "profit": sell_profit,
+        },
+        {
+            "investor_id": INVESTOR_ID, "date": date_str, "type": "buy",
+            "ticker": buy_ticker, "name": buy_name, "shares": buy_shares,
+            "price": buy_exec_price, "amount": buy_shares * buy_exec_price,
+            "fee": buy_fee, "profit": 0,
+        },
+    ]).execute()
+
+    sell_pct = (sell_exec_price / sell_info["avg_price"] - 1) * 100
+    return {
+        "sell": sell_ticker, "sell_name": sell_name, "sell_shares": sell_shares,
+        "sell_pct": sell_pct,
+        "buy": buy_ticker, "buy_name": buy_name, "buy_shares": buy_shares,
+        "buy_change_pct": all_prices[buy_ticker]["change_pct"],
+        "buy_vol_ratio": round(all_prices[buy_ticker]["volume"] / max(all_prices[buy_ticker].get("prev_volume", 1), 1), 1),
+    }
+
+
 def run_monitor(dry_run=False):
     """메인 모니터링 루프"""
     today_str = date.today().isoformat()
@@ -150,6 +341,11 @@ def run_monitor(dry_run=False):
 
     check_count = 0
     total_trades = []
+
+    # 능동 트레이딩 상태
+    daily_swap_count = 0
+    consecutive_loss_swaps = 0
+    buy_check_map = {}  # {ticker: check_count} — 매수 시점 기록
 
     while is_market_hours():
         check_count += 1
@@ -163,24 +359,27 @@ def run_monitor(dry_run=False):
         # 보유종목 확인
         portfolio = load_portfolio(INVESTOR_ID)
         holdings = portfolio.get("holdings", {})
-        if not holdings:
-            logger.info(f"[#{check_count}] 보유종목 없음 — 대기")
-            time.sleep(CHECK_INTERVAL)
-            continue
 
-        # 현재가 조회
-        tickers = list(holdings.keys())
+        # 100종목 전체 병렬 조회 (능동 트레이딩 + 방어 로직 공용)
         try:
-            prices = get_stock_prices(tickers=tickers)
+            all_prices = get_stock_prices_parallel()
         except Exception as e:
             logger.error(f"[#{check_count}] 가격 조회 실패: {e}")
             time.sleep(CHECK_INTERVAL)
             continue
 
+        if not holdings:
+            logger.info(f"[#{check_count}] 보유종목 없음 — 대기")
+            time.sleep(CHECK_INTERVAL)
+            continue
+
+        # 보유종목 가격 필터
+        prices = {t: all_prices[t] for t in holdings if t in all_prices}
+
         # 총자산 계산
         eval_amount = sum(
             holdings[t]["shares"] * prices[t]["price"]
-            for t in tickers if t in prices
+            for t in holdings if t in prices
         )
         total_asset = portfolio["cash"] + eval_amount
         daily_return_pct = (total_asset / prev_total_asset - 1) * 100 if prev_total_asset > 0 else 0
@@ -188,8 +387,10 @@ def run_monitor(dry_run=False):
         logger.info(
             f"[#{check_count}] 총자산: {total_asset:,.0f}원 "
             f"(전일 대비 {daily_return_pct:+.2f}%) "
-            f"현금: {portfolio['cash']:,.0f}원 | 종목수: {len(tickers)}"
+            f"현금: {portfolio['cash']:,.0f}원 | 종목수: {len(holdings)}"
         )
+
+        # === Phase 1: 기존 방어 로직 (매 사이클) ===
 
         # 1) 종목별 손절 체크 (매수가 대비 -3%)
         if not dry_run:
@@ -201,12 +402,11 @@ def run_monitor(dry_run=False):
                 msg = f"🛑 *정익절 손절* ({datetime.now().strftime('%H:%M')})\n" + \
                     "\n".join(f"• {t['ticker']} {t['shares']}주 ({t['reason']})" for t in stop_trades)
                 notify(msg)
-                # 손절 후 포트폴리오 재로드
                 portfolio = load_portfolio(INVESTOR_ID)
                 holdings = portfolio.get("holdings", {})
         else:
-            for ticker in tickers:
-                if ticker in prices and ticker in holdings:
+            for ticker in list(holdings.keys()):
+                if ticker in prices:
                     h = holdings[ticker]
                     pct = (prices[ticker]["price"] / h["avg_price"] - 1) * 100
                     if pct <= STOP_LOSS * 100:
@@ -225,6 +425,67 @@ def run_monitor(dry_run=False):
                     notify(msg)
             else:
                 logger.info(f"  [dry-run] 전 종목 매도 스킵")
+
+            time.sleep(CHECK_INTERVAL)
+            continue  # 익절 후 능동 트레이딩 스킵
+
+        # === Phase 2: 능동 트레이딩 (30분 간격) ===
+        can_active_trade = (
+            check_count % ACTIVE_CHECK_INTERVAL == 0
+            and is_active_trading_hours()
+            and daily_swap_count < MAX_DAILY_SWAPS
+            and consecutive_loss_swaps < 2
+            and len(holdings) >= 3  # 최소 종목 수 유지
+        )
+
+        if can_active_trade:
+            logger.info(f"  🔍 능동 트레이딩 스캔 (교체 {daily_swap_count}/{MAX_DAILY_SWAPS})")
+
+            sell_target = check_momentum_exit(holdings, all_prices, buy_check_map, check_count)
+
+            if sell_target:
+                sell_name = holdings[sell_target]["name"]
+                sell_pct = all_prices[sell_target]["change_pct"] if sell_target in all_prices else 0
+                logger.info(f"  📉 매도 후보: {sell_name}({sell_target}) 당일 {sell_pct:+.1f}%")
+
+                buy_candidate = find_surge_candidate(all_prices, holdings)
+
+                if buy_candidate:
+                    buy_name = all_prices[buy_candidate]["name"]
+                    buy_pct = all_prices[buy_candidate]["change_pct"]
+                    logger.info(f"  📈 매수 후보: {buy_name}({buy_candidate}) 당일 {buy_pct:+.1f}%")
+
+                    if not dry_run:
+                        result = execute_swap(portfolio, sell_target, buy_candidate, all_prices, today_str)
+                        if result and result.get("buy"):
+                            daily_swap_count += 1
+                            buy_check_map[buy_candidate] = check_count
+
+                            # 연속 손실 추적
+                            if result["sell_pct"] < 0:
+                                consecutive_loss_swaps += 1
+                            else:
+                                consecutive_loss_swaps = 0
+
+                            vol_ratio = result["buy_vol_ratio"]
+                            msg = (
+                                f"🔄 *정익절 종목 교체* ({datetime.now().strftime('%H:%M')})\n"
+                                f"매도: {result['sell_name']} {result['sell_shares']}주 ({result['sell_pct']:+.1f}%)\n"
+                                f"매수: {result['buy_name']} {result['buy_shares']}주 "
+                                f"(당일 {result['buy_change_pct']:+.1f}%, 거래량 {vol_ratio}x)\n"
+                                f"교체 {daily_swap_count}/{MAX_DAILY_SWAPS}"
+                            )
+                            notify(msg)
+                            logger.info(f"  ✅ 교체 완료 ({daily_swap_count}/{MAX_DAILY_SWAPS})")
+                        elif result:
+                            logger.info(f"  ⚠️ 매도만 실행 (매수 불가)")
+                            daily_swap_count += 1
+                    else:
+                        logger.info(f"  [dry-run] 교체: {sell_name} → {buy_name}")
+                else:
+                    logger.info(f"  ❌ 매수 후보 없음 — 교체 스킵")
+            else:
+                logger.info(f"  ✅ 모멘텀 이탈 종목 없음")
 
         time.sleep(CHECK_INTERVAL)
 

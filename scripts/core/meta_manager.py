@@ -491,6 +491,7 @@ class MetaManager:
             holdings_raw = self.kis.get_holdings()
             balance = self.kis.get_balance()
             cash = balance.get("cash", 0)
+            total_asset = balance.get("total_asset", 0)
 
             holdings = {}
             total_eval = 0
@@ -502,7 +503,8 @@ class MetaManager:
                 }
                 total_eval += h["eval_amount"]
 
-            total_asset = cash + total_eval
+            if total_asset <= 0:
+                total_asset = cash + total_eval
 
             # 전일 포트폴리오에서 수익률 계산
             prev = get_prev_real_portfolio()
@@ -585,11 +587,12 @@ class MetaManager:
 
         prev = get_prev_real_portfolio()
         if prev:
-            # 현재 총자산 추정 (KIS 조회)
+            # 현재 총자산 조회 (KIS inquire-balance)
             try:
                 balance = self.kis.get_balance()
-                holdings = self.kis.get_holdings()
-                current_total = balance.get("cash", 0) + sum(h["eval_amount"] for h in holdings)
+                current_total = balance.get("total_asset", 0)
+                if current_total <= 0:
+                    current_total = balance.get("cash", 0) + balance.get("total_eval", 0)
             except Exception:
                 current_total = prev.get("total_asset", INITIAL_CAPITAL)
 
@@ -652,8 +655,9 @@ class MetaManager:
         # 2. 주문 생성
         current_holdings = self.kis.get_holdings()
         balance = self.kis.get_balance()
-        total_eval = sum(h["eval_amount"] for h in current_holdings)
-        total_asset = balance.get("cash", 0) + total_eval
+        total_asset = balance.get("total_asset", 0)
+        if total_asset <= 0:
+            total_asset = balance.get("cash", 0) + balance.get("total_eval", 0)
 
         orders = self.compute_orders(adjusted, current_holdings, total_asset)
 

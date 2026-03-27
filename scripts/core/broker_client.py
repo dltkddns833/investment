@@ -179,23 +179,35 @@ class KISClient:
 
     @retry(max_retries=2, backoff_base=0.5)
     def get_balance(self):
-        """예수금 조회 → {"cash": int, "total_eval": int}"""
-        url = f"{self.base_url}/uapi/domestic-stock/v1/trading/inquire-psbl-order"
+        """예수금 + 총평가 조회 (inquire-balance output2 사용)
+
+        Returns:
+            {"cash": int, "total_eval": int, "total_asset": int,
+             "prev_total_asset": int, "daily_change": int}
+        """
+        url = f"{self.base_url}/uapi/domestic-stock/v1/trading/inquire-balance"
         params = {
             "CANO": self.cano,
             "ACNT_PRDT_CD": self.acnt_prdt_cd,
-            "PDNO": "",
-            "ORD_UNPR": "",
-            "ORD_DVSN": "01",
-            "CMA_EVLU_AMT_ICLD_YN": "Y",
-            "OVRS_ICLD_YN": "N",
+            "AFHR_FLPR_YN": "N",
+            "OFL_YN": "",
+            "INQR_DVSN": "02",
+            "UNPR_DVSN": "01",
+            "FUND_STTL_ICLD_YN": "N",
+            "FNCG_AMT_AUTO_RDPT_YN": "N",
+            "PRCS_DVSN": "01",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": "",
         }
-        resp = requests.get(url, headers=self._headers("TTTC8908R"), params=params, timeout=10)
+        resp = requests.get(url, headers=self._headers("TTTC8434R"), params=params, timeout=10)
         data = self._check_response(resp, "get_balance")
-        output = data.get("output", {})
+        o2 = (data.get("output2") or [{}])[0]
         return {
-            "cash": int(output.get("ord_psbl_cash", 0)),
-            "total_eval": int(output.get("nrcvb_buy_amt", 0)),
+            "cash": int(o2.get("nxdy_excc_amt", 0)),           # D+2 정산 반영 예수금
+            "total_eval": int(o2.get("scts_evlu_amt", 0)),      # 보유주식 평가액
+            "total_asset": int(o2.get("tot_evlu_amt", 0)),      # 총평가금액
+            "prev_total_asset": int(o2.get("bfdy_tot_asst_evlu_amt", 0)),  # 전일 총자산
+            "daily_change": int(o2.get("asst_icdc_amt", 0)),    # 일일 변동액
         }
 
     @retry(max_retries=2, backoff_base=0.5)
