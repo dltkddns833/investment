@@ -203,7 +203,8 @@ class KISClient:
         data = self._check_response(resp, "get_balance")
         o2 = (data.get("output2") or [{}])[0]
         return {
-            "cash": int(o2.get("nxdy_excc_amt", 0)),           # D+2 정산 반영 예수금
+            "cash": int(o2.get("dnca_tot_amt", 0)),             # 출금가능 예수금
+            "cash_d2": int(o2.get("nxdy_excc_amt", 0)),         # D+2 정산 반영 예수금
             "total_eval": int(o2.get("scts_evlu_amt", 0)),      # 보유주식 평가액
             "total_asset": int(o2.get("tot_evlu_amt", 0)),      # 총평가금액
             "prev_total_asset": int(o2.get("bfdy_tot_asst_evlu_amt", 0)),  # 전일 총자산

@@ -51,7 +51,11 @@ export default function LivePortfolioView({
     };
   });
 
-  const cash = portfolio.cash;
+  // DB total_asset에서 주식평가를 빼서 실제 현금 역산 (D+2 정산 이중 계산 방지)
+  const dbStockEval = Object.values(portfolio.holdings).reduce(
+    (sum, h) => sum + h.shares * h.avg_price, 0
+  );
+  const cash = portfolio.total_asset - dbStockEval;
   const totalAsset = prices ? cash + totalEval : portfolio.total_asset;
   const cumulativeReturn = ((totalAsset / initialCapital - 1) * 100);
 
