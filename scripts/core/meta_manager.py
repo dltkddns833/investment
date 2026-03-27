@@ -529,14 +529,17 @@ class MetaManager:
                 )
                 if first_row:
                     start_date = first_row[0]["date"]
+                    # 시작일 이전 가장 가까운 KOSPI 가격 (정확 매칭 없을 수 있음)
                     start_regime = (
                         supabase.table("market_regimes")
                         .select("kospi_price")
-                        .eq("date", start_date)
+                        .lte("date", start_date)
+                        .order("date", desc=True)
                         .limit(1)
                         .execute()
                         .data
                     )
+                    # 오늘 이전 가장 최신 KOSPI 가격
                     latest_regime = (
                         supabase.table("market_regimes")
                         .select("kospi_price")

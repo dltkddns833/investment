@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { krw } from "@/lib/format";
 import type { MetaDecision } from "@/lib/data";
 
 const REGIME_LABEL: Record<string, { text: string; color: string }> = {
@@ -109,12 +111,15 @@ export default function LiveDecisionHistory({
                           >
                             {o.side === "buy" ? "매수" : "매도"}
                           </span>
-                          <span className="text-gray-300">
+                          <Link
+                            href={`/stocks/${encodeURIComponent(o.ticker || "")}`}
+                            className="text-blue-400 hover:underline"
+                          >
                             {o.name || o.ticker}
-                          </span>
+                          </Link>
                           <span className="text-gray-500">x{o.qty}</span>
                           <span className="text-gray-500">
-                            @{o.price?.toLocaleString("ko-KR")}원
+                            @{o.price ? krw(o.price) : "-"}
                           </span>
                           {o.status && (
                             <span
@@ -141,15 +146,16 @@ export default function LiveDecisionHistory({
                       {Object.entries(d.target_allocation)
                         .sort(([, a], [, b]) => b - a)
                         .map(([ticker, weight]) => (
-                          <span
+                          <Link
                             key={ticker}
-                            className="text-xs bg-gray-700/50 px-2 py-1 rounded"
+                            href={`/stocks/${encodeURIComponent(ticker)}`}
+                            className="text-xs bg-gray-700/50 px-2 py-1 rounded hover:bg-gray-600/50 transition-colors"
                           >
                             {ticker.replace(/\.(KS|KQ)$/, "")}{" "}
                             <span className="text-gray-400">
                               {(weight * 100).toFixed(0)}%
                             </span>
-                          </span>
+                          </Link>
                         ))}
                     </div>
                   </div>

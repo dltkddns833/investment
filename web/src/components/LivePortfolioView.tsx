@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { useLivePrices } from "@/lib/live-prices";
 import { krw, pct, signColor } from "@/lib/format";
 import type { RealPortfolioEntry, MetaDecision } from "@/lib/data";
 import LiveAssetChart from "./LiveAssetChart";
-import LiveHoldingsTable from "./LiveHoldingsTable";
 import LiveDecisionHistory from "./LiveDecisionHistory";
+import TooltipIcon from "./TooltipIcon";
 
 interface HoldingEntry {
   ticker: string;
@@ -30,7 +32,7 @@ export default function LivePortfolioView({
   holdings,
   initialCapital,
 }: Props) {
-  const { prices, isLive, isClosingPrice, isRefreshing, refresh, fetchedAt } =
+  const { prices, isLive, isMarketOpen, isClosingPrice, isRefreshing, refresh, fetchedAt } =
     useLivePrices();
 
   // 실시간 시세로 재계산
@@ -91,25 +93,49 @@ export default function LivePortfolioView({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {fetchedAt && (
-            <span className="text-xs text-gray-500">
-              {fetchedAt}
-            </span>
-          )}
-          {(isLive || isClosingPrice) && (
-            <button
-              onClick={refresh}
-              disabled={isRefreshing}
-              className="text-xs text-gray-400 hover:text-white disabled:opacity-50"
-            >
-              {isRefreshing ? "..." : "새로고침"}
-            </button>
-          )}
-          {!prices && (
-            <span className="text-sm text-gray-400">
-              {portfolio.date} 기준
-            </span>
+        <div className="flex items-center gap-1.5 text-sm text-gray-400">
+          {(isLive || isClosingPrice) && fetchedAt ? (
+            <>
+              <span>
+                {new Date(fetchedAt).toLocaleDateString("ko-KR", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  timeZone: "Asia/Seoul",
+                })}{" "}
+                {new Date(fetchedAt).toLocaleTimeString("ko-KR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZone: "Asia/Seoul",
+                })}{" "}
+                기준{isClosingPrice ? " (종가)" : ""}
+              </span>
+              {(isMarketOpen || isClosingPrice) && (
+                <button
+                  onClick={refresh}
+                  disabled={isRefreshing}
+                  className="p-1 rounded-md hover:text-white hover:bg-white/5 transition-colors disabled:opacity-40"
+                  aria-label="새로고침"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              )}
+            </>
+          ) : (
+            <span>{portfolio.date} 기준</span>
           )}
         </div>
       </div>
@@ -129,11 +155,13 @@ export default function LivePortfolioView({
         />
         <SummaryCard
           label="KOSPI 누적"
+          tooltip="실전 투자 시작일 대비 KOSPI 지수의 누적 수익률. 벤치마크 지표로 사용됩니다."
           value={kospiReturn != null ? pct(kospiReturn) : "-"}
           valueColor={kospiReturn != null ? signColor(kospiReturn) : "text-gray-500"}
         />
         <SummaryCard
           label="Alpha"
+          tooltip="내 포트폴리오 수익률에서 KOSPI 수익률을 뺀 값. 양수면 시장을 이기고 있다는 뜻입니다."
           value={alpha != null ? pct(alpha) : "-"}
           valueColor={alpha != null ? signColor(alpha) : "text-gray-500"}
           highlight
@@ -189,6 +217,7 @@ export default function LivePortfolioView({
 
 function SummaryCard({
   label,
+  tooltip,
   value,
   sub,
   valueColor,
@@ -196,6 +225,7 @@ function SummaryCard({
   highlight,
 }: {
   label: string;
+  tooltip?: string;
   value: string;
   sub?: string;
   valueColor?: string;
@@ -210,7 +240,10 @@ function SummaryCard({
           : "bg-gray-800/50"
       }`}
     >
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
+        {label}
+        {tooltip && <TooltipIcon text={tooltip} />}
+      </p>
       <p className={`text-lg font-bold ${valueColor || ""}`}>{value}</p>
       {sub && (
         <p className={`text-xs mt-0.5 ${subColor || "text-gray-500"}`}>{sub}</p>
@@ -240,6 +273,8 @@ function InfoRow({
   );
 }
 
+type SortKey = "evalAmount" | "profitPct" | "name";
+
 function LiveHoldingsTableWithPrice({
   holdings,
 }: {
@@ -255,29 +290,68 @@ function LiveHoldingsTableWithPrice({
     isLivePrice: boolean;
   }>;
 }) {
+  const [sortKey, setSortKey] = useState<SortKey>("evalAmount");
+  const [sortAsc, setSortAsc] = useState(false);
+
   if (holdings.length === 0) {
     return <p className="text-center text-gray-500 py-4">보유종목 없음</p>;
   }
+
+  const sorted = [...holdings].sort((a, b) => {
+    const av = sortKey === "name" ? a.name : a[sortKey];
+    const bv = sortKey === "name" ? b.name : b[sortKey];
+    if (typeof av === "string" && typeof bv === "string")
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else { setSortKey(key); setSortAsc(false); }
+  };
+
+  const sortIcon = (key: SortKey) =>
+    sortKey === key ? (sortAsc ? " ▲" : " ▼") : "";
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-gray-400 text-xs border-b border-white/10">
-            <th className="text-left pb-2 font-medium">종목</th>
+            <th
+              className="text-left pb-2 font-medium cursor-pointer hover:text-gray-200"
+              onClick={() => toggleSort("name")}
+            >
+              종목{sortIcon("name")}
+            </th>
             <th className="text-left pb-2 font-medium">섹터</th>
             <th className="text-right pb-2 font-medium">수량</th>
             <th className="text-right pb-2 font-medium">평균단가</th>
             <th className="text-right pb-2 font-medium">현재가</th>
-            <th className="text-right pb-2 font-medium">평가금액</th>
-            <th className="text-right pb-2 font-medium">수익률</th>
+            <th
+              className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
+              onClick={() => toggleSort("evalAmount")}
+            >
+              평가금액{sortIcon("evalAmount")}
+            </th>
+            <th
+              className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
+              onClick={() => toggleSort("profitPct")}
+            >
+              수익률{sortIcon("profitPct")}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
-          {holdings.map((h) => (
+          {sorted.map((h) => (
             <tr key={h.ticker} className="hover:bg-white/5">
               <td className="py-2.5">
-                <span className="text-gray-200">{h.name}</span>
+                <Link
+                  href={`/stocks/${encodeURIComponent(h.ticker)}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {h.name}
+                </Link>
                 <span className="text-gray-500 text-xs ml-1">
                   {h.ticker.replace(/\.(KS|KQ)$/, "")}
                 </span>

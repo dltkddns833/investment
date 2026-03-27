@@ -24,14 +24,23 @@ export default function LiveAssetChart({ history, initialCapital }: Props) {
     );
   }
 
-  const data = history.map((h) => ({
-    date: h.date.slice(5), // MM-DD
-    fullDate: h.date,
-    totalAsset: h.total_asset,
-    returnPct: h.cumulative_return_pct,
-    kospiPct: h.kospi_cumulative_pct,
-    alphaPct: h.alpha_cumulative_pct,
-  }));
+  const hasKospi = history.some((h) => h.kospi_cumulative_pct != null);
+
+  const data = history.map((h) => {
+    const kospiAsset =
+      h.kospi_cumulative_pct != null
+        ? Math.round(initialCapital * (1 + h.kospi_cumulative_pct / 100))
+        : null;
+    return {
+      date: h.date.slice(5), // MM-DD
+      fullDate: h.date,
+      totalAsset: h.total_asset,
+      kospiAsset,
+      returnPct: h.cumulative_return_pct,
+      kospiPct: h.kospi_cumulative_pct,
+      alphaPct: h.alpha_cumulative_pct,
+    };
+  });
 
   return (
     <div className="h-64">
@@ -53,14 +62,14 @@ export default function LiveAssetChart({ history, initialCapital }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#1e293b",
+              backgroundColor: "#0f172a",
               border: "1px solid #334155",
               borderRadius: "8px",
               fontSize: "12px",
             }}
             formatter={(value, name) => {
               const v = Number(value);
-              if (name === "총자산")
+              if (name === "총자산" || name === "KOSPI")
                 return [`${v.toLocaleString("ko-KR")}원`, name];
               return [`${v.toFixed(2)}%`, name];
             }}
@@ -90,6 +99,18 @@ export default function LiveAssetChart({ history, initialCapital }: Props) {
             strokeWidth={2}
             dot={false}
           />
+          {hasKospi && (
+            <Line
+              type="monotone"
+              dataKey="kospiAsset"
+              name="KOSPI"
+              stroke="#475569"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+              connectNulls
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
