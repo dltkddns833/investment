@@ -2,7 +2,7 @@
  * KIS API 프록시 — 실전 포트폴리오 보유종목 + 잔고 조회
  *
  * KIS inquire-balance API를 호출하여 output1(보유종목)과 output2(잔고)를 반환한다.
- * 토큰은 메모리 캐시 (Vercel 함수 인스턴스 내 재사용, cold start 시 재발급).
+ * 토큰은 Supabase config.kis_token에서 읽기만 함 (Python broker_client가 발급/저장 담당).
  */
 import { NextResponse } from "next/server";
 
@@ -41,31 +41,41 @@ function kisToYf(code: string, map: Record<string, string>): string {
   return map[code] ?? `${code}.KS`;
 }
 
-// --- Token management (in-memory cache) ---
+// --- Token management (Supabase에서 읽기 + 메모리 캐시) ---
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function ensureToken(): Promise<string> {
+  // 메모리 캐시 확인 (만료 1시간 전까지 유효)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 3600_000) {
     return cachedToken.token;
   }
 
-  const resp = await fetch(`${KIS_BASE}/oauth2/tokenP`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "client_credentials",
-      appkey: APP_KEY,
-      appsecret: APP_SECRET,
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!resp.ok) throw new Error(`KIS token error: ${resp.status}`);
+  // Supabase config.kis_token에서 로드 (Python broker_client가 저장한 토큰)
+  const { supabase } = await import("@/lib/supabase");
+  const { data } = await supabase
+    .from("config")
+    .select("kis_token")
+    .eq("id", 1)
+    .single();
 
-  const data = await resp.json();
-  const token = data.access_token as string;
-  const expiresIn = Number(data.expires_in ?? 86400);
-  cachedToken = { token, expiresAt: Date.now() + expiresIn * 1000 };
-  return token;
+  const tokenData = data?.kis_token as
+    | { access_token: string; expires_at: number }
+    | null;
+
+  if (
+    !tokenData?.access_token ||
+    Date.now() > tokenData.expires_at * 1000 - 3600_000
+  ) {
+    throw new Error(
+      "KIS 토큰이 없거나 만료됨. Python broker_client 실행 필요."
+    );
+  }
+
+  cachedToken = {
+    token: tokenData.access_token,
+    expiresAt: tokenData.expires_at * 1000, // Python time.time()은 초 단위
+  };
+  return cachedToken.token;
 }
 
 // --- KIS API call ---
@@ -139,7 +149,6 @@ async function fetchKISPortfolio(): Promise<KISPortfolio> {
     if (shares === 0) continue;
     const code = item.pdno ?? "";
     const currentPrice = Number(item.prpr ?? 0);
-    const prevClose = Number(item.bfdy_cprs_icdc ?? 0);
     holdings.push({
       ticker: kisToYf(code, tMap),
       code,
@@ -149,10 +158,7 @@ async function fetchKISPortfolio(): Promise<KISPortfolio> {
       current_price: currentPrice,
       eval_amount: Number(item.evlu_amt ?? 0),
       profit_pct: Number(item.evlu_pfls_rt ?? 0),
-      change_pct:
-        prevClose !== 0 && currentPrice !== 0
-          ? Number(item.prdy_ctrt ?? 0)
-          : 0,
+      change_pct: Number(item.prdy_ctrt ?? 0),
     });
   }
 

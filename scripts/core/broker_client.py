@@ -101,33 +101,56 @@ class KISClient:
         self._load_token()
 
     def _load_token(self):
-        """파일에서 저장된 토큰 로드"""
+        """파일 → Supabase 순서로 저장된 토큰 로드"""
+        # 1) 파일에서 로드
         try:
             if self.TOKEN_FILE.exists():
                 with open(self.TOKEN_FILE) as f:
                     data = json.load(f)
                 token = data.get("access_token", "")
                 expires = data.get("expires_at", 0)
-                # 만료 1시간 전까지 유효하면 재사용
                 if token and time.time() < expires - 3600:
                     self._token = token
                     self._token_expires = expires
                     logger.info("KIS 토큰 파일에서 로드 (재사용)")
+                    return
         except Exception as e:
             logger.warning(f"KIS 토큰 파일 로드 실패 (무시): {e}")
 
+        # 2) Supabase에서 로드 (파일 없거나 만료 시)
+        try:
+            row = supabase.table("config").select("kis_token").eq("id", 1).single().execute().data
+            data = row.get("kis_token") if row else None
+            if data:
+                token = data.get("access_token", "")
+                expires = data.get("expires_at", 0)
+                if token and time.time() < expires - 3600:
+                    self._token = token
+                    self._token_expires = expires
+                    logger.info("KIS 토큰 Supabase에서 로드 (재사용)")
+        except Exception as e:
+            logger.warning(f"KIS 토큰 Supabase 로드 실패 (무시): {e}")
+
     def _save_token(self):
-        """토큰을 파일에 저장 (프로세스 간 공유)"""
+        """토큰을 파일 + Supabase에 저장 (프로세스/서비스 간 공유)"""
+        token_data = {
+            "access_token": self._token,
+            "expires_at": self._token_expires,
+        }
+        # 파일 저장
         try:
             with open(self.TOKEN_FILE, "w") as f:
-                json.dump({
-                    "access_token": self._token,
-                    "expires_at": self._token_expires,
-                }, f)
-            # 토큰 파일 권한 제한 (소유자만 읽기/쓰기)
+                json.dump(token_data, f)
             self.TOKEN_FILE.chmod(0o600)
         except Exception as e:
             logger.warning(f"KIS 토큰 파일 저장 실패 (무시): {e}")
+
+        # Supabase 저장 (Vercel 등 외부 서비스용)
+        try:
+            supabase.table("config").update({"kis_token": token_data}).eq("id", 1).execute()
+            logger.info("KIS 토큰 Supabase에 저장 완료")
+        except Exception as e:
+            logger.warning(f"KIS 토큰 Supabase 저장 실패 (무시): {e}")
 
     def _ensure_token(self):
         """토큰이 없거나 만료 1시간 전이면 재발급"""
