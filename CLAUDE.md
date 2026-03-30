@@ -98,7 +98,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/reports/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - `scripts/reports/monthly_report.py` — 월 첫 영업일이면 지난달 성과 텔레그램 발송 + Supabase 저장
 - `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
-- 로그: `logs/pipeline_YYYY-MM-DD.log`
+- 로그: `logs/pipeline/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
 
 ### 오전 9:10 — O 정익절 장중 모니터링
@@ -108,19 +108,19 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - 30분 간격 능동 트레이딩(09:40~14:50): 모멘텀 이탈 종목 매도 → 급등 종목 편입 (일일 최대 3회)
   - 매매 발생 시 `daily_reports` + `portfolio_snapshots` 즉시 갱신 (대시보드 실시간 반영)
   - 장마감(15:20) 자동 종료
-- 로그: `logs/o_monitor_YYYY-MM-DD.log`
+- 로그: `logs/o_monitor/o_monitor_YYYY-MM-DD.log`
 
 ### 오후 1:30 — 메타 매니저 (실전 투자)
 - plist: `~/Library/LaunchAgents/com.investment.meta.plist`
 - `scripts/cron/meta_cron.sh` → Claude CLI로 메타 매니저 실행
   - `meta_manager.py` 분석 → Claude AI 배분 결정 → `execute_allocation()` → 텔레그램 승인 → KIS 체결
-- 로그: `logs/meta_YYYY-MM-DD.log`
+- 로그: `logs/meta/meta_YYYY-MM-DD.log`
 
 ### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
 - plist: `~/Library/LaunchAgents/com.investment.storytelling.plist`
 - `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행
   - 종가 반영 → 코멘터리 → 투자자 일기
-- 로그: `logs/storytelling_YYYY-MM-DD.log`
+- 로그: `logs/storytelling/storytelling_YYYY-MM-DD.log`
 
 ### launchd 관리 명령
 ```bash

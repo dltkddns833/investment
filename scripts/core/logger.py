@@ -10,17 +10,25 @@ def get_logger(name):
         return logger
     logger.setLevel(logging.DEBUG)
 
-    # 콘솔: INFO
+    # 콘솔: INFO (정기 실행 모듈은 시간 포함)
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    console.setFormatter(logging.Formatter('%(message)s'))
+    timed_modules = {"o_monitor", "meta_manager"}
+    if name in timed_modules:
+        console.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%H:%M:%S'))
+    else:
+        console.setFormatter(logging.Formatter('%(message)s'))
     logger.addHandler(console)
 
-    # 파일: DEBUG
-    log_dir = Path(__file__).resolve().parent.parent.parent / "logs"
-    log_dir.mkdir(exist_ok=True)
+    # 파일: DEBUG — 모듈별 하위 폴더 (pipeline/meta/o_monitor/storytelling)
+    log_root = Path(__file__).resolve().parent.parent.parent / "logs"
+    # 모듈명으로 폴더 결정 (기본값: pipeline)
+    folder_map = {"meta_manager": "meta", "o_monitor": "o_monitor", "storytelling": "storytelling"}
+    folder = folder_map.get(name, "pipeline")
+    log_dir = log_root / folder
+    log_dir.mkdir(parents=True, exist_ok=True)
     fh = logging.FileHandler(
-        log_dir / f"pipeline_{datetime.now():%Y-%m-%d}.log",
+        log_dir / f"{folder}_{datetime.now():%Y-%m-%d}.log",
         encoding="utf-8",
     )
     fh.setLevel(logging.DEBUG)

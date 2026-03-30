@@ -5,7 +5,7 @@
 export HOME="/Users/isang-un"
 export PATH="/Users/isang-un/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 PROJECT_DIR="/Users/isang-un/Desktop/personal/investment"
-LOG_DIR="$PROJECT_DIR/logs"
+LOG_DIR="$PROJECT_DIR/logs/storytelling"
 DATE=$(date +%Y-%m-%d)
 LOG_FILE="$LOG_DIR/storytelling_$DATE.log"
 

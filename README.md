@@ -197,7 +197,7 @@ macOS launchd로 평일 4개 스케줄 자동 실행.
 | **13:30** | 메타 매니저 (분석 → AI 배분 → 텔레그램 승인 → KIS 체결) | Claude CLI |
 | **15:35** | 스토리텔링 (종가 반영 → 코멘터리 → 투자자 일기) | Claude CLI |
 
-- 로그: `logs/{pipeline,o_monitor,meta,storytelling}_YYYY-MM-DD.log`
+- 로그: `logs/{pipeline,o_monitor,meta,storytelling}/` 종류별 폴더 + `launchd/` (launchd stdout/stderr)
 
 ## 웹 대시보드
 
