@@ -252,6 +252,10 @@ scripts/
 
 ## Key Conventions
 
+- **⚠️ KIS API 토큰: 1일 1회 발급 원칙. 유효기간 내 잦은 발급 시 이용 제한됨.**
+  - Python `broker_client.py`만 토큰 발급 담당 (파일 `.kis_token.json` + Supabase `config.kis_token` 동시 저장)
+  - Vercel `/api/kis-portfolio`는 Supabase에서 토큰을 **읽기만** 함 (절대 직접 발급 금지)
+  - 토큰 유효기간: 발급 후 약 24시간. 만료 1시간 전부터 다음 `broker_client` 실행 시 자동 갱신
 - 모든 금액은 KRW 정수 (소수점 없음)
 - allocation 비율 합계는 ≤ 1.0 (M 오판단은 현금비중만큼 합계 < 1.0, 나머지는 1.0)
 - 리밸런싱: 매도 먼저 → 매수 순서 (현금 확보 후 매수)
