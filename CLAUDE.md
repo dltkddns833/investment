@@ -106,6 +106,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/cron/o_monitor_cron.sh` → `scripts/core/o_monitor.py`
   - 10분 간격 체크: 총자산 +5% 전 종목 익절 / 종목별 -3% 해당 종목 손절
   - 30분 간격 능동 트레이딩(09:40~14:50): 모멘텀 이탈 종목 매도 → 급등 종목 편입 (일일 최대 3회)
+  - 매매 발생 시 `daily_reports` + `portfolio_snapshots` 즉시 갱신 (대시보드 실시간 반영)
   - 장마감(15:20) 자동 종료
 - 로그: `logs/o_monitor_YYYY-MM-DD.log`
 
@@ -191,7 +192,7 @@ scripts/
     meta_manager.py      메타 매니저 — 15명 데이터 종합 → 실전 배분 결정
     scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
     safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
-    o_monitor.py         O 정익절 장중 실시간 모니터링 (총자산 +5%익절/-3%손절)
+    o_monitor.py         O 정익절 장중 실시간 모니터링 (총자산 +5%익절/-3%손절, 매매 시 daily_reports 즉시 갱신)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프
     strategies.py        15개 투자자별 결정론적 배분 함수

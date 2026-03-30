@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications")
 
 from supabase_client import supabase
 from market import get_stock_prices, get_stock_prices_parallel
-from portfolio import load_portfolio, save_portfolio, evaluate, calc_fees
+from portfolio import load_portfolio, load_profile, save_portfolio, evaluate, calc_fees
 from safety import check_kill_switch
 from daily_pipeline import notify
 from logger import get_logger
@@ -45,6 +45,76 @@ MOMENTUM_DROP_THRESHOLD = -0.02  # 당일 -2% 이하
 VOLUME_DROP_RATIO = 0.5          # 거래량 전일 50% 미만
 SURGE_PRICE_THRESHOLD = 0.03     # 당일 +3% 이상
 SURGE_VOLUME_RATIO = 1.5         # 거래량 전일 1.5배 이상
+
+
+def refresh_daily_report(current_prices, date_str):
+    """O의 매매 후 daily_reports & portfolio_snapshots를 즉시 갱신"""
+    try:
+        result = evaluate(INVESTOR_ID, current_prices)
+        profile = load_profile(INVESTOR_ID)
+
+        existing = supabase.table("daily_reports").select("*").eq("date", date_str).execute().data
+        if not existing:
+            return
+
+        report = existing[0]
+        investor_name = result["investor"]
+
+        # 기존 매매 정보 유지 + 새 trades_today 추가
+        prev_detail = report["investor_details"].get(investor_name, {})
+        result["rebalance_frequency_days"] = profile["rebalance_frequency_days"]
+        result["rebalanced_today"] = prev_detail.get("rebalanced_today", False)
+        result["total_rebalances"] = prev_detail.get("total_rebalances", 0)
+
+        # trades_today: 기존 + 새 거래 (transactions 테이블에서 전체 조회)
+        txns = supabase.table("transactions").select("type,ticker,shares,price").eq(
+            "investor_id", INVESTOR_ID).eq("date", date_str).execute().data or []
+        result["trades_today"] = txns
+
+        # investor_details 업데이트
+        report["investor_details"][investor_name] = result
+
+        # rankings 재계산
+        details = list(report["investor_details"].values())
+        details.sort(key=lambda x: x.get("total_return_pct", 0), reverse=True)
+        rankings = []
+        for i, d in enumerate(details):
+            rankings.append({
+                "rank": i + 1,
+                "investor": d["investor"],
+                "strategy": d["strategy"],
+                "total_asset": d["total_asset"],
+                "total_return": d["total_return"],
+                "total_return_pct": d["total_return_pct"],
+                "num_holdings": d["num_holdings"],
+                "cash_ratio": d["cash_ratio"],
+                "rebalance_frequency_days": d.get("rebalance_frequency_days", 1),
+                "rebalanced_today": d.get("rebalanced_today", False),
+                "total_rebalances": d.get("total_rebalances", 0),
+            })
+
+        supabase.table("daily_reports").upsert({
+            "date": date_str,
+            "generated_at": report["generated_at"],
+            "market_prices": report["market_prices"],
+            "rankings": rankings,
+            "investor_details": report["investor_details"],
+        }).execute()
+
+        # portfolio_snapshots 갱신
+        portfolio = load_portfolio(INVESTOR_ID)
+        supabase.table("portfolio_snapshots").upsert({
+            "investor_id": INVESTOR_ID,
+            "date": date_str,
+            "holdings": result["holdings"],
+            "cash": portfolio["cash"],
+            "total_asset": result["total_asset"],
+            "snapshot_at": datetime.now().isoformat(),
+        }).execute()
+
+        logger.info(f"  📊 daily_reports 갱신 완료 (종목 {result['num_holdings']}개, 자산 {result['total_asset']:,}원)")
+    except Exception as e:
+        logger.error(f"  daily_reports 갱신 실패: {e}")
 
 
 def is_market_hours():
@@ -402,6 +472,7 @@ def run_monitor(dry_run=False):
                 msg = f"🛑 *정익절 손절* ({datetime.now().strftime('%H:%M')})\n" + \
                     "\n".join(f"• {t['ticker']} {t['shares']}주 ({t['reason']})" for t in stop_trades)
                 notify(msg)
+                refresh_daily_report(all_prices, today_str)
                 portfolio = load_portfolio(INVESTOR_ID)
                 holdings = portfolio.get("holdings", {})
         else:
@@ -423,6 +494,7 @@ def run_monitor(dry_run=False):
                     total_trades.extend(trades)
                     msg = f"💰 *정익절 익절 달성!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
                     notify(msg)
+                    refresh_daily_report(all_prices, today_str)
             else:
                 logger.info(f"  [dry-run] 전 종목 매도 스킵")
 
@@ -476,9 +548,11 @@ def run_monitor(dry_run=False):
                                 f"교체 {daily_swap_count}/{MAX_DAILY_SWAPS}"
                             )
                             notify(msg)
+                            refresh_daily_report(all_prices, today_str)
                             logger.info(f"  ✅ 교체 완료 ({daily_swap_count}/{MAX_DAILY_SWAPS})")
                         elif result:
                             logger.info(f"  ⚠️ 매도만 실행 (매수 불가)")
+                            refresh_daily_report(all_prices, today_str)
                             daily_swap_count += 1
                     else:
                         logger.info(f"  [dry-run] 교체: {sell_name} → {buy_name}")
