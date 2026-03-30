@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useLivePrices } from "@/lib/live-prices";
 import { krw, pct, signColor } from "@/lib/format";
 import type { RealPortfolioEntry, MetaDecision } from "@/lib/data";
 import LiveAssetChart from "./LiveAssetChart";
@@ -26,6 +25,51 @@ interface Props {
   initialCapital: number;
 }
 
+// --- KIS 포트폴리오 데이터 타입 ---
+interface KISHolding {
+  ticker: string;
+  code: string;
+  name: string;
+  shares: number;
+  avg_price: number;
+  current_price: number;
+  eval_amount: number;
+  profit_pct: number;
+  change_pct: number;
+}
+
+interface KISPortfolio {
+  cash: number;
+  total_eval: number;
+  total_asset: number;
+  holdings: KISHolding[];
+  fetchedAt: string;
+}
+
+// --- 장 상태 체크 ---
+function checkMarketOpen(): boolean {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+  const day = now.getDay();
+  if (day === 0 || day === 6) return false;
+  const t = now.getHours() * 60 + now.getMinutes();
+  return t >= 540 && t < 930; // 09:00 ~ 15:30
+}
+
+function canFetchPrices(): boolean {
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })
+  );
+  const day = now.getDay();
+  if (day === 0 || day === 6) return false;
+  const t = now.getHours() * 60 + now.getMinutes();
+  return t >= 540; // 09:00+
+}
+
+const CACHE_TTL_OPEN_MS = 3 * 60 * 1000; // 3분 (장중)
+const CACHE_TTL_CLOSED_MS = 10 * 60 * 1000; // 10분 (장마감 후)
+
 export default function LivePortfolioView({
   portfolio,
   history,
@@ -33,48 +77,101 @@ export default function LivePortfolioView({
   holdings,
   initialCapital,
 }: Props) {
-  const { prices, isLive, isMarketOpen, isClosingPrice, isRefreshing, refresh, fetchedAt } =
-    useLivePrices();
+  const [kisData, setKisData] = useState<KISPortfolio | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMarketOpen, setIsMarketOpen] = useState(false);
+  const [canFetch, setCanFetch] = useState(false);
+  const lastFetchRef = useRef(0);
 
-  // 실시간 시세로 재계산
+  // 장 상태 체크
+  useEffect(() => {
+    setIsMarketOpen(checkMarketOpen());
+    setCanFetch(canFetchPrices());
+    const interval = setInterval(() => {
+      setIsMarketOpen(checkMarketOpen());
+      setCanFetch(canFetchPrices());
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // KIS API fetch
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch("/api/kis-portfolio");
+      if (!res.ok) return;
+      const data: KISPortfolio = await res.json();
+      if (data.holdings) {
+        setKisData(data);
+        lastFetchRef.current = Date.now();
+      }
+    } catch {
+      // 실패 시 이전 데이터 유지
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  // 자동 폴링
+  useEffect(() => {
+    if (!canFetch) return;
+    const age = Date.now() - lastFetchRef.current;
+    const ttl = isMarketOpen ? CACHE_TTL_OPEN_MS : CACHE_TTL_CLOSED_MS;
+    if (age >= ttl) refresh();
+
+    const interval = setInterval(() => {
+      const currentTtl = checkMarketOpen() ? CACHE_TTL_OPEN_MS : CACHE_TTL_CLOSED_MS;
+      if (Date.now() - lastFetchRef.current >= currentTtl) refresh();
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [canFetch, isMarketOpen, refresh]);
+
+  const isLive = isMarketOpen && kisData !== null;
+  const isClosingPrice = !isMarketOpen && canFetch && kisData !== null;
+  const hasKIS = kisData !== null;
+
+  // KIS 데이터로 보유종목 매핑
+  const kisHoldingsMap = new Map(
+    kisData?.holdings.map((h) => [h.ticker, h]) ?? []
+  );
+
   let totalEval = 0;
   const liveHoldings = holdings.map((h) => {
-    const livePrice = prices?.[h.ticker]?.price;
-    const currentPrice = livePrice ?? h.avg_price;
-    const evalAmount = h.shares * currentPrice;
+    const kis = kisHoldingsMap.get(h.ticker);
+    const currentPrice = kis?.current_price ?? h.avg_price;
+    const evalAmount = kis?.eval_amount ?? h.shares * currentPrice;
     totalEval += evalAmount;
-    const profitPct =
-      h.avg_price > 0 ? ((currentPrice / h.avg_price - 1) * 100) : 0;
+    const profitPct = kis?.profit_pct ?? (h.avg_price > 0 ? ((currentPrice / h.avg_price - 1) * 100) : 0);
+    const changePct = kis?.change_pct ?? 0;
     return {
       ...h,
       currentPrice,
       evalAmount,
       profitPct,
-      isLivePrice: livePrice != null,
+      changePct,
+      isLivePrice: kis != null,
     };
   });
 
-  // DB total_asset에서 주식평가를 빼서 실제 현금 역산 (D+2 정산 이중 계산 방지)
-  const dbStockEval = Object.values(portfolio.holdings).reduce(
-    (sum, h) => sum + h.shares * h.avg_price, 0
-  );
-  const cash = portfolio.total_asset - dbStockEval;
-  const totalAsset = prices ? cash + totalEval : portfolio.total_asset;
+  // KIS 잔고 사용, 없으면 DB cash 직접 사용
+  const cash = hasKIS ? kisData.cash : portfolio.cash;
+  const totalAsset = hasKIS ? kisData.total_asset : portfolio.total_asset;
   const cumulativeReturn = ((totalAsset / initialCapital - 1) * 100);
 
   // 전일 자산 기준 일일 수익률
   const prevPortfolio = history.length >= 2 ? history[history.length - 2] : null;
   const prevTotalAsset = prevPortfolio?.total_asset ?? initialCapital;
-  const dailyReturn = prices
+  const dailyReturn = hasKIS
     ? ((totalAsset / prevTotalAsset - 1) * 100)
     : (portfolio.daily_return_pct ?? 0);
 
   const kospiReturn = portfolio.kospi_cumulative_pct;
-  const alpha = prices && kospiReturn != null
+  const alpha = hasKIS && kospiReturn != null
     ? cumulativeReturn - kospiReturn
     : portfolio.alpha_cumulative_pct;
 
   const pnl = totalAsset - initialCapital;
+  const fetchedAt = kisData?.fetchedAt ?? null;
 
   // 라이브 뱃지
   const badge = isLive
@@ -288,6 +385,7 @@ function LiveHoldingsTableWithPrice({
     currentPrice: number;
     evalAmount: number;
     profitPct: number;
+    changePct: number;
     isLivePrice: boolean;
     acquired_date?: string | null;
   }>;
@@ -363,7 +461,12 @@ function LiveHoldingsTableWithPrice({
               <td className="py-2.5 text-right">{h.shares}주</td>
               <td className="py-2.5 text-right">{krw(h.avg_price)}</td>
               <td className="py-2.5 text-right">
-                {krw(h.currentPrice)}
+                <span>{krw(h.currentPrice)}</span>
+                {h.isLivePrice && h.changePct !== 0 && (
+                  <span className={`text-xs ml-1 ${signColor(h.changePct)}`}>
+                    {h.changePct > 0 ? "+" : ""}{h.changePct.toFixed(1)}%
+                  </span>
+                )}
               </td>
               <td className="py-2.5 text-right font-medium">
                 {krw(Math.round(h.evalAmount))}

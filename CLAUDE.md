@@ -168,8 +168,11 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
   → simulate.py --close (종가로 daily_reports + portfolio_snapshots 갱신)
   → 종가 반영된 daily_reports 기반 콘텐츠 생성 → daily_stories 저장
 
-[대시보드] 장중에는 Yahoo Finance 실시간 시세로 포트폴리오 재계산 (useLiveRankings)
+[대시보드 - 시뮬레이션] 장중에는 Yahoo Finance 실시간 시세로 포트폴리오 재계산 (useLiveRankings)
   → 장마감 후에는 종가 반영된 daily_reports 데이터 표시
+
+[대시보드 - 실전 투자] KIS API로 실시간 보유종목/잔고 조회 (/api/kis-portfolio)
+  → 장중 3분, 장마감 후 10분 간격 자동 폴링
 ```
 
 **핵심 분리 원칙:** `simulate.py`는 배분을 결정하지 않는다. Supabase에 사전 저장된 allocation만 실행한다. 뉴스 수집과 배분 판단은 Claude가 투자자 프로필 성향에 맞춰 수행.
@@ -245,6 +248,7 @@ scripts/
 **환경변수:**
 - `/.env` — Python용 (`SUPABASE_URL`, `SUPABASE_KEY`, `KIS_APP_KEY`, `KIS_APP_SECRET_KEY`, `KIS_ACCOUNT_NO`)
 - `/web/.env.local` — Next.js용 (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
+- Vercel 환경변수 — 위 Next.js용 + `KIS_APP_KEY`, `KIS_APP_SECRET_KEY`, `KIS_ACCOUNT_NO` (실전 투자 실시간 조회용)
 
 ## Key Conventions
 
