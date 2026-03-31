@@ -140,6 +140,12 @@ launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
 launchctl list | grep com.investment
 ```
 
+### Claude Code 자동 업데이트 비활성화
+파이프라인 안정성을 위해 자동 업데이트를 끄고 수동으로 관리한다.
+- 설정: `~/.claude/settings.json`에 `"env": {"DISABLE_AUTOUPDATER": "1"}` 추가
+- 수동 업그레이드: `claude update` (주말 등 여유 있을 때 실행)
+- 이 설정은 로컬 머신에만 적용됨
+
 ### 재개 시 필요 설정: macOS 전체 디스크 접근 권한
 launchd 프로세스가 `~/Desktop` 하위 프로젝트에 접근할 때 macOS 권한 팝업이 뜰 수 있다.
 **설정 > 개인정보 보호 및 보안 > 전체 디스크 접근 권한**에서 아래 항목 허용:
