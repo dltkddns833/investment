@@ -106,7 +106,25 @@ def validate_meta_allocation(allocation):
     adjusted = dict(allocation)
     max_ratio = MAX_SINGLE_STOCK_PCT / 100.0
 
-    # 1. 단일 종목 비중 제한 (30%)
+    # 1. stock_universe 검증 (#48)
+    try:
+        config_row = supabase.table("config").select("stock_universe").eq("id", 1).single().execute().data
+        su_list = config_row.get("stock_universe", [])
+        if isinstance(su_list, list) and su_list:
+            universe_tickers = {s["ticker"] for s in su_list if isinstance(s, dict) and "ticker" in s}
+            if universe_tickers:
+                invalid = set(adjusted.keys()) - universe_tickers
+                if invalid:
+                    for t in invalid:
+                        del adjusted[t]
+                    violations.append({
+                        "type": "종목제한",
+                        "detail": f"stock_universe 외 종목 제거: {invalid}",
+                    })
+    except Exception as e:
+        logger.warning(f"stock_universe 검증 스킵 (config 로드 실패): {e}")
+
+    # 2. 단일 종목 비중 제한 (30%)
     for ticker, weight in list(adjusted.items()):
         if weight > max_ratio:
             violations.append({
@@ -115,7 +133,7 @@ def validate_meta_allocation(allocation):
             })
             adjusted[ticker] = max_ratio
 
-    # 2. 배분 합계 검증 (> 1.0 불가)
+    # 3. 배분 합계 검증 (> 1.0 불가)
     total = sum(adjusted.values())
     if total > 1.0:
         scale = 1.0 / total
@@ -125,7 +143,7 @@ def validate_meta_allocation(allocation):
             "detail": f"배분합계 {total*100:.1f}% → 100.0%",
         })
 
-    # 3. 최소 현금 5%
+    # 4. 최소 현금 5%
     total = sum(adjusted.values())
     if total > 0.95:
         scale = 0.95 / total
@@ -285,7 +303,7 @@ def update_meta_config(updates):
 # --- 리밸런싱 주기 (#43) ---
 
 def is_rebalance_day(date_str, meta_config=None):
-    """오늘이 정규 리밸런싱 요일인지 (기본: 수요일)
+    """오늘이 정규 리밸런싱 요일인지 (기본: 격주 수요일)
 
     Args:
         date_str: "YYYY-MM-DD"
@@ -309,17 +327,25 @@ def is_rebalance_day(date_str, meta_config=None):
     if d.date() in kr_holidays:
         return False
 
+    # 격주 체크 (#48): biweekly이면 짝수 ISO 주만 실행
+    freq = meta_config.get("rebalance_frequency", "weekly")
+    if freq == "biweekly":
+        iso_week = d.isocalendar()[1]
+        if iso_week % 2 != 0:
+            return False
+
     return True
 
 
 # --- 손절/익절 (#44) ---
 
-def check_stop_loss_take_profit(current_holdings, meta_config=None):
-    """종목별 -7% 손절 / +10% 익절 대상 분류
+def check_stop_loss_take_profit(current_holdings, meta_config=None, regime="neutral"):
+    """종목별 손절/익절 대상 분류 (레짐별 차등 손절 #48)
 
     Args:
         current_holdings: KIS get_holdings() 결과
         meta_config: get_meta_config() 결과
+        regime: 현재 마켓 레짐 (bear/neutral/bull)
 
     Returns:
         {"stop_loss": [holdings...], "take_profit": [holdings...]}
@@ -327,7 +353,11 @@ def check_stop_loss_take_profit(current_holdings, meta_config=None):
     if meta_config is None:
         meta_config = get_meta_config()
 
-    sl_pct = meta_config.get("stop_loss_pct", -7)
+    # 레짐별 차등 손절 (#48): bear -7%, neutral -8%, bull -10%
+    stop_loss_by_regime = meta_config.get(
+        "stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10}
+    )
+    sl_pct = stop_loss_by_regime.get(regime, meta_config.get("stop_loss_pct", -8))
     tp_pct = meta_config.get("take_profit_pct", 10)
 
     stop_loss = []
@@ -425,6 +455,42 @@ def enforce_turnover_limit(orders, total_asset, meta_config=None):
     return adjusted, True
 
 
+# --- 레짐별 투자 비중 제한 (#48) ---
+
+REGIME_LIMITS = {"bear": 0.30, "neutral": 0.60, "bull": 0.90}
+
+
+def enforce_regime_limit(allocation, regime, date_str=None, meta_config=None):
+    """레짐별 최대 투자 비중 강제 + 안정화 기간 현금 40% (#48)
+
+    Args:
+        allocation: {ticker: weight, ...}
+        regime: 현재 마켓 레짐 (bear/neutral/bull)
+        date_str: 오늘 날짜 (안정화 기간 체크용)
+        meta_config: get_meta_config() 결과
+
+    Returns:
+        (adjusted_allocation, applied_limit, was_scaled)
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    max_invest = REGIME_LIMITS.get(regime, 0.60)
+
+    # 안정화 기간이면 현금 최소 40% (레짐 무관) (#48)
+    if date_str and is_stabilization_period(date_str, meta_config):
+        max_invest = min(max_invest, 0.60)
+
+    alloc_sum = sum(allocation.values())
+    if alloc_sum <= max_invest:
+        return allocation, max_invest, False
+
+    scale = max_invest / alloc_sum
+    adjusted = {t: round(w * scale, 4) for t, w in allocation.items()}
+    logger.info(f"레짐({regime}) 한도 적용: {alloc_sum*100:.1f}% → {max_invest*100:.0f}%")
+    return adjusted, max_invest, True
+
+
 # --- 안정화 기간 (#47) ---
 
 def is_stabilization_period(date_str, meta_config=None):
@@ -437,7 +503,7 @@ def is_stabilization_period(date_str, meta_config=None):
         meta_config = get_meta_config()
 
     end_date = meta_config.get("stabilization_end_date")
-    if not end_date:
+    if not end_date or not isinstance(end_date, str):
         return False
 
     return date_str <= end_date

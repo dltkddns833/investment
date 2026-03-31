@@ -393,12 +393,14 @@ def compute_scorecards(initial_capital=INITIAL_CAPITAL):
             1,
         )
 
+        trading_days = len(daily_returns_map.get(inv_id, []))
         scorecards.append({
             "investor": name,
             "investorId": inv_id,
             "totalScore": total_score,
             "rank": 0,
             "recommended": False,
+            "tradingDays": trading_days,
             "categories": categories,
         })
 
@@ -409,11 +411,15 @@ def compute_scorecards(initial_capital=INITIAL_CAPITAL):
         for j, sc in enumerate(scorecards):
             sc["categories"][key]["rank"] = ranks[j]
 
-    # 총점 순위
+    # 총점 순위 + 최소 데이터 기간 체크 (#48)
+    MIN_TRADING_DAYS = 10
     total_ranks = _assign_ranks([sc["totalScore"] for sc in scorecards])
     for j, sc in enumerate(scorecards):
         sc["rank"] = total_ranks[j]
-        sc["recommended"] = total_ranks[j] <= 3
+        has_enough_data = sc.get("tradingDays", 0) >= MIN_TRADING_DAYS
+        sc["recommended"] = total_ranks[j] <= 3 and has_enough_data
+        if not has_enough_data:
+            sc["dataWarning"] = f"데이터 {sc.get('tradingDays', 0)}일 — 추천 보류"
 
     # 순위순 정렬
     scorecards.sort(key=lambda sc: sc["rank"])

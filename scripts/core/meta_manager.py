@@ -27,6 +27,7 @@ from safety import (
     is_rebalance_day, check_stop_loss_take_profit,
     check_holding_period, enforce_turnover_limit,
     is_stabilization_period, get_stabilization_tickers,
+    enforce_regime_limit, STABILIZATION_LARGE_CAPS,
 )
 from send_telegram import send_telegram, send_approval_request, wait_for_approval
 from logger import get_logger
@@ -34,6 +35,8 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 INITIAL_CAPITAL = 2_000_000  # 실전 초기 자금
+
+REGIME_KR = {"bear": "약세장", "neutral": "중립장", "bull": "강세장"}
 
 
 def notify(message):
@@ -51,16 +54,35 @@ class MetaManager:
         self.kis = KISClient()
         self.date_str = date_str or datetime.now().strftime("%Y-%m-%d")
 
+    def _get_db_regime(self):
+        """market_regimes 테이블에서 해당 날짜의 실제 레짐 조회 (#48)"""
+        try:
+            rows = (
+                supabase.table("market_regimes")
+                .select("regime")
+                .lte("date", self.date_str)
+                .order("date", desc=True)
+                .limit(1)
+                .execute()
+                .data
+            )
+            if rows:
+                return rows[0]["regime"]
+        except Exception as e:
+            logger.warning(f"DB 레짐 조회 실패: {e}")
+        return "neutral"
+
     # ─── Step 1: 데이터 수집 ─────────────────────────
 
     def collect_data(self):
         """Supabase + KIS에서 분석에 필요한 모든 데이터 수집"""
         data = {}
 
-        # 마켓 레짐
+        # 마켓 레짐 (해당 날짜 이하 최신 #48)
         regime_rows = (
             supabase.table("market_regimes")
             .select("date, regime, bull_score, kospi_price")
+            .lte("date", self.date_str)
             .order("date", desc=True)
             .limit(1)
             .execute()
@@ -282,6 +304,7 @@ class MetaManager:
             lines.append("## 전략 스코어카드 (상위 5명)")
             for sc in scorecards[:5]:
                 rec = " ⭐추천" if sc["recommended"] else ""
+                warn = f" ⚠️{sc['dataWarning']}" if sc.get("dataWarning") else ""
                 cats = sc["categories"]
                 lines.append(
                     f"- #{sc['rank']} {sc['investor']}({sc['investorId']}): "
@@ -289,9 +312,87 @@ class MetaManager:
                     f"수익 {cats['profitability']['score']:.0f} · "
                     f"위험조정 {cats['riskAdjusted']['score']:.0f} · "
                     f"방어 {cats['defense']['score']:.0f} · "
-                    f"일관 {cats['consistency']['score']:.0f}{rec}"
+                    f"일관 {cats['consistency']['score']:.0f}{rec}{warn}"
                 )
             lines.append("")
+
+        # 추천 전략(⭐) 보유 종목 (#48)
+        recommended_scs = [sc for sc in scorecards if sc.get("recommended")]
+        if recommended_scs:
+            lines.append("## 추천 전략(⭐) 보유 종목")
+            try:
+                for sc in recommended_scs:
+                    inv_id = sc["investorId"]
+                    snap = (
+                        supabase.table("portfolio_snapshots")
+                        .select("holdings")
+                        .eq("investor_id", inv_id)
+                        .order("date", desc=True)
+                        .limit(1)
+                        .execute()
+                        .data
+                    )
+                    if snap and snap[0].get("holdings"):
+                        h_items = snap[0]["holdings"]
+                        sorted_items = sorted(h_items.items(), key=lambda x: x[1].get("eval_amount", 0), reverse=True)
+                        top_tickers = [f"{t}({v.get('weight', 0)*100:.0f}%)" for t, v in sorted_items[:5]]
+                        lines.append(f"- {sc['investor']}({inv_id}): {', '.join(top_tickers)}")
+            except Exception as e:
+                logger.warning(f"추천 전략 보유종목 조회 실패: {e}")
+            lines.append("")
+
+        # 15명 합의 종목 (#48, E 제외)
+        try:
+            latest_snaps = (
+                supabase.table("portfolio_snapshots")
+                .select("investor_id, holdings")
+                .order("date", desc=True)
+                .limit(15)
+                .execute()
+                .data
+            )
+            # 최신 날짜의 스냅샷만 사용
+            if latest_snaps:
+                latest_date = None
+                for s in latest_snaps:
+                    # date 필드가 없을 수 있으므로 최대 15건 중 처리
+                    pass
+                # investor_id별 최신 스냅샷 (별도 쿼리)
+                snap_date_rows = (
+                    supabase.table("portfolio_snapshots")
+                    .select("date")
+                    .order("date", desc=True)
+                    .limit(1)
+                    .execute()
+                    .data
+                )
+                if snap_date_rows:
+                    snap_date = snap_date_rows[0]["date"]
+                    all_snaps = (
+                        supabase.table("portfolio_snapshots")
+                        .select("investor_id, holdings")
+                        .eq("date", snap_date)
+                        .execute()
+                        .data
+                    )
+                    ticker_holders = defaultdict(list)
+                    for s in all_snaps:
+                        if s["investor_id"] == "E":  # E 벤치마크 제외 (#48)
+                            continue
+                        if s.get("holdings"):
+                            for ticker in s["holdings"].keys():
+                                ticker_holders[ticker].append(s["investor_id"])
+
+                    consensus = [(t, holders) for t, holders in ticker_holders.items() if len(holders) >= 3]
+                    consensus.sort(key=lambda x: -len(x[1]))
+
+                    if consensus:
+                        lines.append("## 15명 합의 종목 (3명+ 보유, E 제외)")
+                        for ticker, holders in consensus[:15]:
+                            lines.append(f"- {ticker}: {len(holders)}명 ({','.join(sorted(holders))})")
+                        lines.append("")
+        except Exception as e:
+            logger.warning(f"합의 종목 조회 실패: {e}")
 
         # 레짐별 최적 전략
         optimal = analysis.get("regime_optimal", {})
@@ -363,17 +464,23 @@ class MetaManager:
                     lines.append(f"- {h['name']}: 매수일 미상 (매도가능)")
             lines.append("")
 
-        # 안정화 기간 경고
+        # 안정화 기간 경고 + 허용 종목 목록 (#48)
         if is_stabilization_period(self.date_str, meta_config):
-            lines.append("## \u26a0\ufe0f 안정화 기간")
+            lines.append("## ⚠️ 안정화 기간")
             lines.append(f"- ~{meta_config.get('stabilization_end_date')}까지 대형주(시총 상위 30)만 매매 가능")
+            lines.append(f"- 현금 최소 40% 유지 (레짐 무관)")
+            lines.append(f"- 허용 종목: {', '.join(sorted(STABILIZATION_LARGE_CAPS))}")
             lines.append("")
 
-        # 회전율 제한 안내
+        # 레짐별 투자 한도 안내 (#48)
+        regime_name = regime.get("regime", "neutral") if isinstance(regime, dict) else str(regime)
+        regime_limits = {"bear": "30%", "neutral": "60%", "bull": "90%"}
         lines.append("## 매매 제약")
-        lines.append(f"- 회전율 한도: 총자산의 {meta_config.get('max_turnover_pct', 40)}% 이내")
-        lines.append(f"- 최소 보유기간: {meta_config.get('min_holding_days', 3)}영업일")
-        lines.append(f"- 손절: {meta_config.get('stop_loss_pct', -7)}% / 익절: +{meta_config.get('take_profit_pct', 10)}%")
+        lines.append(f"- 레짐({regime_name}) 최대 투자 비중: {regime_limits.get(regime_name, '60%')} (코드 자동 강제)")
+        lines.append(f"- 회전율 한도: 총자산의 {meta_config.get('max_turnover_pct', 25)}% 이내")
+        lines.append(f"- 최소 보유기간: {meta_config.get('min_holding_days', 5)}영업일")
+        sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
+        lines.append(f"- 손절: {sl_by_regime.get(regime_name, -8)}% (레짐별 차등) / 익절: +{meta_config.get('take_profit_pct', 10)}%")
         lines.append("")
 
         lines.append("## 요청")
@@ -501,11 +608,12 @@ class MetaManager:
         # 매도 먼저, 매수 나중
         orders.sort(key=lambda o: 0 if o["side"] == "sell" else 1)
 
-        # 회전율 제한 (#46): 40% 초과 시 비례 축소
+        # 회전율 제한 (#46): 한도 초과 시 비례 축소
         if orders:
             orders, truncated = enforce_turnover_limit(orders, total_asset, meta_config)
             if truncated:
-                notify(f"\u26a0\ufe0f 회전율 한도(40%) 초과 — 주문 비례 축소")
+                max_t = meta_config.get("max_turnover_pct", 25) if meta_config else 25
+                notify(f"⚠️ 회전율 한도({max_t}%) 초과 — 주문 비례 축소")
 
         return orders
 
@@ -681,11 +789,11 @@ class MetaManager:
             - "skip": 비리밸런싱일 + 긴급 매매 없음
         """
         meta_config = get_meta_config()
-        notify(f"\U0001f916 *메타 매니저 시작* ({self.date_str})")
+        notify(f"🤖 *메타 매니저 시작* ({self.date_str})")
 
         # 0. 안전 체크
         if check_kill_switch():
-            notify("\U0001f6d1 킬스위치 활성화 — 실행 중단")
+            notify("🛑 킬스위치 활성화 — 실행 중단\n수동 해제: safety.py --kill-switch off")
             return {"status": "killed"}
 
         prev = get_prev_real_portfolio()
@@ -699,16 +807,33 @@ class MetaManager:
                 current_total = prev.get("total_asset", INITIAL_CAPITAL)
 
             if check_daily_loss(current_total, prev.get("total_asset", 0)):
-                notify("\U0001f534 일일 손실 한도 초과 (-3%) — 자동 중단")
+                prev_total = prev.get("total_asset", 0)
+                daily_pct = (current_total / prev_total - 1) * 100 if prev_total > 0 else 0
+                notify(
+                    f"🔴 일일 손실 한도 초과 — 자동 중단\n"
+                    f"전일 {prev_total:,}원 → 현재 {current_total:,}원 ({daily_pct:+.1f}%)\n"
+                    f"한도: -3%\n\n"
+                    f"하루 만에 {abs(daily_pct):.1f}% 하락하여 일일 손실 한도(-3%)를 초과했습니다. "
+                    f"추가 손실을 방지하기 위해 오늘 모든 거래를 중단합니다."
+                )
                 return {"status": "daily_loss_halt"}
 
             if check_cumulative_loss(current_total, INITIAL_CAPITAL):
-                notify("\U0001f534 누적 손실 한도 초과 (-10%) — 전량 청산 시작")
+                cum_pct = (current_total / INITIAL_CAPITAL - 1) * 100
+                notify(
+                    f"🔴 누적 손실 한도 초과 — 전량 청산 시작\n"
+                    f"초기 {INITIAL_CAPITAL:,}원 → 현재 {current_total:,}원 ({cum_pct:+.1f}%)\n"
+                    f"한도: -10%\n\n"
+                    f"초기 자금 대비 누적 {abs(cum_pct):.1f}% 손실이 발생하여 한도(-10%)를 초과했습니다. "
+                    f"더 이상의 손실을 막기 위해 전 종목을 시장가로 청산합니다."
+                )
                 holdings = self.kis.get_holdings()
                 emergency_liquidate(self.kis, holdings)
                 return {"status": "emergency_liquidated"}
 
-        # 1. 매일: 긴급 손절/익절 체크 (#44)
+        # 1. 매일: 긴급 손절/익절 체크 (#44, 레짐별 차등 #48)
+        current_regime = self._get_db_regime()
+
         try:
             current_holdings = self.kis.get_holdings()
         except Exception as e:
@@ -716,7 +841,7 @@ class MetaManager:
             current_holdings = []
 
         if current_holdings:
-            triggers = check_stop_loss_take_profit(current_holdings, meta_config)
+            triggers = check_stop_loss_take_profit(current_holdings, meta_config, regime=current_regime)
             prev_holdings = prev.get("holdings", {}) if prev else {}
 
             emergency_orders = []
@@ -739,7 +864,29 @@ class MetaManager:
             if emergency_orders:
                 reasons = set(o["reason"] for o in emergency_orders)
                 decision_type = "emergency_stop_loss" if "stop_loss" in reasons else "emergency_take_profit"
-                notify(f"\U0001f6a8 긴급 매매 감지: {', '.join(o['name'] for o in emergency_orders)}")
+                sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
+                sl_threshold = sl_by_regime.get(current_regime, -8)
+                tp_threshold = meta_config.get("take_profit_pct", 10)
+                order_details = []
+                for o in emergency_orders:
+                    h_match = [h for h in current_holdings if h["ticker"] == o["ticker"]]
+                    pnl = h_match[0].get("profit_pct", 0) if h_match else 0
+                    reason_kr = "손절" if o["reason"] == "stop_loss" else "익절"
+                    order_details.append(f"  · {o['name']} {pnl:+.1f}% → {reason_kr}")
+                sl_names = [o["name"] for o in emergency_orders if o["reason"] == "stop_loss"]
+                tp_names = [o["name"] for o in emergency_orders if o["reason"] == "take_profit"]
+                regime_kr = REGIME_KR.get(current_regime, current_regime)
+                desc_parts = []
+                if sl_names:
+                    desc_parts.append(f"현재 {regime_kr}에서 손절 기준({sl_threshold}%)을 초과한 {', '.join(sl_names)}의 매도가 필요합니다")
+                if tp_names:
+                    desc_parts.append(f"{', '.join(tp_names)}이(가) 익절 기준(+{tp_threshold}%)에 도달하여 수익 실현을 진행합니다")
+                notify(
+                    f"🚨 긴급 매매 감지 ({regime_kr})\n"
+                    f"손절 기준: {sl_threshold}% / 익절 기준: +{tp_threshold}%\n"
+                    + "\n".join(order_details) + "\n\n"
+                    + ". ".join(desc_parts) + "."
+                )
                 return {
                     "status": "emergency_triggered",
                     "decision_type": decision_type,
@@ -749,7 +896,24 @@ class MetaManager:
 
         # 2. 리밸런싱 요일 체크 (#43)
         if not is_rebalance_day(self.date_str, meta_config):
-            notify(f"\u2139\ufe0f 리밸런싱 요일 아님 + 긴급 매매 없음 — 스킵")
+            d = datetime.strptime(self.date_str, "%Y-%m-%d")
+            day_kr = ["월", "화", "수", "목", "금", "토", "일"][d.weekday()]
+            iso_week = d.isocalendar()[1]
+            freq = meta_config.get("rebalance_frequency", "weekly")
+            week_info = f"ISO {iso_week}주({'짝수' if iso_week % 2 == 0 else '홀수'})" if freq == "biweekly" else ""
+            holdings_summary = f" · 보유 {len(current_holdings)}종목" if current_holdings else ""
+            rebal_day = meta_config.get("rebalance_day", "wednesday")
+            day_kr_map = {"monday": "월", "tuesday": "화", "wednesday": "수", "thursday": "목", "friday": "금"}
+            target_day_kr = day_kr_map.get(rebal_day, "수")
+            regime_kr = REGIME_KR.get(current_regime, current_regime)
+            notify(
+                f"ℹ️ 스킵 — {day_kr}요일{' · ' + week_info if week_info else ''}\n"
+                f"긴급 매매 없음 ({regime_kr}){holdings_summary}\n\n"
+                f"오늘은 {day_kr}요일이라 정규 리밸런싱 대상이 아닙니다"
+                f"{'(' + week_info + ', 짝수 주만 실행)' if week_info else ''}. "
+                f"보유 종목의 손절/익절 기준에 해당하는 종목도 없어 거래 없이 마칩니다. "
+                f"다음 리밸런싱은 격주 {target_day_kr}요일에 진행됩니다."
+            )
             self.save_decision({
                 "regime": "",
                 "decision_type": "skip",
@@ -871,12 +1035,25 @@ class MetaManager:
         self.save_real_portfolio(executed_orders=results)
 
         success_count = sum(1 for r in results if r.get("status") == "submitted")
-        notify(f"\u2705 *긴급 매매 완료* — {success_count}/{len(results)}건 체결")
+        result_lines = []
+        for r in results:
+            emoji = "✅" if r.get("status") == "submitted" else "❌"
+            reason_kr = "손절" if r.get("reason") == "stop_loss" else "익절"
+            result_lines.append(f"  {emoji} {reason_kr} {r.get('name', r['code'])} x{r['qty']}")
+        failed = len(results) - success_count
+        desc = f"총 {len(results)}건 중 {success_count}건이 정상 체결되었습니다."
+        if failed > 0:
+            desc += f" {failed}건은 체결에 실패했으니 확인이 필요합니다."
+        notify(
+            f"✅ *긴급 매매 완료* ({self.date_str})\n"
+            f"체결: {success_count}/{len(results)}건\n"
+            + "\n".join(result_lines) + f"\n\n{desc}"
+        )
 
         return {"status": "executed", "orders": results}
 
     def execute_allocation(self, target_allocation, rationale, selected_strategies=None,
-                           regime="", morning_session=None, dry_run=False):
+                           regime="", morning_session=None, dry_run=False, force=False):
         """Claude가 결정한 배분을 실행 (정규 리밸런싱)
 
         Args:
@@ -886,17 +1063,57 @@ class MetaManager:
             regime: 현재 마켓 레짐 (bull/neutral/bear)
             morning_session: 오전장 시장 데이터 (KOSPI, 수급 등)
             dry_run: True이면 분석만, 주문 스킵
+            force: True이면 요일 가드 무시
 
         Returns:
             {"status": str, "orders": list}
         """
         meta_config = get_meta_config()
 
-        # 1. 배분 검증
+        # 0. 요일 가드 (#48): 비리밸런싱일이면 거부
+        if not force and not is_rebalance_day(self.date_str, meta_config):
+            msg = f"⚠️ {self.date_str}은 리밸런싱 요일이 아닙니다. force=True로 오버라이드 가능"
+            notify(msg)
+            logger.warning(msg)
+            return {"status": "rejected", "reason": "not_rebalance_day"}
+
+        # 0b. 레짐 DB 강제 (#48): caller 전달값 무시, DB 값 사용
+        db_regime = self._get_db_regime()
+        if regime and regime != db_regime:
+            regime_limits = {"bear": "30%", "neutral": "60%", "bull": "90%"}
+            regime_from_kr = REGIME_KR.get(regime, regime)
+            regime_to_kr = REGIME_KR.get(db_regime, db_regime)
+            notify(
+                f"⚠️ 레짐 불일치 — AI 판단: {regime_from_kr}, 실제: {regime_to_kr}\n"
+                f"실제 값({regime_to_kr}) 사용 → 최대 투자 {regime_limits.get(db_regime, '60%')}\n\n"
+                f"AI가 {regime_from_kr}으로 판단했지만, 실제 시장 지표(이평선/거래량/변동성)는 "
+                f"{regime_to_kr}을 가리키고 있어 실제 기준으로 교체합니다."
+            )
+        regime = db_regime
+
+        # 1. 배분 검증 (stock_universe 포함 #48)
         adjusted, violations = validate_meta_allocation(target_allocation)
         if violations:
-            notify(f"\u26a0\ufe0f 배분 검증 위반 {len(violations)}건:\n" +
+            notify(f"⚠️ 배분 검증 위반 {len(violations)}건:\n" +
                    "\n".join(f"- {v['detail']}" for v in violations))
+
+        # 1b. 레짐별 투자 비중 강제 (#48)
+        adjusted, applied_limit, was_scaled = enforce_regime_limit(
+            adjusted, regime, self.date_str, meta_config
+        )
+        if was_scaled:
+            alloc_before = sum(target_allocation.values())
+            alloc_after = sum(adjusted.values())
+            cash_pct = (1 - alloc_after) * 100
+            regime_kr = REGIME_KR.get(regime, regime)
+            notify(
+                f"📉 {regime_kr} 한도 적용\n"
+                f"배분 합계: {alloc_before*100:.0f}% → {alloc_after*100:.0f}% (한도 {applied_limit*100:.0f}%)\n"
+                f"현금 비중: {cash_pct:.0f}%\n\n"
+                f"현재 {regime_kr}이므로 최대 투자 비중을 {applied_limit*100:.0f}%로 제한합니다. "
+                f"AI가 제안한 {alloc_before*100:.0f}% 배분을 {alloc_after*100:.0f}%로 축소하고 "
+                f"나머지 {cash_pct:.0f}%는 현금으로 보유합니다."
+            )
 
         # 2. 주문 생성 (보유기간/안정화/회전율 필터 포함)
         current_holdings = self.kis.get_holdings()
@@ -1019,7 +1236,26 @@ class MetaManager:
             pass
 
         success_count = sum(1 for r in results if r.get("status") == "submitted")
-        notify(f"\u2705 *메타 매니저 완료* — {success_count}/{len(results)}건 체결")
+        sell_count = sum(1 for r in results if r["side"] == "sell" and r.get("status") == "submitted")
+        buy_count = sum(1 for r in results if r["side"] == "buy" and r.get("status") == "submitted")
+        result_lines = []
+        for r in results:
+            emoji = "✅" if r.get("status") == "submitted" else "❌"
+            side_kr = "매도" if r["side"] == "sell" else "매수"
+            result_lines.append(f"  {emoji} {side_kr} {r.get('name', r['code'])} x{r['qty']}")
+        regime_kr = REGIME_KR.get(regime, regime)
+        desc_parts = []
+        if sell_count:
+            desc_parts.append(f"{sell_count}종목 매도")
+        if buy_count:
+            desc_parts.append(f"{buy_count}종목 매수")
+        notify(
+            f"✅ *메타 매니저 완료* ({self.date_str})\n"
+            f"{regime_kr} · 체결: {success_count}/{len(results)}건\n"
+            + "\n".join(result_lines) + "\n\n"
+            f"{regime_kr} 기준으로 {', '.join(desc_parts)}하여 포트폴리오를 조정했습니다. "
+            f"근거: {rationale[:150]}"
+        )
 
         return {"status": "executed", "orders": results}
 
