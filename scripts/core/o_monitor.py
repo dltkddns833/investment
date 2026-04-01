@@ -266,9 +266,13 @@ def check_momentum_exit(holdings, all_prices, buy_check_map, check_count):
             signals += 1
 
         # 조건 2: 거래량 급감 (전일의 50% 미만)
+        # prev_volume 없으면 스킵 — 나머지 2개 조건(하락률+5일선)으로 판별
         prev_vol = p.get("prev_volume", 0)
-        if prev_vol > 0 and p["volume"] < prev_vol * VOLUME_DROP_RATIO:
-            signals += 1
+        if prev_vol > 0:
+            if p["volume"] < prev_vol * VOLUME_DROP_RATIO:
+                signals += 1
+        else:
+            logger.warning(f"  ⚠️ {h['name']}({ticker}) prev_volume 데이터 없음 — 거래량 조건 스킵")
 
         # 조건 3: 5일선 이탈 (현재가 < 5일선 & 전일종가 > 5일선)
         sma_5 = p.get("sma_5", 0)
@@ -361,7 +365,9 @@ def execute_swap(portfolio, sell_ticker, buy_ticker, all_prices, date_str):
             "price": sell_exec_price, "amount": sell_revenue, "fee": sell_fee,
             "profit": sell_profit,
         }).execute()
-        return {"sell": sell_ticker, "buy": None}
+        sell_pct = (sell_exec_price / sell_info["avg_price"] - 1) * 100
+        return {"sell": sell_ticker, "buy": None, "sell_pct": sell_pct,
+                "sell_name": sell_name, "sell_shares": sell_shares}
 
     buy_exec_price, buy_fee = calc_fees(buy_ticker, buy_price, buy_shares, "buy")
     buy_cost = buy_shares * buy_exec_price + buy_fee
@@ -551,7 +557,11 @@ def run_monitor(dry_run=False):
                             refresh_daily_report(all_prices, today_str)
                             logger.info(f"  ✅ 교체 완료 ({daily_swap_count}/{MAX_DAILY_SWAPS})")
                         elif result:
-                            logger.info(f"  ⚠️ 매도만 실행 (매수 불가)")
+                            logger.info(f"  ⚠️ 매도만 실행: {result.get('sell_name', result['sell'])} ({result.get('sell_pct', 0):+.1f}%)")
+                            if result.get("sell_pct", 0) < 0:
+                                consecutive_loss_swaps += 1
+                            else:
+                                consecutive_loss_swaps = 0
                             refresh_daily_report(all_prices, today_str)
                             daily_swap_count += 1
                     else:
