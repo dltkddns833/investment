@@ -397,6 +397,42 @@ def check_target_prices(investor_id, current_prices, date_str,
     return trades
 
 
+def merge_allocation_with_holdings(allocation, holdings, current_prices, cash):
+    """L/O용: 기존 보유종목을 현재 비중으로 allocation에 병합.
+
+    신규 진입 종목만 allocation에 포함하는 투자자(L, O)를 위해,
+    기존 보유종목의 현재 비중을 allocation에 추가하여 rebalance()에서
+    기존 종목이 target_pct=0으로 매도되는 것을 방지한다.
+    """
+    total_asset = cash + sum(
+        h["shares"] * current_prices[t]["price"]
+        for t, h in holdings.items() if t in current_prices
+    )
+    if total_asset <= 0:
+        return allocation
+
+    merged = dict(allocation)
+    existing_sum = 0.0
+    for ticker, h in holdings.items():
+        if ticker not in merged and ticker in current_prices:
+            pct = (h["shares"] * current_prices[ticker]["price"]) / total_asset
+            merged[ticker] = round(pct, 4)
+            existing_sum += pct
+
+    # 합계 > 1.0이면 신규 종목 비중을 비례 축소 (기존 보유 보호 우선)
+    total = sum(merged.values())
+    if total > 1.0:
+        new_tickers = set(allocation.keys()) - set(holdings.keys())
+        new_sum = sum(merged[t] for t in new_tickers if t in merged)
+        if new_sum > 0:
+            scale = max(0, (1.0 - existing_sum)) / new_sum
+            for t in new_tickers:
+                if t in merged:
+                    merged[t] = round(merged[t] * scale, 4)
+
+    return merged
+
+
 def rebalance(investor_id, target_allocation, current_prices, current_date):
     """목표 배분에 맞춰 포트폴리오 리밸런싱 실행
 

@@ -19,6 +19,7 @@ from portfolio import (
     rebalance,
     evaluate,
     check_target_prices,
+    merge_allocation_with_holdings,
 )
 from daily_pipeline import save_snapshots
 
@@ -92,6 +93,15 @@ def run_simulation(date_str=None):
             continue
 
         allocation = alloc_data["allocation"]
+
+        # L/O: 기존 보유종목을 현재 비중으로 병합 (신규 진입만 allocation 패턴)
+        if inv_id in ("L", "O"):
+            portfolio_now = load_portfolio(inv_id)
+            if portfolio_now.get("holdings"):
+                allocation = merge_allocation_with_holdings(
+                    allocation, portfolio_now["holdings"], current_prices, portfolio_now["cash"]
+                )
+
         logger.info(f"  {profile['name']} ({profile['strategy']}, 빈도: {freq}일) → 실행")
         for ticker, pct in allocation.items():
             logger.debug(f"    목표: {ticker} {pct*100:.1f}%")
@@ -107,7 +117,17 @@ def run_simulation(date_str=None):
 
     # 2.5 L 신장모: 목표가/손절 체크 (리밸런싱과 별개로 매일 실행)
     if "L" in investors:
-        target_trades = check_target_prices("L", current_prices, date_str)
+        # 레짐별 분할매도 threshold 동적 조정
+        regime_row = supabase.table("market_regimes").select("regime").eq("date", date_str).execute().data
+        l_regime = regime_row[0]["regime"] if regime_row else "neutral"
+        tranches_by_regime = {
+            "bull":    [{"threshold": 0.15, "sell_ratio": 1/3}, {"threshold": 0.30, "sell_ratio": 0.5}, {"threshold": 0.50, "sell_ratio": 1.0}],
+            "neutral": [{"threshold": 0.10, "sell_ratio": 1/3}, {"threshold": 0.20, "sell_ratio": 0.5}, {"threshold": 0.35, "sell_ratio": 1.0}],
+            "bear":    [{"threshold": 0.07, "sell_ratio": 1/3}, {"threshold": 0.12, "sell_ratio": 0.5}, {"threshold": 0.20, "sell_ratio": 1.0}],
+        }
+        l_tranches = tranches_by_regime.get(l_regime, tranches_by_regime["neutral"])
+        target_trades = check_target_prices("L", current_prices, date_str,
+                                             sell_tranches=l_tranches, stop_loss=-0.07)
         if target_trades:
             if "L" not in rebalance_results:
                 rebalance_results["L"] = {"rebalanced": False, "trades": []}

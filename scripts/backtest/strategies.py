@@ -286,17 +286,52 @@ def strategy_K(price_df, date, universe_map, **kwargs):
 
 # ============================================================
 # L 신장모: 분할매도 전략 / 코스닥 성장주 5~8종목 (신규 진입만)
+# 기술적 필터(RSI/MACD) + 다기간 모멘텀 + 레짐 대응
 # ============================================================
 def strategy_L(price_df, date, universe_map, **kwargs):
     momentum = compute_momentum(price_df, date, universe_map)
-    # 코스닥 (.KQ) 종목 우선
+    tech = compute_technical_signals(price_df, date)
+    regime_info = compute_market_regime(price_df, date)
+    regime = regime_info.get("regime", "neutral") if regime_info else "neutral"
+
+    # 코스닥 우선, 부족하면 코스피도 허용
     kosdaq = {t: d for t, d in momentum.items()
               if t.endswith(".KQ") and t in universe_map}
-    if len(kosdaq) < 3:
-        kosdaq = momentum  # fallback
+    pool = kosdaq if len(kosdaq) >= 5 else momentum
 
-    top = _top_n_by_key(kosdaq, "return_1w", 6)
-    return _equal_weight(top)
+    # 기술적 필터: RSI 과매수(>70) 제외, MACD 데드크로스 제외
+    filtered = {}
+    for t, d in pool.items():
+        if t not in tech:
+            filtered[t] = d
+            continue
+        sig = tech[t]
+        if sig.get("rsi_signal") == "overbought":
+            continue
+        if sig.get("macd_signal") == "bearish_cross":
+            continue
+        filtered[t] = d
+
+    if len(filtered) < 3:
+        filtered = pool  # fallback
+
+    # 다기간 모멘텀 복합 점수 (1주 60% + 1개월 40%)
+    scored = {}
+    for t, d in filtered.items():
+        r1w = d.get("return_1w", 0) or 0
+        r1m = d.get("return_1m", 0) or 0
+        scored[t] = r1w * 0.6 + r1m * 0.4
+
+    # 레짐별 종목 수 조절
+    n_stocks = {"bull": 6, "neutral": 5, "bear": 4}.get(regime, 5)
+    top = sorted(scored, key=scored.get, reverse=True)[:n_stocks]
+
+    if not top:
+        return {}
+
+    # 레짐별 투자 비중 (나머지는 현금)
+    invest_pct = {"bull": 0.9, "neutral": 0.7, "bear": 0.45}.get(regime, 0.7)
+    return _equal_weight(top, total_weight=invest_pct)
 
 
 # ============================================================

@@ -19,7 +19,7 @@
 | I | 최배당 | 배당 투자 | 안정형 | 분기별 | 5~10 | `dividend_data.py` |
 | J | 한따라 | 스마트머니 추종 | 위험중립형 | 매주 | 5~8 | `institutional_flow.py` (pykrx + 네이버 fallback) |
 | K | 로로캅 | 글로벌 자산배분 (ETF 전용) | 안정추구형 | 매월 | 4~8 | `asset_allocation.py` |
-| L | 신장모 | 분할매도 전략 | 적극투자형 | 매일 | 5~8 | `momentum_data.py` |
+| L | 신장모 | 분할매도 전략 | 적극투자형 | 매일 | 3~8 | `momentum_data.py` + `technical_indicators.py` |
 | M | 오판단 | 마켓 타이밍 | 적극투자형 | 매일 | 3~10 | `market_regime.py` |
 | N | 전몰빵 | 집중투자 | 공격투자형 | 매주 | 2~3 | `momentum_data.py` + `quality_metrics.py` + `institutional_flow.py` |
 | O | 정익절 | 단기 스윙 수익실현 | 적극투자형 | 장중 10분 간격 | 5~8 | 총자산 +5% 전 종목 익절 / 종목별 -3% 손절 |

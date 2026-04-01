@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - I 최배당: 배당 투자 / 분기별 리밸런싱 / 5~10종목 (배당수익률 중심)
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
 - K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
-- L 신장모: 분할매도 전략 / 매일 체크 / 5~8종목 코스닥 성장주 (+15%/+30%/+50% 분할매도, -10% 손절)
+- L 신장모: 분할매도 전략 / 매일 체크 / 3~8종목 코스닥 성장주 (레짐별 동적 분할매도: bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%, 손절 -7%)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
 - N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (모멘텀+펀더멘털+수급 3중 필터)
 - O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (총자산 +5% 전 종목 익절, 종목별 -3% 손절, 30분마다 모멘텀 이탈→급등 종목 교체, 일일 최대 3회)
@@ -452,7 +452,7 @@ cd web && pnpm build  # 빌드
 - I 에이전트에는 추가로 `scripts/modules/dividend_data.py`의 `get_dividend_data()` 결과를 전달
 - J 에이전트에는 뉴스 중 외국인/기관 수급 관련 내용을 강조하여 전달
 - K 에이전트에는 추가로 `scripts/modules/asset_allocation.py`의 `get_asset_allocation_data()` 결과를 전달 (ETF 카테고리별 수익률/변동성/추세 데이터)
-- L 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (코스닥 성장주 발굴). 분할매도 규칙: +15% 1/3매도, +30% 1/2매도, +50% 전량매도, -10% 손절. allocation은 **신규 진입 종목만** 포함 (기존 보유종목의 목표가 매도는 simulate.py가 자동 처리)
+- L 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (코스닥 성장주 발굴 + 기술적 필터). RSI > 70 과매수 종목 진입 금지, MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. 분할매도 규칙(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. allocation은 **신규 진입 종목만** 포함 (기존 보유종목은 simulate.py가 자동 병합하여 보호, 목표가 매도는 `check_target_prices()`가 자동 처리)
 - M 에이전트에는 추가로 `scripts/modules/market_regime.py`의 `get_market_regime()` 결과를 전달. 레짐에 따라 allocation 합계를 조절: bull→0.9, neutral→0.5, bear→0.3 (나머지는 현금)
 - N 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/institutional_flow.py`의 `get_institutional_flows()` 결과를 전달 (3중 필터로 최고 확신 2~3종목 선별)
 - O 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (모멘텀+기술적 진입점 판단)
@@ -470,7 +470,7 @@ cd web && pnpm build  # 빌드
 - I (배당 투자): 배당수익률 상위 종목 집중, 재무 안정성 고려, 5~10종목
 - J (스마트머니 추종): 뉴스에서 외국인/기관 순매수 동향 파악, 수급 양호 종목, 5~8종목
 - K (글로벌 자산배분): **ETF 종목만 사용**, 지수/섹터/해외/채권/배당 ETF 카테고리별 비중 조절, 4~8종목. 주식ETF↔채권ETF 시소 원리 적용 (변동성 높을 때 채권 비중 확대)
-- L (분할매도 전략): 코스닥 성장주 위주 5~8종목. **신규 진입 종목만 allocation에 포함**. 기존 보유종목의 +15%/+30%/+50% 분할매도 및 -10% 손절은 simulate.py의 `check_target_prices()`가 자동 처리
+- L (분할매도 전략): 코스닥 성장주 위주 3~8종목 (BEAR시 3~4종목). RSI>70 과매수/MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. **신규 진입 종목만 allocation에 포함** (기존 보유종목은 simulate.py가 자동 병합하여 보호). 분할매도(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. `check_target_prices()`가 자동 처리
 - M (마켓 타이밍): 레짐에 따라 현금비중 조절. **allocation 합계 = 1.0 - 현금비중** (bull: 0.9, neutral: 0.5, bear: 0.3). 3~10종목
 - N (집중투자): **최대 2~3종목만** (4종목 초과 금지). 모멘텀+펀더멘털+수급 모두 양호한 최고 확신 종목에 올인. allocation 합계 = 1.0
 - O (단기 스윙 수익실현): 모멘텀+기술적 분석으로 단기 반등 종목 선별, 5~8종목. **신규 진입 종목만 allocation에 포함**. 익절: 전일 대비 총자산 +5% 달성 시 전 종목 매도. 손절: 개별 종목 매수가 대비 -3% 시 해당 종목만 매도. 장중 o_monitor.py(실시간) 또는 simulate.py(과거 날짜)가 자동 처리

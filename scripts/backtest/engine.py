@@ -6,6 +6,7 @@ import holidays
 from .strategies import get_strategy
 from .price_cache import load_or_download, get_prices_at_date
 from .metrics import compute_metrics
+from .historical_indicators import compute_market_regime
 
 
 class InMemoryPortfolio:
@@ -84,6 +85,35 @@ class InMemoryPortfolio:
             "total_return_pct": round(total_return_pct, 2),
             "num_holdings": len(holdings_detail),
         }
+
+    def merge_allocation_with_holdings(self, allocation, current_prices):
+        """L/O용: 기존 보유종목을 현재 비중으로 allocation에 병합."""
+        total_asset = self.cash + sum(
+            h["shares"] * current_prices[t]["price"]
+            for t, h in self.holdings.items() if t in current_prices
+        )
+        if total_asset <= 0:
+            return allocation
+
+        merged = dict(allocation)
+        existing_sum = 0.0
+        for ticker, h in self.holdings.items():
+            if ticker not in merged and ticker in current_prices:
+                pct = (h["shares"] * current_prices[ticker]["price"]) / total_asset
+                merged[ticker] = round(pct, 4)
+                existing_sum += pct
+
+        total = sum(merged.values())
+        if total > 1.0:
+            new_tickers = set(allocation.keys()) - set(self.holdings.keys())
+            new_sum = sum(merged[t] for t in new_tickers if t in merged)
+            if new_sum > 0:
+                scale = max(0, (1.0 - existing_sum)) / new_sum
+                for t in new_tickers:
+                    if t in merged:
+                        merged[t] = round(merged[t] * scale, 4)
+
+        return merged
 
     def rebalance(self, target_allocation, current_prices, date_str):
         """portfolio.py:rebalance()와 동일 로직 (DB 저장 제외)"""
@@ -378,11 +408,22 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
                 if strategy_fn:
                     allocation = strategy_fn(price_df, day, universe_map)
                     if allocation:
+                        # L/O: 기존 보유종목 보호 (신규 진입만 allocation 패턴)
+                        if inv_id in ("L", "O") and pf.holdings:
+                            allocation = pf.merge_allocation_with_holdings(allocation, prices)
                         pf.rebalance(allocation, prices, date_str)
 
-            # L은 매일 분할매도 체크
+            # L은 매일 분할매도 체크 (레짐별 동적 threshold)
             if inv_id == "L" and pf.holdings:
-                pf.check_target_prices(prices, date_str)
+                regime_info = compute_market_regime(price_df, day)
+                l_regime = regime_info.get("regime", "neutral") if regime_info else "neutral"
+                l_tranches_map = {
+                    "bull":    [{"threshold": 0.15, "sell_ratio": 1/3}, {"threshold": 0.30, "sell_ratio": 0.5}, {"threshold": 0.50, "sell_ratio": 1.0}],
+                    "neutral": [{"threshold": 0.10, "sell_ratio": 1/3}, {"threshold": 0.20, "sell_ratio": 0.5}, {"threshold": 0.35, "sell_ratio": 1.0}],
+                    "bear":    [{"threshold": 0.07, "sell_ratio": 1/3}, {"threshold": 0.12, "sell_ratio": 0.5}, {"threshold": 0.20, "sell_ratio": 1.0}],
+                }
+                l_tranches = l_tranches_map.get(l_regime, l_tranches_map["neutral"])
+                pf.check_target_prices(prices, date_str, sell_tranches=l_tranches, stop_loss=-0.07)
 
             # O: 종목별 손절(-3%) + 총자산 익절(+5%)
             if inv_id == "O" and pf.holdings:
