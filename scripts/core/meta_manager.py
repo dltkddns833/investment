@@ -547,10 +547,12 @@ class MetaManager:
 
             need_sell = False
             sell_qty = 0
+            is_liquidation = False
 
             if target_weight == 0:
                 need_sell = True
                 sell_qty = holding["shares"]
+                is_liquidation = True
             elif target_value < current_value * 0.9:
                 need_sell = True
                 sell_value = current_value - target_value
@@ -571,6 +573,7 @@ class MetaManager:
                     "side": "sell",
                     "qty": sell_qty,
                     "price": holding["current_price"],
+                    "liquidation": is_liquidation,
                 })
 
         # 매수 주문 (목표에 있지만 미보유 또는 확대할 종목)
@@ -1153,10 +1156,13 @@ class MetaManager:
                 f"(~{o['qty'] * o['price']:,}원)"
             )
 
+        # 텔레그램 Markdown v1 특수문자 제거 (rationale에 *, _, ` 등 포함 가능)
+        safe_rationale = rationale[:200].replace('*', '').replace('_', '').replace('`', '').replace('[', '(').replace(']', ')')
+
         msg = (
             f"\U0001f4cb *메타 매니저 주문 확인* ({self.date_str})\n\n"
             f"{chr(10).join(order_lines)}\n\n"
-            f"*근거:* {rationale[:200]}"
+            f"근거: {safe_rationale}"
         )
 
         if dry_run:
@@ -1254,7 +1260,7 @@ class MetaManager:
             f"{regime_kr} · 체결: {success_count}/{len(results)}건\n"
             + "\n".join(result_lines) + "\n\n"
             f"{regime_kr} 기준으로 {', '.join(desc_parts)}하여 포트폴리오를 조정했습니다. "
-            f"근거: {rationale[:150]}"
+            f"근거: {rationale[:150].replace('*', '').replace('_', '').replace('`', '').replace('[', '(').replace(']', ')')}"
         )
 
         return {"status": "executed", "orders": results}

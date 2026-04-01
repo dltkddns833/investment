@@ -21,6 +21,12 @@ def send_telegram(message):
         "text": message,
         "parse_mode": "Markdown",
     })
+    if resp.status_code == 400:
+        # Markdown 파싱 실패 시 plain text로 재시도
+        resp = requests.post(url, json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+        })
     resp.raise_for_status()
     print("텔레그램 발송 완료")
     return resp.json().get("result", {}).get("message_id")

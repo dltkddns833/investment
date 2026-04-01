@@ -437,21 +437,31 @@ def enforce_turnover_limit(orders, total_asset, meta_config=None):
     if total_asset <= 0:
         return orders, False
 
-    sell_total = sum(o["qty"] * o["price"] for o in orders if o["side"] == "sell")
-    buy_total = sum(o["qty"] * o["price"] for o in orders if o["side"] == "buy")
-    turnover = (sell_total + buy_total) / total_asset * 100
+    # 청산 매도(target에 없는 종목 전량 매도)는 회전율 축소 대상에서 제외
+    liquidation_orders = [o for o in orders if o.get("liquidation")]
+    adjustable_orders = [o for o in orders if not o.get("liquidation")]
 
-    if turnover <= max_turnover:
+    liquidation_total = sum(o["qty"] * o["price"] for o in liquidation_orders)
+    sell_total = sum(o["qty"] * o["price"] for o in adjustable_orders if o["side"] == "sell")
+    buy_total = sum(o["qty"] * o["price"] for o in adjustable_orders if o["side"] == "buy")
+    adjustable_turnover = (sell_total + buy_total) / total_asset * 100
+
+    # 청산 매도 제외한 회전율이 한도 이하면 축소 불필요
+    if adjustable_turnover <= max_turnover:
         return orders, False
 
-    # 비례 축소
-    scale = max_turnover / turnover
-    adjusted = []
-    for o in orders:
+    # 청산 매도 제외, 나머지만 비례 축소
+    scale = max_turnover / adjustable_turnover
+    adjusted = list(liquidation_orders)  # 청산 매도는 그대로 유지
+    for o in adjustable_orders:
         new_qty = max(1, int(o["qty"] * scale))
         adjusted.append({**o, "qty": new_qty})
 
-    logger.warning(f"회전율 {turnover:.1f}% → {max_turnover}% 제한 (scale: {scale:.2f})")
+    # 매도 먼저 정렬 유지
+    adjusted.sort(key=lambda o: 0 if o["side"] == "sell" else 1)
+
+    total_turnover = (liquidation_total + sell_total + buy_total) / total_asset * 100
+    logger.warning(f"회전율 {total_turnover:.1f}% → 청산 {liquidation_total:,}원 제외, 나머지 {adjustable_turnover:.1f}% → {max_turnover}% 축소 (scale: {scale:.2f})")
     return adjusted, True
 
 
