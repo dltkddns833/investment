@@ -201,11 +201,11 @@ scripts/
     meta_manager.py      메타 매니저 — 15명 데이터 종합 → 실전 배분 결정
     scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
     safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
-    o_monitor.py         O 정익절 장중 실시간 모니터링 (총자산 +5%익절/-3%손절, 매매 시 daily_reports 즉시 갱신)
+    o_monitor.py         O 정익절 장중 실시간 모니터링 (총자산 +5%익절/-3%손절, 능동 트레이딩(모멘텀 이탈→급등 교체), 매매 시 daily_reports 즉시 갱신)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
-    engine.py            InMemoryPortfolio + run_backtest() 루프
-    strategies.py        15개 투자자별 결정론적 배분 함수
-    price_cache.py       yfinance 일괄 다운로드 + pickle 캐시
+    engine.py            InMemoryPortfolio + run_backtest() 루프 (L 분할매도 + O 능동 트레이딩 근사 포함)
+    strategies.py        15개 투자자별 결정론적 배분 함수 + O_PARAMS 파라미터 딕셔너리
+    price_cache.py       yfinance 일괄 다운로드 + pickle 캐시 (prev_volume/sma_5 포함)
     metrics.py           Sharpe/MDD/변동성/승률 계산
     historical_indicators.py  캐시된 DataFrame에서 모멘텀/RSI/MACD 등 계산
   modules/           # 투자자별 데이터 분석 모듈
@@ -473,7 +473,7 @@ cd web && pnpm build  # 빌드
 - L (분할매도 전략): 코스닥 성장주 위주 3~8종목 (BEAR시 3~4종목). RSI>70 과매수/MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. **신규 진입 종목만 allocation에 포함** (기존 보유종목은 simulate.py가 자동 병합하여 보호). 분할매도(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. `check_target_prices()`가 자동 처리
 - M (마켓 타이밍): 레짐에 따라 현금비중 조절. **allocation 합계 = 1.0 - 현금비중** (bull: 0.9, neutral: 0.5, bear: 0.3). 3~10종목
 - N (집중투자): **최대 2~3종목만** (4종목 초과 금지). 모멘텀+펀더멘털+수급 모두 양호한 최고 확신 종목에 올인. allocation 합계 = 1.0
-- O (단기 스윙 수익실현): 모멘텀+기술적 분석으로 단기 반등 종목 선별, 5~8종목. **신규 진입 종목만 allocation에 포함**. 익절: 전일 대비 총자산 +5% 달성 시 전 종목 매도. 손절: 개별 종목 매수가 대비 -3% 시 해당 종목만 매도. 장중 o_monitor.py(실시간) 또는 simulate.py(과거 날짜)가 자동 처리
+- O (단기 스윙 수익실현): 모멘텀+기술적 분석으로 단기 반등 종목 선별, 5~8종목. RSI>70 과매수/MACD 데드크로스 종목 진입 금지. **신규 진입 종목만 allocation에 포함**. 익절: 전일 대비 총자산 +5% 달성 시 전 종목 매도. 손절: 개별 종목 매수가 대비 -3% 시 해당 종목만 매도. 능동 트레이딩: 30분마다 모멘텀 이탈 종목(3중 필터 중 2개 충족) → 급등 종목 교체(일일 최대 3회, 유동성 체크 포함). 장중 o_monitor.py(실시간) 또는 simulate.py(과거 날짜)가 자동 처리
 
 - `notify("✅ Step 2 완료: 15명 배분 결정 저장")`
 
