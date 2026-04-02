@@ -45,6 +45,7 @@ MOMENTUM_DROP_THRESHOLD = -0.02  # 당일 -2% 이하
 VOLUME_DROP_RATIO = 0.5          # 거래량 전일 50% 미만
 SURGE_PRICE_THRESHOLD = 0.03     # 당일 +3% 이상
 SURGE_VOLUME_RATIO = 1.5         # 거래량 전일 1.5배 이상
+MIN_LIQUIDITY_RATIO = 0.3        # 교체 시 최소 유동성 (전일 거래량의 30%)
 
 
 def refresh_daily_report(current_prices, date_str):
@@ -311,9 +312,10 @@ def find_surge_candidate(all_prices, holdings):
         if prev_vol <= 0 or p["volume"] < prev_vol * SURGE_VOLUME_RATIO:
             continue
 
-        # 조건 3: 5일 최고가 미돌파 (꼭대기 추격 방지)
+        # 조건 3: 5일 최고가 5% 초과 시 제외 (꼭대기 추격 방지)
+        # 돌파 초기(0~5%)는 강한 모멘텀으로 허용
         high_5d = p.get("high_5d", 0)
-        if high_5d > 0 and p["price"] >= high_5d:
+        if high_5d > 0 and p["price"] > high_5d * 1.05:
             continue
 
         # 모멘텀 스코어 = 상승률 × 거래량비
@@ -533,7 +535,15 @@ def run_monitor(dry_run=False):
                     buy_pct = all_prices[buy_candidate]["change_pct"]
                     logger.info(f"  📈 매수 후보: {buy_name}({buy_candidate}) 당일 {buy_pct:+.1f}%")
 
-                    if not dry_run:
+                    # 유동성 체크: 매도/매수 종목의 당일 거래량이 전일의 30% 미만이면 스킵
+                    sell_p = all_prices.get(sell_target, {})
+                    buy_p = all_prices.get(buy_candidate, {})
+                    sell_liq_ok = sell_p.get("prev_volume", 0) <= 0 or sell_p.get("volume", 0) >= sell_p.get("prev_volume", 1) * MIN_LIQUIDITY_RATIO
+                    buy_liq_ok = buy_p.get("prev_volume", 0) <= 0 or buy_p.get("volume", 0) >= buy_p.get("prev_volume", 1) * MIN_LIQUIDITY_RATIO
+                    if not (sell_liq_ok and buy_liq_ok):
+                        low_liq = sell_name if not sell_liq_ok else buy_name
+                        logger.info(f"  ⚠️ 유동성 부족 → 교체 스킵 ({low_liq})")
+                    elif not dry_run:
                         result = execute_swap(portfolio, sell_target, buy_candidate, all_prices, today_str)
                         if result and result.get("buy"):
                             daily_swap_count += 1

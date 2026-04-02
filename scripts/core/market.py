@@ -86,7 +86,16 @@ def _fetch_single_price(ticker, universe, price_type):
 
         info = universe.get(ticker, {})
         prev_volume = int(prev["Volume"]) if len(hist) >= 2 else 0
-        sma_5 = int(hist["Close"].tail(5).mean()) if len(hist) >= 5 else prev_close_val
+        # sma_5: 과거 4일 종가 + 당일 현재가 (장중 움직임 반영)
+        if len(hist) >= 5:
+            sma_5 = int((hist["Close"].iloc[-5:-1].sum() + current) / 5)
+        else:
+            sma_5 = prev_close_val
+        # high_5d: 과거 4일 고가 + 당일 현재가 중 최대값
+        if len(hist) >= 5:
+            high_5d = int(max(hist["High"].iloc[-5:-1].max(), current))
+        else:
+            high_5d = current
 
         return ticker, {
             "name": info.get("name", ticker),
@@ -98,7 +107,7 @@ def _fetch_single_price(ticker, universe, price_type):
             "volume": int(latest["Volume"]),
             "prev_volume": prev_volume,
             "sma_5": sma_5,
-            "high_5d": int(hist["High"].tail(5).max()) if len(hist) >= 5 else current,
+            "high_5d": high_5d,
         }
     except Exception as e:
         logger.error(f"{ticker}: {e}")
