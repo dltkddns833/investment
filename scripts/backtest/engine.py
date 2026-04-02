@@ -3,7 +3,7 @@ import copy
 from datetime import datetime, date, timedelta
 import holidays
 
-from .strategies import get_strategy
+from .strategies import get_strategy, O_PARAMS
 from .price_cache import load_or_download, get_prices_at_date
 from .metrics import compute_metrics
 from .historical_indicators import compute_market_regime
@@ -461,6 +461,74 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
                             pf.cash += revenue - fee
                             pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
                             del pf.holdings[ticker]
+
+                # 3) 능동 트레이딩 근사 (일일 1회 교체)
+                if pf.holdings and len(pf.holdings) >= 3:
+                    # 모멘텀 이탈 종목 탐색: 3개 조건 중 2개 충족
+                    worst_ticker, worst_score = None, 0
+                    for ticker in list(pf.holdings.keys()):
+                        if ticker not in prices:
+                            continue
+                        h = pf.holdings[ticker]
+                        p = prices[ticker]
+                        profit_pct = p["price"] / h["avg_price"] - 1
+                        if profit_pct >= 0.03:
+                            continue  # 수익 +3% 이상은 스킵
+                        signals = 0
+                        if p["change_pct"] <= O_PARAMS["momentum_drop"] * 100:
+                            signals += 1
+                        prev_vol = p.get("prev_volume", 0)
+                        if prev_vol > 0 and p["volume"] < prev_vol * O_PARAMS["volume_drop_ratio"]:
+                            signals += 1
+                        sma_5 = p.get("sma_5", 0)
+                        if sma_5 > 0 and p["price"] < sma_5 and p["prev_close"] > sma_5:
+                            signals += 1
+                        if signals >= 2 and signals > worst_score:
+                            worst_score = signals
+                            worst_ticker = ticker
+
+                    if worst_ticker:
+                        # 급등 종목 스캔
+                        best_buy, best_score = None, 0
+                        for ticker, p in prices.items():
+                            if ticker in pf.holdings or p.get("sector", "") == "ETF":
+                                continue
+                            if p["change_pct"] < O_PARAMS["surge_price"] * 100:
+                                continue
+                            prev_vol = p.get("prev_volume", 0)
+                            if prev_vol <= 0 or p["volume"] < prev_vol * O_PARAMS["surge_volume"]:
+                                continue
+                            score = p["change_pct"] * (p["volume"] / prev_vol)
+                            if score > best_score:
+                                best_score = score
+                                best_buy = ticker
+
+                        if best_buy:
+                            # 매도
+                            sell_h = pf.holdings[worst_ticker]
+                            sell_price = prices[worst_ticker]["price"]
+                            sell_exec, sell_fee = pf.calc_fees(worst_ticker, sell_price, sell_h["shares"], "sell")
+                            sell_revenue = sell_h["shares"] * sell_exec
+                            sell_profit = (sell_exec - sell_h["avg_price"]) * sell_h["shares"]
+                            pf.cash += sell_revenue - sell_fee
+                            pf.transactions.append({"type": "sell", "profit": sell_profit, "date": date_str})
+                            del pf.holdings[worst_ticker]
+
+                            # 매수 (매도 대금의 80%)
+                            buy_budget = int(sell_revenue * 0.8)
+                            buy_price = prices[best_buy]["price"]
+                            buy_exec, _ = pf.calc_fees(best_buy, buy_price, 1, "buy")
+                            buy_shares = buy_budget // buy_exec
+                            if buy_shares > 0:
+                                buy_exec, buy_fee = pf.calc_fees(best_buy, buy_price, buy_shares, "buy")
+                                buy_cost = buy_shares * buy_exec + buy_fee
+                                pf.cash -= buy_cost
+                                pf.holdings[best_buy] = {
+                                    "name": prices[best_buy]["name"],
+                                    "shares": buy_shares,
+                                    "avg_price": buy_exec,
+                                }
+                                pf.transactions.append({"type": "buy", "profit": 0, "date": date_str})
 
             # 스냅샷
             pf.snapshot(date_str, prices)

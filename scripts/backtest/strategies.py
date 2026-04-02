@@ -396,12 +396,37 @@ def strategy_N(price_df, date, universe_map, **kwargs):
 
 # ============================================================
 # O 정익절: 단기 스윙 수익실현 / 모멘텀 상위 5~8종목 (신규 진입만)
-# +5% 전량 익절, -3% 전량 손절은 engine.py에서 check_target_prices()로 처리
+# +5% 전량 익절, -3% 전량 손절 + 능동 트레이딩(일일 1회 교체)은 engine.py에서 처리
 # ============================================================
+O_PARAMS = {
+    "stop_loss": -0.03,
+    "take_profit": 0.05,
+    "momentum_drop": -0.02,   # 모멘텀 이탈 당일 하락률
+    "volume_drop_ratio": 0.5, # 거래량 급감 기준
+    "surge_price": 0.03,      # 급등 종목 당일 상승률
+    "surge_volume": 1.5,      # 급등 종목 거래량 배수
+}
+
+
 def strategy_O(price_df, date, universe_map, **kwargs):
     momentum = compute_momentum(price_df, date, universe_map)
-    # 전 종목 대상 (L과 달리 KOSDAQ 제한 없음), 모멘텀 상위 6종목
-    top = _top_n_by_key(momentum, "return_1w", 6)
+    tech = compute_technical_signals(price_df, date)
+
+    # 기술적 필터: RSI 과매수(>70) 제외, MACD 데드크로스 제외
+    filtered = {}
+    for t, d in momentum.items():
+        if t in tech:
+            sig = tech[t]
+            if sig.get("rsi_signal") == "overbought":
+                continue
+            if sig.get("macd_signal") == "bearish_cross":
+                continue
+        filtered[t] = d
+
+    if len(filtered) < 3:
+        filtered = momentum  # fallback
+
+    top = _top_n_by_key(filtered, "return_1w", 6)
     return _equal_weight(top)
 
 

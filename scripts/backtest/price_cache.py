@@ -108,6 +108,11 @@ def get_prices_at_date(price_df, date, universe_map, price_type="close"):
 
             info = universe_map.get(ticker, {})
             volume_val = latest.get(("Volume", ticker), 0) if isinstance(price_df.columns, pd.MultiIndex) else latest.get("Volume", 0)
+            prev_volume_val = prev.get(("Volume", ticker), 0) if isinstance(price_df.columns, pd.MultiIndex) else prev.get("Volume", 0)
+
+            # sma_5: 최근 5일 종가 평균 (당일 포함)
+            closes_5 = available[("Close", ticker)].dropna().tail(5) if isinstance(price_df.columns, pd.MultiIndex) else available["Close"].dropna().tail(5)
+            sma_5 = int(closes_5.mean()) if len(closes_5) >= 5 else prev_close
 
             prices[ticker] = {
                 "name": info.get("name", ticker),
@@ -117,6 +122,8 @@ def get_prices_at_date(price_df, date, universe_map, price_type="close"):
                 "change": current - prev_close,
                 "change_pct": round((current / prev_close - 1) * 100, 2),
                 "volume": int(volume_val) if not pd.isna(volume_val) else 0,
+                "prev_volume": int(prev_volume_val) if not pd.isna(prev_volume_val) else 0,
+                "sma_5": sma_5,
             }
         except (KeyError, TypeError):
             continue
