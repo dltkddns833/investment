@@ -97,6 +97,7 @@ src/
     etf-data.ts               ← ETF 구성정보 정적 데이터 (12개 ETF 섹터 비중/구성 종목)
     regime-analysis.ts        ← 국면별 성과 분석 순수 함수 (세그먼트/성과/최적 조합)
     scorecard.ts              ← 전략 스코어카드 엔진 (6개 카테고리 0-100점 종합 평가)
+    analysis-insights.ts      ← 분석 페이지 데이터 기반 전문가 인사이트 생성 (순수 함수, DB 저장 불필요)
     sector-icons.tsx          ← 섹터별 SVG 아이콘 (ETF 카테고리 포함)
 ```
 

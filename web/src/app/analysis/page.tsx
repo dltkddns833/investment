@@ -31,6 +31,15 @@ import {
   computeOptimalCombination,
 } from "@/lib/regime-analysis";
 import { computeScorecards } from "@/lib/scorecard";
+import {
+  getScorecardInsight,
+  getPerfStatsInsight,
+  getRegimeInsight,
+  getCorrelationInsight,
+  getOverlapInsight,
+  getPopularityInsight,
+  getAttributionInsight,
+} from "@/lib/analysis-insights";
 
 export const dynamic = "force-dynamic";
 
@@ -93,8 +102,8 @@ export default async function AnalysisPage() {
       {scorecards.length > 0 && (
         <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-1 section-header">전략 스코어카드</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            6개 카테고리별 0~100점 종합 평가. 상위 3개 전략에 실전 추천 뱃지 부여.
+          <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+            {getScorecardInsight(scorecards)}
           </p>
           <ScorecardRadarChart scorecards={scorecards} />
           <div className="mt-4">
@@ -103,6 +112,9 @@ export default async function AnalysisPage() {
           {hasBacktestData && (
             <div className="mt-6">
               <h3 className="text-sm font-medium text-gray-300 mb-2">백테스트 vs 라이브 괴리율</h3>
+              <p className="text-[11px] text-gray-600 mb-2">
+                백테스트 수익률과 실제 운영 수익률의 차이입니다. 괴리가 클수록 과최적화(overfitting) 가능성이 있습니다.
+              </p>
               <BacktestDivergenceChart scorecards={scorecards} />
             </div>
           )}
@@ -112,8 +124,8 @@ export default async function AnalysisPage() {
       {/* Performance Stats */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-1 section-header">성과 지표</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          샤프비율, 최대낙폭(MDD), 변동성, 알파(정기준 대비), 승률 비교. 컬럼 클릭 시 정렬.
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          {getPerfStatsInsight(perfStats)}
         </p>
         {perfStats.some((s) => s.sharpeRatio !== null) && (
           <InvestorRadarChart stats={perfStats} investorIds={investorIds} />
@@ -127,8 +139,8 @@ export default async function AnalysisPage() {
       {regimes.length > 0 && (
         <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-1 section-header">국면별 성과</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            KOSPI 레짐(강세/중립/약세)별 투자자 수익률 비교. 각 전략이 어떤 시장 환경에서 강한지 분석합니다.
+          <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+            {getRegimeInsight(regimePerformances)}
           </p>
 
           <div className="mb-6">
@@ -176,8 +188,8 @@ export default async function AnalysisPage() {
       {/* Correlation Matrix */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-1 section-header">수익률 상관관계</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          투자자 간 일별 수익률의 Pearson 상관계수. 빨강일수록 같이 움직이고, 파랑일수록 반대로 움직입니다.
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          {getCorrelationInsight(correlations)}
         </p>
         {correlations.length > 0 ? (
           <CorrelationHeatmap investorNames={investorNames} correlations={correlations} />
@@ -189,8 +201,8 @@ export default async function AnalysisPage() {
       {/* Position Overlap */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-1 section-header">포지션 겹침률</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          보유 종목의 Jaccard 유사도. 셀을 클릭하면 공통/독자 종목을 확인할 수 있습니다.
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          {getOverlapInsight(overlaps)}
         </p>
         <OverlapMatrix investorNames={investorNames} overlaps={overlaps} stockNames={Object.fromEntries(config.stock_universe.map((s) => [s.ticker, s.name]))} />
       </section>
@@ -198,8 +210,8 @@ export default async function AnalysisPage() {
       {/* Stock Popularity */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-1 section-header">종목 인기도</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          각 종목을 보유 중인 투자자 수. 많은 투자자가 보유할수록 컨센서스가 높습니다.
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          {getPopularityInsight(popularity)}
         </p>
         <StockPopularityChart data={popularity} totalInvestors={investorNames.length} />
       </section>
@@ -207,8 +219,8 @@ export default async function AnalysisPage() {
       {/* Attribution Comparison */}
       <section className="glass-card p-4 md:p-5 animate-in">
         <h2 className="text-lg font-bold mb-1 section-header">성과 기여도 분석</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          투자자별 섹터 기여도 비교. 같은 섹터에서 누가 더 많은 수익을 올렸는지 확인할 수 있습니다.
+        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+          {getAttributionInsight(allAttributions)}
         </p>
         <AttributionComparisonChart attributions={allAttributions} />
       </section>
