@@ -741,10 +741,11 @@ class MetaManager:
                         .execute()
                         .data
                     )
-                    # 오늘 이전 가장 최신 KOSPI 가격
+                    # 해당 날짜 이하 가장 최신 KOSPI 가격
                     latest_regime = (
                         supabase.table("market_regimes")
                         .select("kospi_price")
+                        .lte("date", self.date_str)
                         .order("date", desc=True)
                         .limit(1)
                         .execute()
@@ -926,6 +927,8 @@ class MetaManager:
                 "approved": True,
                 "executed": False,
             })
+            # 매매 없어도 자산 가치 변동 반영을 위해 스냅샷 저장
+            self.save_real_portfolio()
             return {"status": "skip"}
 
         # 3. 정규 리밸런싱: 전체 분석 파이프라인

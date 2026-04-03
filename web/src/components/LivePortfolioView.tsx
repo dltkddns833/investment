@@ -180,6 +180,35 @@ export default function LivePortfolioView({
     ? { text: "종가", color: "bg-blue-500" }
     : null;
 
+  // 운용 통계 계산
+  const operatingDays = history.length;
+  const startDate = history.length > 0 ? history[0].date : portfolio.date;
+
+  // MDD 계산
+  let peak = initialCapital;
+  let mdd = 0;
+  for (const h of history) {
+    if (h.total_asset > peak) peak = h.total_asset;
+    const dd = (h.total_asset - peak) / peak;
+    if (dd < mdd) mdd = dd;
+  }
+
+  // 최근 레짐 & 다음 리밸런싱
+  const latestDecision = decisions.length > 0 ? decisions[0] : null;
+  const currentRegime = latestDecision?.regime || null;
+  const regimeLabel: Record<string, string> = { bull: "강세", neutral: "중립", bear: "약세" };
+  const regimeMaxPct: Record<string, number> = { bull: 90, neutral: 60, bear: 30 };
+
+  // 최근 리밸런싱 (skip이 아닌 executed)
+  const lastRebalance = decisions.find(
+    (d) => d.decision_type !== "skip" && d.executed
+  );
+
+  // 승률 (일일 수익률 양수인 날 / 전체)
+  const dailyReturns = history.filter((h) => h.daily_return_pct != null && h.daily_return_pct !== 0);
+  const winDays = dailyReturns.filter((h) => (h.daily_return_pct ?? 0) > 0).length;
+  const winRate = dailyReturns.length > 0 ? (winDays / dailyReturns.length) * 100 : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -264,6 +293,110 @@ export default function LivePortfolioView({
           valueColor={alpha != null ? signColor(alpha) : "text-gray-500"}
           highlight
         />
+      </div>
+
+      {/* 운용 전략 & 현재 상태 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 전략 요약 */}
+        <div className="bg-gray-800/50 rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-400">운용 전략</h2>
+          <p className="text-xs text-gray-300 leading-relaxed">
+            <span className="text-yellow-400 font-medium">목표: KOSPI 대비 초과 수익(알파 양수 유지).</span>{" "}
+            15명의 시뮬레이션 투자자 성과를 종합 분석하여 최적 종목과 비중을 결정하는 AI 메타 전략입니다.
+            격주 수요일 정규 리밸런싱 + 매일 긴급 손절/익절 체크로 운용됩니다.
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <span className="text-gray-500">리밸런싱</span>
+              <p className="text-gray-300 font-medium mt-0.5">격주 수요일</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <span className="text-gray-500">손절 기준</span>
+              <p className="text-gray-300 font-medium mt-0.5">
+                {currentRegime
+                  ? `${({bull: "-10%", neutral: "-8%", bear: "-7%"} as Record<string, string>)[currentRegime] ?? "-8%"} (${regimeLabel[currentRegime] ?? currentRegime})`
+                  : "-7~10%"
+                }
+              </p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <span className="text-gray-500">익절 기준</span>
+              <p className="text-gray-300 font-medium mt-0.5">+10% (5일 보유 후)</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-2.5">
+              <span className="text-gray-500">최대 투자</span>
+              <p className="text-gray-300 font-medium mt-0.5">
+                {currentRegime
+                  ? `${regimeMaxPct[currentRegime] ?? 60}% (${regimeLabel[currentRegime] ?? currentRegime})`
+                  : "레짐별 30~90%"
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 운용 상태 */}
+        <div className="bg-gray-800/50 rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-400">운용 현황</h2>
+          {/* 알파 달성 상태 */}
+          {alpha != null && (
+            <div className={`rounded-lg p-3 text-center ${
+              alpha > 0
+                ? "bg-red-500/10 border border-red-500/20"
+                : "bg-blue-500/10 border border-blue-500/20"
+            }`}>
+              <p className="text-xs text-gray-400 mb-0.5">KOSPI 대비 알파</p>
+              <p className={`text-xl font-bold font-mono ${alpha > 0 ? "text-red-400" : "text-blue-400"}`}>
+                {alpha > 0 ? "+" : ""}{alpha.toFixed(2)}%
+              </p>
+              <p className={`text-[11px] mt-0.5 ${alpha > 0 ? "text-red-500/70" : "text-blue-500/70"}`}>
+                {alpha > 0 ? "시장을 이기고 있습니다" : "시장 대비 부진합니다"}
+              </p>
+            </div>
+          )}
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-400">운용 기간</span>
+              <span className="text-gray-200">{startDate} ~ ({operatingDays}일)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">현재 시장 국면</span>
+              <span>
+                {currentRegime ? (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    currentRegime === "bull" ? "bg-red-500/20 text-red-400" :
+                    currentRegime === "bear" ? "bg-blue-500/20 text-blue-400" :
+                    "bg-yellow-500/20 text-yellow-400"
+                  }`}>
+                    {regimeLabel[currentRegime] ?? currentRegime}
+                  </span>
+                ) : (
+                  <span className="text-gray-500">-</span>
+                )}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">최근 리밸런싱</span>
+              <span className="text-gray-200">{lastRebalance?.date ?? "-"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">승률 (일 기준)</span>
+              <span className="text-gray-200">
+                {dailyReturns.length > 0 ? `${winRate.toFixed(0)}% (${winDays}/${dailyReturns.length}일)` : "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">MDD</span>
+              <span className={`font-medium ${mdd < -0.03 ? "text-blue-400" : "text-gray-200"}`}>
+                {(mdd * 100).toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">안전 장치</span>
+              <span className="text-xs text-gray-400">일일 -3% 중단 · 누적 -10% 청산</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 자산 추이 + 현황 */}
