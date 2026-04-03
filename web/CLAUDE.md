@@ -80,6 +80,7 @@ src/
     RegimeTimeline.tsx       ← 시장 국면 타임라인 (KOSPI 가격 라인 + 레짐 배경)
     RegimePerformanceChart.tsx ← 국면별 수익률 Grouped BarChart
     RegimePerformanceTable.tsx ← 국면별 수익률 테이블 (클릭 정렬)
+    InvestorRegimePerformance.tsx ← 투자자 개별 국면별 수익률 카드 (국면당 20일 미만 경고)
     OptimalCombinationPanel.tsx ← 국면별 최적 투자자 조합 패널
     ScorecardTable.tsx       ← 전략 스코어카드 종합 점수 테이블 (정렬, 추천 뱃지)
     ScorecardRadarChart.tsx  ← 전략 스코어카드 6축 레이더 차트

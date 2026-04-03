@@ -11,6 +11,7 @@ import {
   getDailyStories,
   getBadges,
   getLeagueStandings,
+  getMarketRegimes,
 } from "@/lib/data";
 import { krw } from "@/lib/format";
 import TransactionTable from "@/components/TransactionTable";
@@ -22,6 +23,7 @@ import LiveInvestorSummary from "@/components/LiveInvestorSummary";
 import LiveInvestorDetail from "@/components/LiveInvestorDetail";
 import BadgeList from "@/components/BadgeList";
 import InvestorAvatar from "@/components/InvestorAvatar";
+import InvestorRegimePerformance from "@/components/InvestorRegimePerformance";
 import { getMethodology } from "@/lib/methodology";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -49,7 +51,7 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation, assetHistory, assetComposition, sentimentHistory, stories, allBadges, leagueSeason] = await Promise.all([
+  const [report, allocation, assetHistory, assetComposition, sentimentHistory, stories, allBadges, leagueSeason, regimes] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
     getAssetHistory(profile.name),
@@ -58,6 +60,7 @@ export default async function InvestorPage({ params }: Props) {
     latestDate ? getDailyStories(latestDate) : null,
     getBadges(),
     getLeagueStandings(),
+    getMarketRegimes(),
   ]);
   const investorBadges = allBadges.filter((b) => b.investor === profile.name);
   const detail = report?.investor_details[profile.name];
@@ -182,6 +185,11 @@ export default async function InvestorPage({ params }: Props) {
           investorId={id}
           stockUniverse={config.stock_universe}
         />
+      )}
+
+      {/* Regime Performance */}
+      {regimes.length > 0 && assetHistory.length >= 2 && (
+        <InvestorRegimePerformance regimes={regimes} assetHistory={assetHistory} />
       )}
 
       {/* Asset History Chart */}

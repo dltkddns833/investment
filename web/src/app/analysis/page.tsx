@@ -140,8 +140,20 @@ export default async function AnalysisPage() {
             </p>
           </div>
 
-          {regimePerformances.length > 0 && (
-            <>
+          {regimePerformances.length > 0 && (() => {
+            const p0 = regimePerformances[0];
+            const regimeDays = {
+              bull: p0?.bull?.days ?? 0,
+              neutral: p0?.neutral?.days ?? 0,
+              bear: p0?.bear?.days ?? 0,
+            };
+            const insufficient = Math.min(regimeDays.bull, regimeDays.neutral, regimeDays.bear) < 20;
+            return <>
+              {insufficient && (
+                <p className="text-xs text-yellow-500/80 mb-4">
+                  ⚠ 국면당 최소 20일 필요 (현재 강세 {regimeDays.bull}일 · 중립 {regimeDays.neutral}일 · 약세 {regimeDays.bear}일) — 참고용
+                </p>
+              )}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-300 mb-2">국면별 수익률 비교</h3>
                 <RegimePerformanceChart performances={regimePerformances} />
@@ -156,8 +168,8 @@ export default async function AnalysisPage() {
                 <h3 className="text-sm font-medium text-gray-300 mb-2">최적 투자자 조합</h3>
                 <OptimalCombinationPanel combination={optimalCombination} investorIds={investorIds} />
               </div>
-            </>
-          )}
+            </>;
+          })()}
         </section>
       )}
 
