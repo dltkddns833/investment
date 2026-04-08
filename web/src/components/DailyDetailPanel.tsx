@@ -19,6 +19,7 @@ interface DailyDetail {
   investorDetails: Record<string, InvestorDetail> | null;
   marketPrices: Record<string, MarketPrice> | null;
   prevRankMap: Record<string, number> | null;
+  prevAssetMap: Record<string, number> | null;
 }
 
 function formatDateKR(dateStr: string) {
@@ -106,6 +107,11 @@ export default function DailyDetailPanel({ selectedDate, hideHeader }: Props) {
               const diary = data.stories?.diaries[r.investor];
               const prevRank = data.prevRankMap?.[r.investor];
               const rankDiff = prevRank != null ? prevRank - r.rank : 0;
+              const prevAsset = data.prevAssetMap?.[r.investor];
+              const dailyReturnPct = prevAsset != null && prevAsset > 0
+                ? +((((r.total_asset - prevAsset) / prevAsset) * 100).toFixed(2))
+                : null;
+              const dailyReturn = prevAsset != null ? r.total_asset - prevAsset : null;
               return (
                 <Link
                   href={investorId ? `/investors/${investorId}` : "#"}
@@ -155,16 +161,41 @@ export default function DailyDetailPanel({ selectedDate, hideHeader }: Props) {
                     </span>
                     {/* Spacer */}
                     <span className="flex-1" />
-                    {/* Return */}
-                    <span
-                      className={`text-sm tabular-nums font-medium w-16 text-right shrink-0 ${signColor(r.total_return_pct)}`}
-                    >
-                      {r.total_return_pct > 0 ? "+" : ""}
-                      {r.total_return_pct.toFixed(2)}%
+                    {/* Daily return pct */}
+                    <span className="shrink-0 text-right w-16">
+                      <span className="block text-[10px] text-gray-400 font-medium leading-none mb-0.5">수익률</span>
+                      {dailyReturnPct != null ? (
+                        <span className={`text-sm tabular-nums font-bold ${signColor(dailyReturnPct)}`}>
+                          {dailyReturnPct > 0 ? "+" : ""}{dailyReturnPct.toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="text-sm tabular-nums text-gray-600">-</span>
+                      )}
+                    </span>
+                    {/* Daily return amount */}
+                    <span className="shrink-0 text-right w-20 hidden sm:block">
+                      <span className="block text-[10px] text-gray-400 font-medium leading-none mb-0.5">수익금</span>
+                      {dailyReturn != null ? (
+                        <span className={`text-xs tabular-nums font-medium ${signColor(dailyReturn)}`}>
+                          {dailyReturn > 0 ? "+" : ""}{krw(dailyReturn)}
+                        </span>
+                      ) : (
+                        <span className="text-xs tabular-nums text-gray-600">-</span>
+                      )}
                     </span>
                     {/* Total asset */}
-                    <span className="text-xs tabular-nums text-gray-500 w-20 text-right shrink-0 hidden sm:inline">
-                      {krw(r.total_asset)}
+                    <span className="shrink-0 text-right w-20 hidden sm:block">
+                      <span className="block text-[10px] text-gray-400 font-medium leading-none mb-0.5">총자산</span>
+                      <span className="text-xs tabular-nums text-gray-300">
+                        {krw(r.total_asset)}
+                      </span>
+                    </span>
+                    {/* Cumulative return */}
+                    <span className="shrink-0 text-right w-16 hidden md:block">
+                      <span className="block text-[10px] text-gray-400 font-medium leading-none mb-0.5">누적</span>
+                      <span className={`text-xs tabular-nums ${signColor(r.total_return_pct)}`}>
+                        {r.total_return_pct > 0 ? "+" : ""}{r.total_return_pct.toFixed(2)}%
+                      </span>
                     </span>
                   </div>
                   {diary && (

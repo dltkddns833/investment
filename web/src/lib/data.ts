@@ -372,6 +372,24 @@ export async function getPrevRankMap(
   return map;
 }
 
+export async function getPrevAssetMap(
+  date: string
+): Promise<Record<string, number> | null> {
+  const { data } = await supabase
+    .from("daily_reports")
+    .select("rankings")
+    .lt("date", date)
+    .order("date", { ascending: false })
+    .limit(1)
+    .single();
+  if (!data?.rankings) return null;
+  const map: Record<string, number> = {};
+  for (const r of data.rankings as { investor: string; total_asset: number }[]) {
+    map[r.investor] = r.total_asset;
+  }
+  return map;
+}
+
 export async function getNews(date: string): Promise<News | null> {
   const { data } = await supabase
     .from("news")

@@ -39,13 +39,13 @@ src/
     api/kis-portfolio/route.ts ← KIS API 프록시 (실전 보유종목/잔고 실시간 조회, 토큰 메모리 캐시)
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 매매내역, 전일 순위)
   components/
-    RankingTable.tsx          ← 투자자 순위표 (전일 대비 순위 변동 표시)
+    RankingTable.tsx          ← 투자자 순위표 (일일 수익률/수익금, 누적 수익률, 전일 대비 순위 변동)
     MarketTable.tsx           ← 시장 현황 테이블 (검색, 현재가/등락률 정렬)
     PortfolioChart.tsx        ← 포트폴리오 파이차트 (recharts)
     HoldingsTable.tsx         ← 보유종목 테이블
     CalendarHeatmap.tsx       ← 달력 히트맵 (수익률 색상)
     ReportsContent.tsx        ← 리포트 좌우 분할 레이아웃 (데스크탑: 마스터-디테일, 모바일: 접기/펼치기)
-    DailyDetailPanel.tsx      ← 날짜별 상세 패널 (코멘터리, 투자자 현황+일기+매매내역 통합, 뉴스)
+    DailyDetailPanel.tsx      ← 날짜별 상세 패널 (코멘터리, 투자자 현황(일일 수익률/수익금/총자산/누적)+일기+매매내역 통합, 뉴스)
     TradesToday.tsx           ← 오늘의 매매 테이블 (투자자별 매수/매도, 정렬, 8행 스크롤)
     SectorHeatmap.tsx         ← 섹터별 등락 색상 타일
     SectorWeights.tsx         ← 투자자별 섹터 비중 바

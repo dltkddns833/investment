@@ -2,6 +2,7 @@ import {
   getLatestReportDate,
   getDailyReport,
   getPrevRankMap,
+  getPrevAssetMap,
   getConfig,
   getNews,
   getAllAssetHistory,
@@ -47,7 +48,7 @@ export default async function Home() {
   const today = new Date()
     .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks, riskGrades, prevRankMap, leagueSeason] = await Promise.all([
+  const [report, todayNews, reportNews, assetHistory, stories, weeklyMVPs, streaks, riskGrades, prevRankMap, prevAssetMap, leagueSeason] = await Promise.all([
     getDailyReport(latestDate).then((r) => r!),
     getNews(today),
     today !== latestDate ? getNews(latestDate) : null,
@@ -57,6 +58,7 @@ export default async function Home() {
     getStreaks(),
     getProfileRiskGrades(),
     getPrevRankMap(latestDate),
+    getPrevAssetMap(latestDate),
     getLeagueStandings(),
   ]);
   const news = todayNews ?? reportNews;
@@ -119,6 +121,7 @@ export default async function Home() {
         initialCapital={config.simulation.initial_capital}
         riskGrades={riskGrades}
         prevRankMap={prevRankMap}
+        prevAssetMap={prevAssetMap}
       />
     </section>
   );

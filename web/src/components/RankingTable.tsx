@@ -9,14 +9,6 @@ import { useLiveRankings } from "@/lib/use-live-portfolio";
 import DataTable from "./DataTable";
 import InvestorAvatar from "./InvestorAvatar";
 
-const RISK_GRADE_STYLE: Record<string, string> = {
-  "안정형":    "bg-blue-500/15 text-blue-300",
-  "안정추구형": "bg-lime-500/15 text-lime-300",
-  "위험중립형": "bg-green-500/15 text-green-300",
-  "적극투자형": "bg-yellow-500/15 text-yellow-300",
-  "공격투자형": "bg-red-500/15 text-red-300",
-};
-
 interface Props {
   rankings: RankingEntry[];
   investorIds: Record<string, string>;
@@ -24,6 +16,7 @@ interface Props {
   initialCapital?: number;
   riskGrades?: Record<string, string>;
   prevRankMap?: Record<string, number> | null;
+  prevAssetMap?: Record<string, number> | null;
 }
 
 function rankClass(rank: number): string {
@@ -33,7 +26,7 @@ function rankClass(rank: number): string {
   return "rank-badge bg-gray-700 text-gray-300";
 }
 
-const col = createColumnHelper<RankingEntry & { _investorId: string; _riskGrade: string; _rankDiff: number }>();
+const col = createColumnHelper<RankingEntry & { _investorId: string; _riskGrade: string; _rankDiff: number; _dailyReturnPct: number | null; _dailyReturn: number | null }>();
 
 function RankDiffIcon({ diff }: { diff: number }) {
   if (diff === 0) return null;
@@ -91,11 +84,12 @@ function getColumns() {
         <span className="font-mono tabular-nums">{krw(info.getValue())}</span>
       ),
     }),
-    col.accessor("total_return_pct", {
+    col.accessor("_dailyReturnPct", {
       header: "수익률",
       meta: { className: "text-right" },
       cell: (info) => {
         const v = info.getValue();
+        if (v == null) return <span className="text-gray-600">-</span>;
         const cls =
           v > 0
             ? "bg-red-500/10 text-red-400"
@@ -106,6 +100,39 @@ function getColumns() {
           <span
             className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tabular-nums ${cls}`}
           >
+            {v > 0 ? "+" : ""}{v.toFixed(2)}%
+          </span>
+        );
+      },
+    }),
+    col.accessor("_dailyReturn", {
+      header: "수익금",
+      meta: { className: "text-right hidden sm:table-cell" },
+      cell: (info) => {
+        const v = info.getValue();
+        if (v == null) return <span className="text-gray-600">-</span>;
+        const cls =
+          v > 0 ? "text-red-400" : v < 0 ? "text-blue-400" : "text-gray-400";
+        return (
+          <span className={`text-xs font-medium tabular-nums ${cls}`}>
+            {v > 0 ? "+" : ""}{krw(v)}
+          </span>
+        );
+      },
+    }),
+    col.accessor("total_return_pct", {
+      header: "누적 수익률",
+      meta: { className: "text-right" },
+      cell: (info) => {
+        const v = info.getValue();
+        const cls =
+          v > 0
+            ? "text-red-400"
+            : v < 0
+              ? "text-blue-400"
+              : "text-gray-400";
+        return (
+          <span className={`text-xs font-medium tabular-nums ${cls}`}>
             {pct(v)}
           </span>
         );
@@ -116,13 +143,6 @@ function getColumns() {
       meta: { className: "text-right hidden sm:table-cell" },
       cell: (info) => (
         <span className="tabular-nums">{info.getValue()}</span>
-      ),
-    }),
-    col.accessor("cash_ratio", {
-      header: "현금비중",
-      meta: { className: "text-right hidden md:table-cell" },
-      cell: (info) => (
-        <span className="tabular-nums">{info.getValue()}%</span>
       ),
     }),
     col.accessor("rebalance_frequency_days", {
@@ -145,20 +165,6 @@ function getColumns() {
           <span className="inline-flex h-2.5 w-2.5 mx-auto rounded-full bg-gray-700" />
         ),
     }),
-    col.accessor("_riskGrade", {
-      header: "투자성향",
-      meta: { className: "text-center hidden md:table-cell" },
-      cell: (info) => {
-        const grade = info.getValue();
-        if (!grade) return null;
-        const cls = RISK_GRADE_STYLE[grade] ?? "bg-gray-500/15 text-gray-300";
-        return (
-          <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>
-            {grade}
-          </span>
-        );
-      },
-    }),
   ];
 }
 
@@ -169,6 +175,7 @@ export default function RankingTable({
   initialCapital,
   riskGrades,
   prevRankMap,
+  prevAssetMap,
 }: Props) {
   const liveRankings = useLiveRankings(
     rankings,
@@ -212,11 +219,18 @@ export default function RankingTable({
 
   const data = liveRankings.map((r) => {
     const prev = prevRankMap?.[r.investor];
+    const prevAsset = prevAssetMap?.[r.investor];
+    const dailyReturn = prevAsset != null ? r.total_asset - prevAsset : null;
+    const dailyReturnPct = prevAsset != null && prevAsset > 0
+      ? +((((r.total_asset - prevAsset) / prevAsset) * 100).toFixed(2))
+      : null;
     return {
       ...r,
       _investorId: investorIds[r.investor] || "",
       _riskGrade: riskGrades?.[r.investor] ?? "",
       _rankDiff: prev != null ? prev - r.rank : 0,
+      _dailyReturnPct: dailyReturnPct,
+      _dailyReturn: dailyReturn,
     };
   });
 

@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   // Fetch previous day's rankings for rank change calculation
   let prevRankMap: Record<string, number> | null = null;
+  let prevAssetMap: Record<string, number> = {};
   if (report?.rankings) {
     const { data: prevReport } = await supabase
       .from("daily_reports")
@@ -31,8 +32,9 @@ export async function GET(request: NextRequest) {
 
     if (prevReport?.rankings) {
       prevRankMap = {};
-      for (const r of prevReport.rankings as { rank: number; investor: string }[]) {
+      for (const r of prevReport.rankings as { rank: number; investor: string; total_asset: number }[]) {
         prevRankMap[r.investor] = r.rank;
+        prevAssetMap[r.investor] = r.total_asset;
       }
     }
   }
@@ -44,5 +46,6 @@ export async function GET(request: NextRequest) {
     investorDetails: report?.investor_details ?? null,
     marketPrices: report?.market_prices ?? null,
     prevRankMap,
+    prevAssetMap,
   });
 }
