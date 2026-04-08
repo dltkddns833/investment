@@ -970,6 +970,19 @@ class MetaManager:
         if not orders:
             return {"status": "no_orders", "orders": []}
 
+        # 상세 rationale 자동 생성
+        regime_kr = REGIME_KR.get(regime, regime)
+        meta_config = self._load_meta_config()
+        sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
+        sl_threshold = sl_by_regime.get(regime, -8)
+        tp_threshold = meta_config.get("take_profit_pct", 10)
+        rationale_parts = []
+        for o in orders:
+            reason_kr = "손절" if o.get("reason") == "stop_loss" else "익절"
+            threshold = f"{sl_threshold}%" if o.get("reason") == "stop_loss" else f"+{tp_threshold}%"
+            rationale_parts.append(f"{o.get('name', o['code'])} {reason_kr} (기준: {threshold})")
+        auto_rationale = f"시장 국면 {regime_kr}에서 긴급 매매 실행.\n" + "\n".join(rationale_parts)
+
         # 주문 요약
         order_lines = []
         for o in orders:
@@ -990,7 +1003,7 @@ class MetaManager:
             self.save_decision({
                 "regime": regime,
                 "decision_type": decision_type,
-                "rationale": f"긴급 {decision_type}",
+                "rationale": auto_rationale,
                 "orders": orders,
                 "approved": False,
                 "executed": False,
@@ -1002,7 +1015,7 @@ class MetaManager:
             self.save_decision({
                 "regime": regime,
                 "decision_type": decision_type,
-                "rationale": f"긴급 {decision_type} — 장외시간",
+                "rationale": auto_rationale + "\n(장 운영시간 외 — 미체결)",
                 "orders": orders,
                 "approved": False,
                 "executed": False,
@@ -1018,7 +1031,7 @@ class MetaManager:
             self.save_decision({
                 "regime": regime,
                 "decision_type": decision_type,
-                "rationale": f"긴급 {decision_type} — 거부",
+                "rationale": auto_rationale + "\n(텔레그램 승인 거부/타임아웃 — 미체결)",
                 "orders": orders,
                 "approved": False,
                 "executed": False,
@@ -1033,7 +1046,7 @@ class MetaManager:
         self.save_decision({
             "regime": regime,
             "decision_type": decision_type,
-            "rationale": f"긴급 {decision_type}",
+            "rationale": auto_rationale,
             "orders": results,
             "approved": True,
             "executed": True,
