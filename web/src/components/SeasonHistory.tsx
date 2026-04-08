@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import type { SeasonSummary } from "@/lib/data";
 import InvestorAvatar from "./InvestorAvatar";
 
 interface Props {
   seasons: SeasonSummary[];
+  selectedSeason?: string;
 }
 
-export default function SeasonHistory({ seasons }: Props) {
+export default function SeasonHistory({ seasons, selectedSeason }: Props) {
   if (seasons.length === 0) {
     return (
       <section className="glass-card p-4 md:p-5 animate-in">
@@ -19,14 +21,30 @@ export default function SeasonHistory({ seasons }: Props) {
 
   return (
     <section className="glass-card p-4 md:p-5 animate-in">
-      <h2 className="text-lg font-bold mb-4 section-header">시즌 아카이브</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold section-header">시즌 아카이브</h2>
+        {selectedSeason && (
+          <Link
+            href="/league"
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            이번 시즌으로 돌아가기
+          </Link>
+        )}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {seasons.map((season) => {
+          const isSelected = selectedSeason === season.seasonLabel;
           const top3 = season.standings.slice(0, 3);
           return (
-            <div
+            <Link
               key={season.seasonLabel}
-              className="rounded-xl border border-white/5 bg-white/[0.02] p-4"
+              href={isSelected ? "/league" : `/league?season=${season.seasonLabel}`}
+              className={`block rounded-xl border p-4 transition-all hover:bg-white/[0.04] ${
+                isSelected
+                  ? "border-yellow-500/30 bg-yellow-500/[0.05]"
+                  : "border-white/5 bg-white/[0.02]"
+              }`}
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm text-gray-200">{season.seasonName}</h3>
@@ -62,7 +80,11 @@ export default function SeasonHistory({ seasons }: Props) {
                   </div>
                 ))}
               </div>
-            </div>
+
+              <p className="text-[10px] text-gray-600 mt-3 text-center">
+                {isSelected ? "클릭하여 이번 시즌 보기" : "클릭하여 상세 보기"}
+              </p>
+            </Link>
           );
         })}
       </div>

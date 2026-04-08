@@ -1,4 +1,10 @@
 import { supabase } from "./supabase";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // --- Types ---
 
@@ -1202,14 +1208,14 @@ function computeLeaguePoints(
 const MONTH_NAMES = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
 export async function getLeagueStandings(seasonLabel?: string): Promise<SeasonSummary | null> {
-  const now = new Date();
-  const currentLabel = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nowKst = dayjs().tz("Asia/Seoul");
+  const currentLabel = seasonLabel ?? nowKst.format("YYYY-MM");
   const [year, monthStr] = currentLabel.split("-");
   const month = parseInt(monthStr, 10);
   const seasonName = `${year}년 ${MONTH_NAMES[month - 1]} 시즌`;
 
   const isCurrentMonth =
-    parseInt(year, 10) === now.getFullYear() && month === now.getMonth() + 1;
+    parseInt(year, 10) === nowKst.year() && month === nowKst.month() + 1;
 
   if (!isCurrentMonth) {
     // 과거 시즌: periodic_reports에서 league_standings 읽기
@@ -1248,7 +1254,7 @@ export async function getLeagueStandings(seasonLabel?: string): Promise<SeasonSu
 
   // 현재 시즌: daily_reports에서 on-the-fly 계산
   const firstDay = `${currentLabel}-01`;
-  const lastDay = `${currentLabel}-31`;
+  const lastDay = dayjs.tz(`${currentLabel}-01`, "Asia/Seoul").endOf("month").format("YYYY-MM-DD");
 
   const { data: reports } = await supabase
     .from("daily_reports")
@@ -1404,10 +1410,10 @@ export async function getMarketRegimes(): Promise<MarketRegime[]> {
 }
 
 export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date: string; points: Record<string, number> }[]> {
-  const now = new Date();
-  const label = seasonLabel ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nowKst = dayjs().tz("Asia/Seoul");
+  const label = seasonLabel ?? nowKst.format("YYYY-MM");
   const firstDay = `${label}-01`;
-  const lastDay = `${label}-31`;
+  const lastDay = dayjs.tz(`${label}-01`, "Asia/Seoul").endOf("month").format("YYYY-MM-DD");
 
   const { data: reports } = await supabase
     .from("daily_reports")

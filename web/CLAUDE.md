@@ -33,7 +33,7 @@ src/
     analysis/page.tsx        ← 투자자 분석 (전략 스코어카드, 성과 지표, 국면별 성과, 상관관계 히트맵, 포지션 겹침률, 종목 인기도)
     versus/page.tsx          ← 대결 구도 (추천 대결, 자유 선택, 주간 MVP/꼴찌, 연승)
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
-    league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브)
+    league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브 상세 보기(?season=YYYY-MM))
     backtest/page.tsx        ← 백테스트 결과 (기간 탭, 자산 추이, 성과 순위, 레이더 차트)
     live/page.tsx            ← 실전 투자 (실전 포트폴리오 현황, 자산 추이, 보유종목, 매매 히스토리)
     api/kis-portfolio/route.ts ← KIS API 프록시 (실전 보유종목/잔고 실시간 조회, 토큰 메모리 캐시)
@@ -61,7 +61,7 @@ src/
     WeeklyHighlights.tsx      ← 주간 MVP/꼴찌/연승 카드
     LeagueTable.tsx           ← 리그 승점 순위 테이블 (승점 프로그레스바, 평균순위, 1위횟수)
     LeaguePointsChart.tsx     ← 누적 승점 추이 라인 차트 (투자자별 컬러)
-    SeasonHistory.tsx         ← 시즌 아카이브 카드 (우승자, Top 3 포디움)
+    SeasonHistory.tsx         ← 시즌 아카이브 카드 (우승자, Top 3 포디움, 클릭 시 전체 순위표+승점 차트)
     BadgeList.tsx             ← 투자자 뱃지 목록 (시즌 우승 뱃지 포함)
     InvestorAvatar.tsx        ← 투자자 카툰 아바타 (대표 인물 기반 SVG)
     AllInvestorsAssetChart.tsx ← 전체 투자자 자산 추이 라인 차트

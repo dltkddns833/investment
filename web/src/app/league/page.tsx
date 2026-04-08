@@ -10,12 +10,27 @@ import SeasonHistory from "@/components/SeasonHistory";
 
 export const dynamic = "force-dynamic";
 
-export default async function LeaguePage() {
+interface Props {
+  searchParams: Promise<{ season?: string }>;
+}
+
+export default async function LeaguePage({ searchParams }: Props) {
+  const params = await searchParams;
+  const selectedSeason = params.season;
+
   const [config, currentSeason, seasonHistory] = await Promise.all([
     getConfig(),
     getLeagueStandings(),
     getSeasonHistory(),
   ]);
+
+  // 과거 시즌 선택 시 해당 시즌 데이터 로드
+  const viewSeason = selectedSeason
+    ? await getLeagueStandings(selectedSeason)
+    : null;
+  const viewDailyPoints = selectedSeason
+    ? await getDailyLeaguePoints(selectedSeason)
+    : null;
 
   const investorNames = config.investors.map((inv) => inv.name);
   const investorIds = config.investors.map((inv) => inv.id);
@@ -24,8 +39,11 @@ export default async function LeaguePage() {
     ? await getDailyLeaguePoints(currentSeason.seasonLabel)
     : [];
 
-  const maxPoints = currentSeason
-    ? Math.max(...currentSeason.standings.map((s) => s.points), 1)
+  const activeSeason = viewSeason ?? currentSeason;
+  const activePoints = viewDailyPoints ?? dailyPoints;
+
+  const maxPoints = activeSeason
+    ? Math.max(...activeSeason.standings.map((s) => s.points), 1)
     : 1;
 
   return (
@@ -34,24 +52,24 @@ export default async function LeaguePage() {
         <h1 className="text-2xl md:text-3xl font-bold">
           투자자 리그
         </h1>
-        {currentSeason && (
+        {activeSeason && (
           <p className="text-gray-400 mt-1 text-sm">
-            {currentSeason.seasonName} · {currentSeason.isCurrent ? "진행 중" : "종료"}
+            {activeSeason.seasonName} · {activeSeason.isCurrent ? "진행 중" : "종료"}
           </p>
         )}
       </div>
 
-      {currentSeason ? (
+      {activeSeason ? (
         <>
           <LeagueTable
-            standings={currentSeason.standings}
-            tradingDays={currentSeason.tradingDays}
+            standings={activeSeason.standings}
+            tradingDays={activeSeason.tradingDays}
             maxPoints={maxPoints}
           />
 
-          {dailyPoints.length > 1 && (
+          {activePoints.length > 1 && (
             <LeaguePointsChart
-              data={dailyPoints}
+              data={activePoints}
               investorNames={investorNames}
               investorIds={investorIds}
             />
@@ -63,7 +81,10 @@ export default async function LeaguePage() {
         </div>
       )}
 
-      <SeasonHistory seasons={seasonHistory} />
+      <SeasonHistory
+        seasons={seasonHistory}
+        selectedSeason={selectedSeason}
+      />
     </div>
   );
 }
