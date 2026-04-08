@@ -209,9 +209,23 @@ export default function LivePortfolioView({
   const winDays = dailyReturns.filter((h) => (h.daily_return_pct ?? 0) > 0).length;
   const winRate = dailyReturns.length > 0 ? (winDays / dailyReturns.length) * 100 : 0;
 
+  // 최대 수익일 / 최대 손실일
+  const bestDay = dailyReturns.length > 0
+    ? dailyReturns.reduce((best, h) => (h.daily_return_pct ?? 0) > (best.daily_return_pct ?? 0) ? h : best)
+    : null;
+  const worstDay = dailyReturns.length > 0
+    ? dailyReturns.reduce((worst, h) => (h.daily_return_pct ?? 0) < (worst.daily_return_pct ?? 0) ? h : worst)
+    : null;
+
+  // 총 매매 횟수
+  const totalTrades = decisions.filter((d) => d.executed && d.orders && d.orders.length > 0).length;
+
+  // 투자 비중 (주식 vs 현금)
+  const investPct = totalAsset > 0 ? ((totalAsset - cash) / totalAsset * 100) : 0;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">실전 투자</h1>
           {badge && (
@@ -220,12 +234,11 @@ export default function LivePortfolioView({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 text-sm text-gray-400">
+        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-400">
           {(isLive || isClosingPrice) && fetchedAt ? (
             <>
               <span>
                 {new Date(fetchedAt).toLocaleDateString("ko-KR", {
-                  year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
                   timeZone: "Asia/Seoul",
@@ -298,46 +311,89 @@ export default function LivePortfolioView({
       {/* 운용 전략 & 현재 상태 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 전략 요약 */}
-        <div className="bg-gray-800/50 rounded-xl p-5 space-y-3">
+        <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-400">운용 전략</h2>
           <p className="text-xs text-gray-300 leading-relaxed">
             <span className="text-yellow-400 font-medium">목표: KOSPI 대비 초과 수익(알파 양수 유지).</span>{" "}
             15명의 시뮬레이션 투자자 성과를 종합 분석하여 최적 종목과 비중을 결정하는 AI 메타 전략입니다.
-            격주 수요일 정규 리밸런싱 + 매일 긴급 손절/익절 체크로 운용됩니다.
           </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <span className="text-gray-500">리밸런싱</span>
-              <p className="text-gray-300 font-medium mt-0.5">격주 수요일</p>
+
+          {/* 매매 규칙 */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-gray-400">매매 규칙</h3>
+            <div className="space-y-1.5 text-xs">
+              <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-400">📅</span>
+                  <span className="text-gray-300 font-medium">리밸런싱: 격주 수요일</span>
+                </div>
+                <p className="text-gray-500 pl-5">시뮬레이션 15명의 성과를 분석해 종목과 비중을 재조정합니다.</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-400">🔻</span>
+                  <span className="text-gray-300 font-medium">
+                    손절: 매입가 대비{" "}
+                    {currentRegime
+                      ? `${({bull: "-10%", neutral: "-8%", bear: "-7%"} as Record<string, string>)[currentRegime] ?? "-8%"} (${regimeLabel[currentRegime] ?? currentRegime})`
+                      : "시장 국면별 -7~10%"
+                    }
+                  </span>
+                </div>
+                <p className="text-gray-500 pl-5">
+                  보유 종목이 매입가 대비 기준 이하로 떨어지면 즉시 매도합니다.
+                  시장이 약세일수록 기준이 엄격해집니다 (약세 -7%, 중립 -8%, 강세 -10%).
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-red-400">🔺</span>
+                  <span className="text-gray-300 font-medium">익절: 매입가 대비 +10% (5영업일 보유 후)</span>
+                </div>
+                <p className="text-gray-500 pl-5">
+                  보유 종목이 매입가 대비 +10% 이상 오르면 수익을 확정합니다.
+                  단, 최소 5영업일 이상 보유해야 익절이 발동됩니다 (단기 변동 방지).
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-yellow-400">💰</span>
+                  <span className="text-gray-300 font-medium">
+                    최대 투자 비중:{" "}
+                    {currentRegime
+                      ? `${regimeMaxPct[currentRegime] ?? 60}% (${regimeLabel[currentRegime] ?? currentRegime})`
+                      : "시장 국면별 30~90%"
+                    }
+                  </span>
+                </div>
+                <p className="text-gray-500 pl-5">
+                  나머지는 현금으로 보유합니다. 약세장에서는 현금 비중을 높이고,
+                  강세장에서는 적극 투자합니다 (약세 30%, 중립 60%, 강세 90%).
+                </p>
+              </div>
             </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <span className="text-gray-500">손절 기준</span>
-              <p className="text-gray-300 font-medium mt-0.5">
-                {currentRegime
-                  ? `${({bull: "-10%", neutral: "-8%", bear: "-7%"} as Record<string, string>)[currentRegime] ?? "-8%"} (${regimeLabel[currentRegime] ?? currentRegime})`
-                  : "-7~10%"
-                }
-              </p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <span className="text-gray-500">익절 기준</span>
-              <p className="text-gray-300 font-medium mt-0.5">+10% (5일 보유 후)</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-2.5">
-              <span className="text-gray-500">최대 투자</span>
-              <p className="text-gray-300 font-medium mt-0.5">
-                {currentRegime
-                  ? `${regimeMaxPct[currentRegime] ?? 60}% (${regimeLabel[currentRegime] ?? currentRegime})`
-                  : "레짐별 30~90%"
-                }
-              </p>
+          </div>
+
+          {/* 안전 장치 */}
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-medium text-gray-400">안전 장치</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+              <div className="bg-red-500/5 border border-red-500/10 rounded-lg p-2.5">
+                <span className="text-red-400 font-medium">일일 -3% 거래 중단</span>
+                <p className="text-gray-500 mt-0.5">하루 손실이 -3%를 넘으면 그날 추가 거래를 하지 않습니다.</p>
+              </div>
+              <div className="bg-red-500/5 border border-red-500/10 rounded-lg p-2.5">
+                <span className="text-red-400 font-medium">누적 -10% 전량 청산</span>
+                <p className="text-gray-500 mt-0.5">초기 자금 대비 -10%에 도달하면 모든 주식을 매도하고 운용을 중단합니다.</p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* 운용 상태 */}
-        <div className="bg-gray-800/50 rounded-xl p-5 space-y-3">
+        <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-400">운용 현황</h2>
+
           {/* 알파 달성 상태 */}
           {alpha != null && (
             <div className={`rounded-lg p-3 text-center ${
@@ -354,46 +410,104 @@ export default function LivePortfolioView({
               </p>
             </div>
           )}
-          <div className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-400">운용 기간</span>
-              <span className="text-gray-200">{startDate} ~ ({operatingDays}일)</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">현재 시장 국면</span>
-              <span>
-                {currentRegime ? (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    currentRegime === "bull" ? "bg-red-500/20 text-red-400" :
-                    currentRegime === "bear" ? "bg-blue-500/20 text-blue-400" :
-                    "bg-yellow-500/20 text-yellow-400"
-                  }`}>
-                    {regimeLabel[currentRegime] ?? currentRegime}
+
+          {/* 기본 정보 */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-gray-400">기본 정보</h3>
+            <div className="space-y-2 text-xs">
+              <div className="bg-white/5 rounded-lg p-2.5 space-y-1.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 shrink-0">운용 기간</span>
+                  <span className="text-gray-300 text-right">{startDate} ~ ({operatingDays}일)</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 shrink-0">시장 국면</span>
+                  <span>
+                    {currentRegime ? (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        currentRegime === "bull" ? "bg-red-500/20 text-red-400" :
+                        currentRegime === "bear" ? "bg-blue-500/20 text-blue-400" :
+                        "bg-yellow-500/20 text-yellow-400"
+                      }`}>
+                        {regimeLabel[currentRegime] ?? currentRegime}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
                   </span>
-                ) : (
-                  <span className="text-gray-500">-</span>
-                )}
-              </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 shrink-0">최근 리밸런싱</span>
+                  <span className="text-gray-300">{lastRebalance?.date ?? "-"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 shrink-0">총 매매 횟수</span>
+                  <span className="text-gray-300">{totalTrades}회</span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">최근 리밸런싱</span>
-              <span className="text-gray-200">{lastRebalance?.date ?? "-"}</span>
+          </div>
+
+          {/* 투자 비중 바 */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-gray-400">현재 투자 비중</h3>
+            <div className="bg-white/5 rounded-lg p-2.5 space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">주식 {investPct.toFixed(0)}%</span>
+                <span className="text-gray-500">현금 {(100 - investPct).toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-indigo-500 h-2 rounded-full transition-all"
+                  style={{ width: `${Math.min(investPct, 100)}%` }}
+                />
+              </div>
+              {currentRegime && (
+                <p className="text-[11px] text-gray-500">
+                  현재 {regimeLabel[currentRegime]}에서 최대 {regimeMaxPct[currentRegime] ?? 60}%까지 투자 가능
+                </p>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">승률 (일 기준)</span>
-              <span className="text-gray-200">
-                {dailyReturns.length > 0 ? `${winRate.toFixed(0)}% (${winDays}/${dailyReturns.length}일)` : "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">MDD</span>
-              <span className={`font-medium ${mdd < -0.03 ? "text-blue-400" : "text-gray-200"}`}>
-                {(mdd * 100).toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">안전 장치</span>
-              <span className="text-xs text-gray-400">일일 -3% 중단 · 누적 -10% 청산</span>
+          </div>
+
+          {/* 성과 지표 */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-gray-400">성과 지표</h3>
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              <div className="bg-white/5 rounded-lg p-2.5">
+                <span className="text-gray-500">승률</span>
+                <p className="text-gray-300 font-medium mt-0.5">
+                  {dailyReturns.length > 0 ? `${winRate.toFixed(0)}%` : "-"}
+                </p>
+                <p className="text-gray-500 text-[11px]">
+                  {dailyReturns.length > 0 ? `${operatingDays}일 중 ${winDays}일 상승` : ""}
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5">
+                <span className="text-gray-500">MDD</span>
+                <p className={`font-medium mt-0.5 ${mdd < -0.03 ? "text-blue-400" : "text-gray-300"}`}>
+                  {(mdd * 100).toFixed(1)}%
+                </p>
+                <p className="text-gray-500 text-[11px]">최고점 대비 최대 낙폭</p>
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5">
+                <span className="text-gray-500">최대 수익일</span>
+                {bestDay ? (
+                  <>
+                    <p className="text-red-400 font-medium mt-0.5">{pct(bestDay.daily_return_pct ?? 0)}</p>
+                    <p className="text-gray-500 text-[11px]">{bestDay.date}</p>
+                  </>
+                ) : <p className="text-gray-500 mt-0.5">-</p>}
+              </div>
+              <div className="bg-white/5 rounded-lg p-2.5">
+                <span className="text-gray-500">최대 손실일</span>
+                {worstDay ? (
+                  <>
+                    <p className="text-blue-400 font-medium mt-0.5">{pct(worstDay.daily_return_pct ?? 0)}</p>
+                    <p className="text-gray-500 text-[11px]">{worstDay.date}</p>
+                  </>
+                ) : <p className="text-gray-500 mt-0.5">-</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -401,11 +515,11 @@ export default function LivePortfolioView({
 
       {/* 자산 추이 + 현황 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 bg-gray-800/50 rounded-xl p-5">
+        <div className="md:col-span-2 bg-gray-800/50 rounded-xl p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-400 mb-4">자산 추이</h2>
           <LiveAssetChart history={history} initialCapital={initialCapital} />
         </div>
-        <div className="bg-gray-800/50 rounded-xl p-5 space-y-4">
+        <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-400">포트폴리오 현황</h2>
           <div className="space-y-3">
             <InfoRow label="초기 자금" value={krw(initialCapital)} />
@@ -432,13 +546,13 @@ export default function LivePortfolioView({
       </div>
 
       {/* 보유종목 */}
-      <div className="bg-gray-800/50 rounded-xl p-5">
+      <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-gray-400 mb-4">보유종목</h2>
         <LiveHoldingsTableWithPrice holdings={liveHoldings} />
       </div>
 
       {/* 매매 히스토리 */}
-      <div className="bg-gray-800/50 rounded-xl p-5">
+      <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-gray-400 mb-4">매매 히스토리</h2>
         <LiveDecisionHistory decisions={decisions} />
       </div>
@@ -475,7 +589,7 @@ function SummaryCard({
         {label}
         {tooltip && <TooltipIcon text={tooltip} />}
       </p>
-      <p className={`text-lg font-bold ${valueColor || ""}`}>{value}</p>
+      <p className={`text-base sm:text-lg font-bold truncate ${valueColor || ""}`}>{value}</p>
       {sub && (
         <p className={`text-xs mt-0.5 ${subColor || "text-gray-500"}`}>{sub}</p>
       )}
@@ -495,9 +609,9 @@ function InfoRow({
   bold?: boolean;
 }) {
   return (
-    <div className="flex justify-between text-sm">
-      <span className="text-gray-400">{label}</span>
-      <span className={`${bold ? "font-semibold" : ""} ${valueColor || ""}`}>
+    <div className="flex justify-between gap-2 text-sm">
+      <span className="text-gray-400 shrink-0">{label}</span>
+      <span className={`text-right truncate ${bold ? "font-semibold" : ""} ${valueColor || ""}`}>
         {value}
       </span>
     </div>
@@ -546,74 +660,154 @@ function LiveHoldingsTableWithPrice({
   const sortIcon = (key: SortKey) =>
     sortKey === key ? (sortAsc ? " ▲" : " ▼") : "";
 
+  const holdingDays = (d: string | null | undefined) => {
+    if (!d) return null;
+    return Math.floor((Date.now() - new Date(d + "T00:00:00+09:00").getTime()) / 86400000);
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-gray-400 text-xs border-b border-white/10">
-            <th
-              className="text-left pb-2 font-medium cursor-pointer hover:text-gray-200"
-              onClick={() => toggleSort("name")}
-            >
-              종목{sortIcon("name")}
-            </th>
-            <th className="text-left pb-2 font-medium">섹터</th>
-            <th className="text-right pb-2 font-medium">수량</th>
-            <th className="text-right pb-2 font-medium">평균단가</th>
-            <th className="text-right pb-2 font-medium">현재가</th>
-            <th
-              className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
-              onClick={() => toggleSort("evalAmount")}
-            >
-              평가금액{sortIcon("evalAmount")}
-            </th>
-            <th
-              className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
-              onClick={() => toggleSort("profitPct")}
-            >
-              수익률{sortIcon("profitPct")}
-            </th>
-            <th className="text-right pb-2 font-medium">보유일</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {sorted.map((h) => (
-            <tr key={h.ticker} className="hover:bg-white/5">
-              <td className="py-2.5">
-                <Link
-                  href={`/stocks/${encodeURIComponent(h.ticker)}`}
-                  className="text-blue-400 hover:underline"
-                >
-                  {h.name}
-                </Link>
-                <span className="text-gray-500 text-xs ml-1">
-                  {h.ticker.replace(/\.(KS|KQ)$/, "")}
-                </span>
-              </td>
-              <td className="py-2.5 text-gray-400">{h.sector}</td>
-              <td className="py-2.5 text-right">{h.shares}주</td>
-              <td className="py-2.5 text-right">{krw(h.avg_price)}</td>
-              <td className="py-2.5 text-right">
-                <span>{krw(h.currentPrice)}</span>
-                {h.isLivePrice && h.changePct !== 0 && (
-                  <span className={`text-xs ml-1 ${signColor(h.changePct)}`}>
-                    {h.changePct > 0 ? "+" : ""}{h.changePct.toFixed(1)}%
-                  </span>
-                )}
-              </td>
-              <td className="py-2.5 text-right font-medium">
-                {krw(Math.round(h.evalAmount))}
-              </td>
-              <td className={`py-2.5 text-right font-medium ${signColor(h.profitPct)}`}>
-                {pct(h.profitPct)}
-              </td>
-              <td className="py-2.5 text-right text-gray-400 text-xs">
-                {h.acquired_date ? h.acquired_date.slice(5) : "-"}
-              </td>
+    <>
+      {/* 데스크탑: 테이블 */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400 text-xs border-b border-white/10">
+              <th
+                className="text-left pb-2 font-medium cursor-pointer hover:text-gray-200"
+                onClick={() => toggleSort("name")}
+              >
+                종목{sortIcon("name")}
+              </th>
+              <th className="text-left pb-2 font-medium">섹터</th>
+              <th className="text-right pb-2 font-medium">수량</th>
+              <th className="text-right pb-2 font-medium">평균단가</th>
+              <th className="text-right pb-2 font-medium">매입금액</th>
+              <th className="text-right pb-2 font-medium">현재가</th>
+              <th
+                className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
+                onClick={() => toggleSort("evalAmount")}
+              >
+                평가금액{sortIcon("evalAmount")}
+              </th>
+              <th
+                className="text-right pb-2 font-medium cursor-pointer hover:text-gray-200"
+                onClick={() => toggleSort("profitPct")}
+              >
+                수익률{sortIcon("profitPct")}
+              </th>
+              <th className="text-right pb-2 font-medium">보유일</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {sorted.map((h) => (
+              <tr key={h.ticker} className="hover:bg-white/5">
+                <td className="py-2.5">
+                  <Link
+                    href={`/stocks/${encodeURIComponent(h.ticker)}`}
+                    className="text-blue-400 hover:underline"
+                  >
+                    {h.name}
+                  </Link>
+                  <span className="text-gray-500 text-xs ml-1">
+                    {h.ticker.replace(/\.(KS|KQ)$/, "")}
+                  </span>
+                </td>
+                <td className="py-2.5 text-gray-400">{h.sector}</td>
+                <td className="py-2.5 text-right">{h.shares}주</td>
+                <td className="py-2.5 text-right">{krw(h.avg_price)}</td>
+                <td className="py-2.5 text-right text-gray-400">{krw(Math.round(h.avg_price * h.shares))}</td>
+                <td className="py-2.5 text-right">
+                  <span>{krw(h.currentPrice)}</span>
+                  {h.isLivePrice && h.changePct !== 0 && (
+                    <span className={`text-xs ml-1 ${signColor(h.changePct)}`}>
+                      {h.changePct > 0 ? "+" : ""}{h.changePct.toFixed(1)}%
+                    </span>
+                  )}
+                </td>
+                <td className="py-2.5 text-right font-medium">
+                  {krw(Math.round(h.evalAmount))}
+                </td>
+                <td className={`py-2.5 text-right font-medium ${signColor(h.profitPct)}`}>
+                  {pct(h.profitPct)}
+                </td>
+                <td className="py-2.5 text-right text-gray-400 text-xs">
+                  {h.acquired_date ? (
+                    <>
+                      {h.acquired_date.slice(5)}
+                      <span className="text-gray-500 ml-1">
+                        (D+{holdingDays(h.acquired_date)})
+                      </span>
+                    </>
+                  ) : "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 모바일: 카드 */}
+      <div className="md:hidden space-y-3">
+        {sorted.map((h) => {
+          const days = holdingDays(h.acquired_date);
+          return (
+            <div key={h.ticker} className="bg-white/[0.03] rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Link
+                    href={`/stocks/${encodeURIComponent(h.ticker)}`}
+                    className="text-blue-400 hover:underline font-medium"
+                  >
+                    {h.name}
+                  </Link>
+                  <span className="text-gray-500 text-xs ml-1">
+                    {h.ticker.replace(/\.(KS|KQ)$/, "")}
+                  </span>
+                  <span className="text-gray-500 text-xs ml-1">· {h.sector}</span>
+                </div>
+                <span className={`text-sm font-medium ${signColor(h.profitPct)}`}>
+                  {pct(h.profitPct)}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">수량</span>
+                  <span className="text-gray-300">{h.shares}주</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">평균단가</span>
+                  <span className="text-gray-300">{krw(h.avg_price)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">매입금액</span>
+                  <span className="text-gray-400">{krw(Math.round(h.avg_price * h.shares))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">현재가</span>
+                  <span className="text-gray-300">
+                    {krw(h.currentPrice)}
+                    {h.isLivePrice && h.changePct !== 0 && (
+                      <span className={`ml-1 ${signColor(h.changePct)}`}>
+                        {h.changePct > 0 ? "+" : ""}{h.changePct.toFixed(1)}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">평가금액</span>
+                  <span className="text-gray-300 font-medium">{krw(Math.round(h.evalAmount))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">보유일</span>
+                  <span className="text-gray-400">
+                    {h.acquired_date ? `${h.acquired_date.slice(5)} (D+${days})` : "-"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }

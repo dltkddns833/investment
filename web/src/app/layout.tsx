@@ -55,10 +55,10 @@ export default async function RootLayout({
       >
         <div className="flex min-h-screen relative">
           <Sidebar />
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-w-0">
             <MobileHeader investors={investors} />
             <div className="gradient-separator" />
-            <main className="flex-1 p-4 md:p-6 lg:p-8">
+            <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-x-hidden">
               <LivePriceProvider tickers={tickers}>
                 <ScrollToTop />
                 {children}

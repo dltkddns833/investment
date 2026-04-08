@@ -535,6 +535,8 @@ class MetaManager:
                 "current_price": h["current_price"],
                 "code": h["code"],
                 "name": h["name"],
+                "avg_price": h.get("avg_price", 0),
+                "profit_pct": h.get("profit_pct", 0),
             }
 
         orders = []
@@ -573,6 +575,8 @@ class MetaManager:
                     "side": "sell",
                     "qty": sell_qty,
                     "price": holding["current_price"],
+                    "avg_price": holding.get("avg_price", 0),
+                    "profit_pct": round(holding.get("profit_pct", 0), 2),
                     "liquidation": is_liquidation,
                 })
 
@@ -704,6 +708,9 @@ class MetaManager:
                                 and order.get("status") == "submitted"):
                             h["acquired_date"] = self.date_str
                             break
+                # fallback: acquired_date가 아직 없으면 오늘 날짜로 설정
+                if "acquired_date" not in h:
+                    h["acquired_date"] = self.date_str
 
             if total_asset <= 0:
                 total_asset = cash + total_eval
@@ -854,6 +861,8 @@ class MetaManager:
                 emergency_orders.append({
                     "ticker": h["ticker"], "code": h["code"], "name": h["name"],
                     "side": "sell", "qty": h["shares"], "price": h["current_price"],
+                    "avg_price": h.get("avg_price", 0),
+                    "profit_pct": round(h.get("profit_pct", 0), 2),
                     "reason": "stop_loss",
                 })
             # 익절: 보유기간 충족 시에만
@@ -862,6 +871,8 @@ class MetaManager:
                     emergency_orders.append({
                         "ticker": h["ticker"], "code": h["code"], "name": h["name"],
                         "side": "sell", "qty": h["shares"], "price": h["current_price"],
+                        "avg_price": h.get("avg_price", 0),
+                        "profit_pct": round(h.get("profit_pct", 0), 2),
                         "reason": "take_profit",
                     })
 
