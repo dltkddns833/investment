@@ -716,47 +716,47 @@ class MetaManager:
             if prev and prev.get("total_asset", 0) > 0:
                 daily_return_pct = round((total_asset / prev["total_asset"] - 1) * 100, 2)
 
-            # KOSPI 수익률 추적 (market_regimes 테이블 기반)
+            # KOSPI 수익률 추적 (yfinance 실시간 조회 + 과거 데이터 자동 보정)
             kospi_cumulative_pct = None
             alpha_cumulative_pct = None
             try:
-                # 첫 real_portfolio 날짜의 KOSPI 가격 기준
-                first_row = (
+                import yfinance as yf
+                from datetime import timedelta
+                # 전체 real_portfolio 조회 (과거 보정용)
+                all_rows = (
                     supabase.table("real_portfolio")
-                    .select("date")
+                    .select("date, cumulative_return_pct, kospi_cumulative_pct")
                     .order("date")
-                    .limit(1)
                     .execute()
                     .data
                 )
-                if first_row:
-                    start_date = first_row[0]["date"]
-                    # 시작일 이전 가장 가까운 KOSPI 가격 (정확 매칭 없을 수 있음)
-                    start_regime = (
-                        supabase.table("market_regimes")
-                        .select("kospi_price")
-                        .lte("date", start_date)
-                        .order("date", desc=True)
-                        .limit(1)
-                        .execute()
-                        .data
-                    )
-                    # 해당 날짜 이하 가장 최신 KOSPI 가격
-                    latest_regime = (
-                        supabase.table("market_regimes")
-                        .select("kospi_price")
-                        .lte("date", self.date_str)
-                        .order("date", desc=True)
-                        .limit(1)
-                        .execute()
-                        .data
-                    )
-                    if start_regime and latest_regime:
-                        start_kospi = float(start_regime[0]["kospi_price"])
-                        latest_kospi = float(latest_regime[0]["kospi_price"])
+                if all_rows:
+                    start_date = all_rows[0]["date"]
+                    end_dt = datetime.strptime(self.date_str, "%Y-%m-%d") + timedelta(days=1)
+                    kospi = yf.download("^KS11", start=start_date, end=end_dt.strftime("%Y-%m-%d"), progress=False)
+                    if len(kospi) >= 1:
+                        start_kospi = float(kospi["Close"].iloc[0])
+                        # 오늘 값 계산
+                        latest_kospi = float(kospi["Close"].iloc[-1])
                         if start_kospi > 0:
                             kospi_cumulative_pct = round((latest_kospi / start_kospi - 1) * 100, 2)
                             alpha_cumulative_pct = round(cumulative_return_pct - kospi_cumulative_pct, 2)
+                            logger.info(f"KOSPI: {start_kospi:.0f} → {latest_kospi:.0f} ({kospi_cumulative_pct:+.2f}%)")
+                        # 과거 레코드 자동 보정 (오늘 제외)
+                        for r in all_rows:
+                            if r["date"] == self.date_str:
+                                continue
+                            mask = kospi.index <= r["date"] + " 23:59:59"
+                            if mask.any() and start_kospi > 0:
+                                k = float(kospi.loc[mask, "Close"].iloc[-1])
+                                correct_pct = round((k / start_kospi - 1) * 100, 2)
+                                if r["kospi_cumulative_pct"] != correct_pct:
+                                    alpha = round(r["cumulative_return_pct"] - correct_pct, 2)
+                                    supabase.table("real_portfolio").update({
+                                        "kospi_cumulative_pct": correct_pct,
+                                        "alpha_cumulative_pct": alpha,
+                                    }).eq("date", r["date"]).execute()
+                                    logger.info(f"KOSPI 보정: {r['date']} {r['kospi_cumulative_pct']}% → {correct_pct}%")
             except Exception as e:
                 logger.warning(f"KOSPI 수익률 계산 실패 (무시): {e}")
 

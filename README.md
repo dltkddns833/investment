@@ -253,6 +253,8 @@ cd web && pnpm install && pnpm dev
 
 **안전 장치**: 일일 손실 -3% 자동 중단 / 누적 -10% 전량 청산 / 킬스위치 / 텔레그램 승인 필수
 
+**KOSPI 벤치마크**: yfinance(^KS11) 직접 조회로 누적수익률 계산. 매 실행 시 과거 데이터 자동 보정
+
 ## 자동 실행 (launchd)
 
 macOS launchd로 평일 4개 스케줄 자동 실행.
