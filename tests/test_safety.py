@@ -66,6 +66,67 @@ def test_validate_meta_allocation_min_cash():
     assert total <= 0.95  # 최소 5% 현금
 
 
+def test_check_stop_loss_triggers():
+    from safety import check_stop_loss
+    holdings = [
+        {"ticker": "005930.KS", "profit_pct": -9, "shares": 10},
+        {"ticker": "000660.KS", "profit_pct": 5, "shares": 20},
+    ]
+    result = check_stop_loss(holdings, meta_config={"stop_loss_by_regime": {"neutral": -8}}, regime="neutral")
+    assert len(result["stop_loss"]) == 1
+    assert result["stop_loss"][0]["ticker"] == "005930.KS"
+    assert "take_profit" not in result
+
+
+def test_check_stop_loss_alias():
+    from safety import check_stop_loss_take_profit, check_stop_loss
+    assert check_stop_loss_take_profit is check_stop_loss
+
+
+def test_check_trailing_protect_triggers():
+    from safety import check_trailing_protect
+    # avg_price=10000, hwm=13000 (+30%), current_price=10500 (고점 대비 -19.2%)
+    current_holdings = [
+        {"ticker": "005930.KS", "avg_price": 10000, "current_price": 10500,
+         "shares": 10, "code": "005930", "name": "삼성전자", "profit_pct": 5.0},
+    ]
+    prev_holdings = {
+        "005930.KS": {"high_water_mark": 13000, "avg_price": 10000, "acquired_date": "2026-01-01"},
+    }
+    result = check_trailing_protect(current_holdings, prev_holdings, meta_config={})
+    assert len(result) == 1
+    assert result[0]["drawdown_from_high_pct"] >= 15
+
+
+def test_check_trailing_protect_no_trigger():
+    from safety import check_trailing_protect
+    # avg_price=10000, hwm=13000 (+30%), current_price=11500 (고점 대비 -11.5%)
+    current_holdings = [
+        {"ticker": "005930.KS", "avg_price": 10000, "current_price": 11500,
+         "shares": 10, "code": "005930", "name": "삼성전자", "profit_pct": 15.0},
+    ]
+    prev_holdings = {
+        "005930.KS": {"high_water_mark": 13000, "avg_price": 10000, "acquired_date": "2026-01-01"},
+    }
+    result = check_trailing_protect(current_holdings, prev_holdings, meta_config={})
+    assert len(result) == 0
+
+
+def test_check_trailing_protect_hwm_below_threshold():
+    from safety import check_trailing_protect
+    # avg_price=10000, hwm=11500 (+15%), current_price=9000 (고점 대비 -21.7%)
+    # hwm_gain_pct = 15% < threshold 20% → 트레일링 비활성
+    current_holdings = [
+        {"ticker": "005930.KS", "avg_price": 10000, "current_price": 9000,
+         "shares": 10, "code": "005930", "name": "삼성전자", "profit_pct": -10.0},
+    ]
+    prev_holdings = {
+        "005930.KS": {"high_water_mark": 11500, "avg_price": 10000, "acquired_date": "2026-01-01"},
+    }
+    result = check_trailing_protect(current_holdings, prev_holdings, meta_config={})
+    assert len(result) == 0
+
+
 def test_is_trading_hours():
     from safety import is_trading_hours
     result = is_trading_hours()

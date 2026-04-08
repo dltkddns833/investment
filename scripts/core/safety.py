@@ -337,10 +337,10 @@ def is_rebalance_day(date_str, meta_config=None):
     return True
 
 
-# --- 손절/익절 (#44) ---
+# --- 손절 (#44, #55 익절 제거) ---
 
-def check_stop_loss_take_profit(current_holdings, meta_config=None, regime="neutral"):
-    """종목별 손절/익절 대상 분류 (레짐별 차등 손절 #48)
+def check_stop_loss(current_holdings, meta_config=None, regime="neutral"):
+    """종목별 손절 대상 분류 (레짐별 차등 손절 #48)
 
     Args:
         current_holdings: KIS get_holdings() 결과
@@ -348,7 +348,7 @@ def check_stop_loss_take_profit(current_holdings, meta_config=None, regime="neut
         regime: 현재 마켓 레짐 (bear/neutral/bull)
 
     Returns:
-        {"stop_loss": [holdings...], "take_profit": [holdings...]}
+        {"stop_loss": [holdings...]}
     """
     if meta_config is None:
         meta_config = get_meta_config()
@@ -358,18 +358,70 @@ def check_stop_loss_take_profit(current_holdings, meta_config=None, regime="neut
         "stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10}
     )
     sl_pct = stop_loss_by_regime.get(regime, meta_config.get("stop_loss_pct", -8))
-    tp_pct = meta_config.get("take_profit_pct", 10)
 
     stop_loss = []
-    take_profit = []
     for h in current_holdings:
         pnl = h.get("profit_pct", 0)
         if pnl <= sl_pct:
             stop_loss.append(h)
-        elif pnl >= tp_pct:
-            take_profit.append(h)
 
-    return {"stop_loss": stop_loss, "take_profit": take_profit}
+    return {"stop_loss": stop_loss}
+
+
+# 하위 호환 alias
+check_stop_loss_take_profit = check_stop_loss
+
+
+# --- 급락 방어 트레일링 (#55) ---
+
+def check_trailing_protect(current_holdings, prev_holdings, meta_config=None):
+    """급락 방어: +20% 이상 도달 종목이 고점 대비 -15% 이탈 시 매도 대상
+
+    Args:
+        current_holdings: KIS get_holdings() 결과 (ticker, current_price, avg_price 포함)
+        prev_holdings: real_portfolio.holdings (high_water_mark 포함)
+        meta_config: get_meta_config() 결과
+
+    Returns:
+        [{"holding": h, "high_water_mark": float, "drawdown_from_high_pct": float}, ...]
+    """
+    if meta_config is None:
+        meta_config = get_meta_config()
+
+    threshold_pct = meta_config.get("trailing_protect_threshold_pct", 20)
+    drawdown_pct = meta_config.get("trailing_protect_drawdown_pct", 15)
+
+    trailing_sells = []
+    for h in current_holdings:
+        ticker = h["ticker"]
+        prev_h = prev_holdings.get(ticker, {})
+        hwm = prev_h.get("high_water_mark")
+        if hwm is None:
+            continue
+
+        avg_price = h.get("avg_price", 0)
+        if avg_price <= 0:
+            continue
+
+        # high_water_mark가 매수가 대비 threshold_pct% 이상이어야 트레일링 활성
+        hwm_gain_pct = (hwm / avg_price - 1) * 100
+        if hwm_gain_pct < threshold_pct:
+            continue
+
+        # 현재가가 고점 대비 drawdown_pct% 이상 하락했는지 체크
+        current_price = h.get("current_price", 0)
+        if current_price <= 0 or hwm <= 0:
+            continue
+
+        drop_from_high_pct = (1 - current_price / hwm) * 100
+        if drop_from_high_pct >= drawdown_pct:
+            trailing_sells.append({
+                "holding": h,
+                "high_water_mark": hwm,
+                "drawdown_from_high_pct": round(drop_from_high_pct, 2),
+            })
+
+    return trailing_sells
 
 
 # --- 최소 보유 기간 (#45) ---

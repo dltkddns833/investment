@@ -284,7 +284,7 @@ scripts/
 
 **운영 방식**: 반자동 — 분석→결정→텔레그램 승인→KIS API 체결
 - 실행 시점: 매일 10:30 (오전장 흐름 확인 후, 장마감까지 2시간 여유)
-- 리밸런싱: **격주 수요일** 정규 리밸런싱 + **매일** 긴급 손절/익절 체크
+- 리밸런싱: **격주 수요일** 정규 리밸런싱 + **매일** 긴급 손절/급락방어 체크
 - 증권사: 한국투자증권 (KIS Developers REST API)
 - 초기 자금: 200만원
 
@@ -293,7 +293,7 @@ scripts/
 [10:30] MetaManager.run() — 매일 실행, 3단계 분기
 
 0. 안전 체크 (킬스위치, 일일/누적 손실 한도)
-1. 매일: 긴급 체크 (레짐별 차등 손절 / 익절 +10%)
+1. 매일: 긴급 체크 (레짐별 차등 손절 + 급락 방어 트레일링)
    ├─ 트리거 있으면 → execute_emergency_orders()
    └─ 트리거 없으면 → 계속
 2. 격주 수요일이면 → 전체 분석 → Claude 배분 결정 → execute_allocation()
@@ -303,7 +303,8 @@ scripts/
 **보호 장치 (config.risk_limits.meta_manager):**
 - 리밸런싱 주기: 격주 수요일 (`rebalance_day: "wednesday"`, `rebalance_frequency: "biweekly"`)
 - 손절: 레짐별 차등 (bear -7%, neutral -8%, bull -10%), 보유기간 무시
-- 익절: +10% (보유기간 충족 시)
+- 급락 방어: +20% 이상 도달 종목이 고점 대비 -15% 이탈 시 긴급 매도 (`trailing_protect_threshold_pct: 20`, `trailing_protect_drawdown_pct: 15`)
+- 익절: 긴급 매매에서 제거 (#55) — 수익 실현은 격주 리밸런싱에서 AI가 종합 판단
 - 최소 보유기간: 5영업일 (`min_holding_days: 5`) — 중간 구간은 홀딩 강제
 - 회전율 한도: 총자산 25% (`max_turnover_pct: 25`) — 초과 시 비례 축소 (단, 청산 매도는 축소 제외)
 - 레짐별 최대 투자 비중: bear 30%, neutral 60%, bull 90% (코드 자동 강제)
@@ -324,7 +325,7 @@ scripts/
 - `python3 scripts/core/meta_manager.py` 실행
 - status에 따라 분기:
   - `awaiting_decision` → Step 2로 (정규 리밸런싱, 격주 수요일)
-  - `emergency_triggered` → Step 3b로 (긴급 손절/익절)
+  - `emergency_triggered` → Step 3b로 (긴급 손절/급락방어)
   - `skip` → 비리밸런싱일 + 긴급 매매 없음 → 종료
   - `killed` / `daily_loss_halt` / `emergency_liquidated` → 해당 상태를 텔레그램으로 알리고 종료
 
@@ -373,7 +374,7 @@ print(result)
 - `save_real_portfolio()`: KOSPI 누적수익률을 **yfinance(^KS11) 직접 조회**로 계산 + 과거 real_portfolio 레코드의 kospi_cumulative_pct 자동 보정
 - 비리밸런싱일 호출 시 `{"status": "rejected"}` 반환 (`force=True`로 오버라이드 가능)
 
-#### Step 3b: execute_emergency_orders() 호출 (긴급 손절/익절)
+#### Step 3b: execute_emergency_orders() 호출 (긴급 손절/급락방어)
 Step 1에서 `emergency_triggered` 반환 시:
 ```bash
 cd scripts/core && python3 -c "
@@ -381,7 +382,7 @@ from meta_manager import MetaManager
 mm = MetaManager(date_str='YYYY-MM-DD')
 result = mm.execute_emergency_orders(
     orders=[...],               # Step 1에서 반환된 emergency_orders
-    decision_type='emergency_stop_loss',  # 또는 'emergency_take_profit'
+    decision_type='emergency_stop_loss',  # 또는 'emergency_trailing_protect'
     regime='neutral',
 )
 print(result)

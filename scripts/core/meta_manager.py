@@ -24,7 +24,7 @@ from safety import (
     validate_meta_allocation, is_trading_hours, emergency_liquidate,
     get_prev_real_portfolio,
     get_meta_config, update_meta_config,
-    is_rebalance_day, check_stop_loss_take_profit,
+    is_rebalance_day, check_stop_loss, check_trailing_protect,
     check_holding_period, enforce_turnover_limit,
     is_stabilization_period, get_stabilization_tickers,
     enforce_regime_limit, STABILIZATION_LARGE_CAPS,
@@ -37,6 +37,11 @@ logger = get_logger(__name__)
 INITIAL_CAPITAL = 2_000_000  # 실전 초기 자금
 
 REGIME_KR = {"bear": "약세장", "neutral": "중립장", "bull": "강세장"}
+
+
+def _emergency_reason_kr(reason):
+    """긴급 매매 사유 한글 변환"""
+    return {"stop_loss": "손절", "trailing_protect": "급락방어"}.get(reason, reason)
 
 
 def notify(message):
@@ -480,7 +485,10 @@ class MetaManager:
         lines.append(f"- 회전율 한도: 총자산의 {meta_config.get('max_turnover_pct', 25)}% 이내")
         lines.append(f"- 최소 보유기간: {meta_config.get('min_holding_days', 5)}영업일")
         sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
-        lines.append(f"- 손절: {sl_by_regime.get(regime_name, -8)}% (레짐별 차등) / 익절: +{meta_config.get('take_profit_pct', 10)}%")
+        lines.append(f"- 손절: {sl_by_regime.get(regime_name, -8)}% (레짐별 차등)")
+        trailing_threshold = meta_config.get("trailing_protect_threshold_pct", 20)
+        trailing_drawdown = meta_config.get("trailing_protect_drawdown_pct", 15)
+        lines.append(f"- 급락 방어: +{trailing_threshold}% 도달 후 고점 대비 -{trailing_drawdown}% 이탈 시 매도")
         lines.append("")
 
         lines.append("## 요청")
@@ -712,6 +720,15 @@ class MetaManager:
                 if "acquired_date" not in h:
                     h["acquired_date"] = self.date_str
 
+            # high_water_mark 추적 (#55): 종목별 고점 갱신
+            price_map = {raw_h["ticker"]: raw_h["current_price"] for raw_h in holdings_raw}
+            for ticker, h in holdings.items():
+                current_price = price_map.get(ticker)
+                if current_price is None:
+                    continue
+                prev_hwm = prev_holdings.get(ticker, {}).get("high_water_mark")
+                h["high_water_mark"] = max(prev_hwm, current_price) if prev_hwm is not None else current_price
+
             if total_asset <= 0:
                 total_asset = cash + total_eval
 
@@ -789,13 +806,13 @@ class MetaManager:
 
         3단계 분기:
         0. 안전 체크 (킬스위치, 일일/누적 손실) — 매일
-        1. 긴급 체크 (손절 -7% / 익절 +10%) — 매일
+        1. 긴급 체크 (레짐별 손절 + 급락 방어 트레일링) — 매일
         2. 리밸런싱 요일이면 전체 분석, 아니면 스킵
 
         Returns:
             {"status": str, ...}
             - "killed" / "daily_loss_halt" / "emergency_liquidated": 안전 장치 발동
-            - "emergency_triggered": 손절/익절 대상 있음 → execute_emergency_orders() 호출 필요
+            - "emergency_triggered": 손절/급락방어 대상 있음 → execute_emergency_orders() 호출 필요
             - "awaiting_decision": 정규 리밸런싱 → execute_allocation() 호출 필요
             - "skip": 비리밸런싱일 + 긴급 매매 없음
         """
@@ -842,7 +859,7 @@ class MetaManager:
                 emergency_liquidate(self.kis, holdings)
                 return {"status": "emergency_liquidated"}
 
-        # 1. 매일: 긴급 손절/익절 체크 (#44, 레짐별 차등 #48)
+        # 1. 매일: 긴급 손절 + 급락 방어 체크 (#55)
         current_regime = self._get_db_regime()
 
         try:
@@ -852,7 +869,7 @@ class MetaManager:
             current_holdings = []
 
         if current_holdings:
-            triggers = check_stop_loss_take_profit(current_holdings, meta_config, regime=current_regime)
+            triggers = check_stop_loss(current_holdings, meta_config, regime=current_regime)
             prev_holdings = prev.get("holdings", {}) if prev else {}
 
             emergency_orders = []
@@ -865,40 +882,46 @@ class MetaManager:
                     "profit_pct": round(h.get("profit_pct", 0), 2),
                     "reason": "stop_loss",
                 })
-            # 익절: 보유기간 충족 시에만
-            for h in triggers["take_profit"]:
-                if check_holding_period(h["ticker"], prev_holdings, self.date_str, meta_config):
-                    emergency_orders.append({
-                        "ticker": h["ticker"], "code": h["code"], "name": h["name"],
-                        "side": "sell", "qty": h["shares"], "price": h["current_price"],
-                        "avg_price": h.get("avg_price", 0),
-                        "profit_pct": round(h.get("profit_pct", 0), 2),
-                        "reason": "take_profit",
-                    })
+
+            # 급락 방어 트레일링: +20% 도달 후 고점 대비 -15% 이탈 시 (#55)
+            trailing_triggers = check_trailing_protect(current_holdings, prev_holdings, meta_config)
+            sl_tickers = {o["ticker"] for o in emergency_orders}
+            for t in trailing_triggers:
+                h = t["holding"]
+                if h["ticker"] in sl_tickers:
+                    continue  # 손절 대상과 중복 방지
+                emergency_orders.append({
+                    "ticker": h["ticker"], "code": h["code"], "name": h["name"],
+                    "side": "sell", "qty": h["shares"], "price": h["current_price"],
+                    "avg_price": h.get("avg_price", 0),
+                    "profit_pct": round(h.get("profit_pct", 0), 2),
+                    "reason": "trailing_protect",
+                    "high_water_mark": t["high_water_mark"],
+                    "drawdown_from_high_pct": t["drawdown_from_high_pct"],
+                })
 
             if emergency_orders:
                 reasons = set(o["reason"] for o in emergency_orders)
-                decision_type = "emergency_stop_loss" if "stop_loss" in reasons else "emergency_take_profit"
+                decision_type = "emergency_stop_loss" if "stop_loss" in reasons else "emergency_trailing_protect"
                 sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
                 sl_threshold = sl_by_regime.get(current_regime, -8)
-                tp_threshold = meta_config.get("take_profit_pct", 10)
                 order_details = []
                 for o in emergency_orders:
                     h_match = [h for h in current_holdings if h["ticker"] == o["ticker"]]
                     pnl = h_match[0].get("profit_pct", 0) if h_match else 0
-                    reason_kr = "손절" if o["reason"] == "stop_loss" else "익절"
+                    reason_kr = _emergency_reason_kr(o["reason"])
                     order_details.append(f"  · {o['name']} {pnl:+.1f}% → {reason_kr}")
                 sl_names = [o["name"] for o in emergency_orders if o["reason"] == "stop_loss"]
-                tp_names = [o["name"] for o in emergency_orders if o["reason"] == "take_profit"]
+                tp_names = [o["name"] for o in emergency_orders if o["reason"] == "trailing_protect"]
                 regime_kr = REGIME_KR.get(current_regime, current_regime)
                 desc_parts = []
                 if sl_names:
                     desc_parts.append(f"현재 {regime_kr}에서 손절 기준({sl_threshold}%)을 초과한 {', '.join(sl_names)}의 매도가 필요합니다")
                 if tp_names:
-                    desc_parts.append(f"{', '.join(tp_names)}이(가) 익절 기준(+{tp_threshold}%)에 도달하여 수익 실현을 진행합니다")
+                    desc_parts.append(f"{', '.join(tp_names)}이(가) 고점 대비 급락하여 트레일링 보호 매도를 진행합니다")
                 notify(
                     f"🚨 긴급 매매 감지 ({regime_kr})\n"
-                    f"손절 기준: {sl_threshold}% / 익절 기준: +{tp_threshold}%\n"
+                    f"손절 기준: {sl_threshold}%\n"
                     + "\n".join(order_details) + "\n\n"
                     + ". ".join(desc_parts) + "."
                 )
@@ -926,7 +949,7 @@ class MetaManager:
                 f"긴급 매매 없음 ({regime_kr}){holdings_summary}\n\n"
                 f"오늘은 {day_kr}요일이라 정규 리밸런싱 대상이 아닙니다"
                 f"{'(' + week_info + ', 짝수 주만 실행)' if week_info else ''}. "
-                f"보유 종목의 손절/익절 기준에 해당하는 종목도 없어 거래 없이 마칩니다. "
+                f"보유 종목의 손절/급락방어 기준에 해당하는 종목도 없어 거래 없이 마칩니다. "
                 f"다음 리밸런싱은 격주 {target_day_kr}요일에 진행됩니다."
             )
             self.save_decision({
@@ -967,11 +990,11 @@ class MetaManager:
 
     def execute_emergency_orders(self, orders, decision_type="emergency_stop_loss",
                                 regime="", dry_run=False):
-        """긴급 매도 실행 (손절/익절)
+        """긴급 매도 실행 (손절/급락방어)
 
         Args:
             orders: run()에서 반환된 emergency_orders
-            decision_type: "emergency_stop_loss" | "emergency_take_profit"
+            decision_type: "emergency_stop_loss" | "emergency_trailing_protect"
             regime: 현재 마켓 레짐
             dry_run: True이면 주문 스킵
 
@@ -983,21 +1006,25 @@ class MetaManager:
 
         # 상세 rationale 자동 생성
         regime_kr = REGIME_KR.get(regime, regime)
-        meta_config = self._load_meta_config()
+        meta_config = get_meta_config()
         sl_by_regime = meta_config.get("stop_loss_by_regime", {"bear": -7, "neutral": -8, "bull": -10})
         sl_threshold = sl_by_regime.get(regime, -8)
-        tp_threshold = meta_config.get("take_profit_pct", 10)
         rationale_parts = []
         for o in orders:
-            reason_kr = "손절" if o.get("reason") == "stop_loss" else "익절"
-            threshold = f"{sl_threshold}%" if o.get("reason") == "stop_loss" else f"+{tp_threshold}%"
+            reason_kr = _emergency_reason_kr(o.get("reason"))
+            if o.get("reason") == "stop_loss":
+                threshold = f"{sl_threshold}%"
+            elif o.get("reason") == "trailing_protect":
+                threshold = f"고점({o.get('high_water_mark', 0):,.0f}원) 대비 -{o.get('drawdown_from_high_pct', 0):.1f}%"
+            else:
+                threshold = ""
             rationale_parts.append(f"{o.get('name', o['code'])} {reason_kr} (기준: {threshold})")
         auto_rationale = f"시장 국면 {regime_kr}에서 긴급 매매 실행.\n" + "\n".join(rationale_parts)
 
         # 주문 요약
         order_lines = []
         for o in orders:
-            reason_kr = "손절" if o.get("reason") == "stop_loss" else "익절"
+            reason_kr = _emergency_reason_kr(o.get("reason"))
             order_lines.append(
                 f"\U0001f534 {reason_kr} 매도 {o.get('name', o['code'])} x{o['qty']} "
                 f"(~{o['qty'] * o['price']:,}원)"
@@ -1068,7 +1095,7 @@ class MetaManager:
         result_lines = []
         for r in results:
             emoji = "✅" if r.get("status") == "submitted" else "❌"
-            reason_kr = "손절" if r.get("reason") == "stop_loss" else "익절"
+            reason_kr = _emergency_reason_kr(r.get("reason"))
             result_lines.append(f"  {emoji} {reason_kr} {r.get('name', r['code'])} x{r['qty']}")
         failed = len(results) - success_count
         desc = f"총 {len(results)}건 중 {success_count}건이 정상 체결되었습니다."
