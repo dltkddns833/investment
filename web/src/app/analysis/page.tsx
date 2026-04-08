@@ -148,7 +148,7 @@ export default async function AnalysisPage() {
             <RegimeTimeline segments={regimeSegments} regimes={regimes} />
             <p className="text-[11px] text-gray-600 mt-2">
               KODEX 200(KOSPI 대용) 가격 흐름 위에 이동평균·거래량·변동성 기반으로 판단한 시장 국면을 표시합니다.
-              초록 구간은 강세(bull score ≥ 2), 빨강은 약세(≤ -2), 회색은 중립입니다.
+              초록 구간은 강세(강세 점수 ≥ 2), 빨강은 약세(≤ -2), 회색은 중립입니다.
             </p>
           </div>
 

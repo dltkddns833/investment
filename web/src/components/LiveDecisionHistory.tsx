@@ -6,9 +6,9 @@ import { krw } from "@/lib/format";
 import type { MetaDecision } from "@/lib/data";
 
 const REGIME_LABEL: Record<string, { text: string; color: string }> = {
-  bull: { text: "Bull", color: "bg-red-500/20 text-red-400" },
-  neutral: { text: "Neutral", color: "bg-yellow-500/20 text-yellow-400" },
-  bear: { text: "Bear", color: "bg-blue-500/20 text-blue-400" },
+  bull: { text: "강세", color: "bg-red-500/20 text-red-400" },
+  neutral: { text: "중립", color: "bg-yellow-500/20 text-yellow-400" },
+  bear: { text: "약세", color: "bg-blue-500/20 text-blue-400" },
 };
 
 const DECISION_TYPE_LABEL: Record<string, { text: string; color: string }> = {
