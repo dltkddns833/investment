@@ -1431,7 +1431,7 @@ export interface MetaDecision {
   selected_strategies: Record<string, number> | null;
   rationale: string;
   target_allocation: Record<string, number> | null;
-  orders: Array<{ ticker: string; name: string; side: string; qty: number; price: number; status: string }> | null;
+  orders: Array<{ ticker: string; name: string; side: string; qty: number; price: number; status: string; avg_price?: number; profit_pct?: number }> | null;
   approved: boolean;
   executed: boolean;
 }

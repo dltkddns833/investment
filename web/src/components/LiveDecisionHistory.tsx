@@ -147,9 +147,9 @@ export default function LiveDecisionHistory({
                           </div>
                           {/* 하단: 가격 정보 */}
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-1.5 pl-1">
-                            {o.side === "sell" && o.avg_price > 0 && (
+                            {o.side === "sell" && (o.avg_price ?? 0) > 0 && (
                               <div className="border-r border-white/10 pr-3">
-                                <span className="text-gray-500">매입 {krw(o.avg_price)}</span>
+                                <span className="text-gray-500">매입 {krw(o.avg_price!)}</span>
                                 <span className={`font-medium ml-1.5 ${signColor(o.profit_pct ?? 0)}`}>
                                   {pct(o.profit_pct ?? 0)}
                                 </span>
