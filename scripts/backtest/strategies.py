@@ -431,6 +431,17 @@ def strategy_O(price_df, date, universe_map, **kwargs):
 
 
 # ============================================================
+# P 정삼절: 고정 시드 스윙 / O와 동일 전략, 자본 운용만 다름
+# 매일 500만원 baseline 리셋 + cashflow_account 별도 정산은 engine.py에서 처리
+# ============================================================
+P_PARAMS = {**O_PARAMS, "baseline": 5_000_000}
+
+
+def strategy_P(price_df, date, universe_map, **kwargs):
+    return strategy_O(price_df, date, universe_map, **kwargs)
+
+
+# ============================================================
 # 전략 매핑
 # ============================================================
 STRATEGY_MAP = {
@@ -449,6 +460,7 @@ STRATEGY_MAP = {
     "M": strategy_M,
     "N": strategy_N,
     "O": strategy_O,
+    "P": strategy_P,
 }
 
 

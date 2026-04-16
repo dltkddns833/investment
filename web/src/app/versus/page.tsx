@@ -17,6 +17,7 @@ const RECOMMENDED_MATCHUPS = [
   { idA: "L", idB: "I", desc: "분할매도 vs 배당 투자" },
   { idA: "M", idB: "A", desc: "마켓 타이밍 vs 공격적 모멘텀" },
   { idA: "N", idB: "B", desc: "집중투자 vs 균형 분산" },
+  { idA: "O", idB: "P", desc: "복리 스윙 vs 고정 시드 스윙" },
 ];
 
 export default async function VersusPage() {
@@ -50,6 +51,8 @@ export default async function VersusPage() {
     L: "분할매도",
     M: "마켓 타이밍",
     N: "집중투자",
+    O: "단기 스윙",
+    P: "고정 시드 스윙",
   };
 
   const latestWeek = weeklyMVPs.length > 0 ? weeklyMVPs[0] : null;

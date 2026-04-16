@@ -66,7 +66,7 @@ def load_portfolio(investor_id):
         for r in rebs
     ]
 
-    return {
+    result = {
         "investor": row["investor"],
         "strategy": row["strategy"],
         "initial_capital": row["initial_capital"],
@@ -76,15 +76,21 @@ def load_portfolio(investor_id):
         "last_rebalanced": row["last_rebalanced"],
         "rebalance_history": rebalance_history,
     }
+    if "cashflow_account" in row:
+        result["cashflow_account"] = row["cashflow_account"] or 0
+    return result
 
 
 def save_portfolio(investor_id, portfolio):
     """투자자 포트폴리오 저장 (Supabase) - holdings, cash, last_rebalanced만 업데이트"""
-    supabase.table("portfolios").update({
+    update_data = {
         "cash": portfolio["cash"],
         "holdings": portfolio["holdings"],
         "last_rebalanced": portfolio["last_rebalanced"],
-    }).eq("investor_id", investor_id).execute()
+    }
+    if "cashflow_account" in portfolio:
+        update_data["cashflow_account"] = portfolio["cashflow_account"]
+    supabase.table("portfolios").update(update_data).eq("investor_id", investor_id).execute()
 
 
 def load_profile(investor_id):

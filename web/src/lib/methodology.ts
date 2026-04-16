@@ -353,6 +353,25 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
+  P: {
+    method: "고정 시드 스윙 트레이딩 (Fixed Baseline Swing)",
+    representative:
+      'Mark Minervini 변형 — 매일 500만원 고정 시드로 리셋하는 프롭 트레이딩 실험',
+    core: "O 정익절과 동일한 SEPA 스윙 트레이딩 규칙(+5% 익절, -3% 손절, 30분 능동 트레이딩). 차이점은 자본 운용: 매일 500만원 baseline으로 리셋하고, 일일 손익을 cashflow_account에 별도 정산. 복리 효과를 제거하여 순수 트레이딩 스킬만 측정.",
+    evidence:
+      "프롭 트레이딩 데스크 방식 — 고정 자본으로 일관된 리스크 관리. O(복리형) vs P(고정형)로 자본 운용 방식의 효과를 깔끔하게 분리 측정 가능.",
+    similar: "Prop Trading Desk, Fixed-Amount Position Sizing, Daily P&L Tracking",
+    links: [
+      {
+        label: "Proprietary Trading — Investopedia",
+        url: "https://www.investopedia.com/terms/p/proprietarytrading.asp",
+      },
+      {
+        label: "Position Sizing — Van Tharp",
+        url: "https://www.investopedia.com/terms/p/positionsizing.asp",
+      },
+    ],
+  },
 };
 
 export type { Methodology, Link };

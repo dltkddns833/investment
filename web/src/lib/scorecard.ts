@@ -4,7 +4,7 @@ import type { PerformanceStats, AllAssetSnapshot, BacktestRun } from "./data";
 
 export interface CategoryScore {
   score: number; // 0-100
-  rank: number; // 1-14
+  rank: number; // 1-16
   details: Record<string, number>; // raw metric values
 }
 

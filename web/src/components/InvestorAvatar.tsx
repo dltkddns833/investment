@@ -25,6 +25,8 @@ const SIZES = { sm: 24, md: 36, lg: 48 };
  * L 신장모 — William O'Neil: 정돈된 머리, 자신감 있는 트레이더
  * M 오판단 — Martin Zweig: 경계하는 눈, 냉정한 관찰자
  * N 전몰빵 — Charlie Munger: 큰 안경, 확신에 찬 표정
+ * O 정익절 — Mark Minervini: 슬릭백 다크헤어, 날카로운 눈매
+ * P 정삼절 — Mark Minervini 변형: 짧은 머리, 담백한 표정, 리셋 심볼
  */
 
 // skin, hair 색상
@@ -446,6 +448,37 @@ function FaceO() {
   );
 }
 
+function FaceP() {
+  // Mark Minervini 변형 — 짧은 머리, 담백한 표정, baseline 고정 트레이더
+  return (
+    <>
+      {/* 머리카락 — 짧은 커트, O보다 밝은 톤 */}
+      <path d="M28 44 Q28 28 50 26 Q72 28 72 44" fill="#374151" />
+      <path d="M30 44 Q32 32 50 30 Q68 32 70 44" fill="#4b5563" />
+      {/* 얼굴 */}
+      <ellipse cx="50" cy="52" rx="21" ry="23" fill={SKIN} />
+      <ellipse cx="50" cy="54" rx="19" ry="19" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 눈 — 차분한 */}
+      <ellipse cx="38" cy="48" rx="6" ry="4" fill="white" />
+      <circle cx="38" cy="48" r="3" fill="#1e3a5f" />
+      <circle cx="39" cy="47" r="1" fill="white" />
+      <ellipse cx="62" cy="48" rx="6" ry="4" fill="white" />
+      <circle cx="62" cy="48" r="3" fill="#1e3a5f" />
+      <circle cx="63" cy="47" r="1" fill="white" />
+      {/* 눈썹 — 평행, 담백한 */}
+      <path d="M30 43 L46 43" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" />
+      <path d="M54 43 L70 43" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" />
+      {/* 코 */}
+      <path d="M48 52 Q50 58 52 52" stroke={SKIN_SHADOW} strokeWidth="1.5" fill="none" />
+      {/* 입 — 일자, 담백한 */}
+      <path d="M42 65 L58 65" stroke="#8b5a42" strokeWidth="2" strokeLinecap="round" />
+      {/* 리셋 심볼 (이마) */}
+      <circle cx="50" cy="36" r="4" fill="none" stroke="#0ea5e9" strokeWidth="1.5" opacity="0.6" />
+      <path d="M48 33 L50 36 L52 33" stroke="#0ea5e9" strokeWidth="1.5" fill="none" opacity="0.6" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -462,6 +495,7 @@ const FACES: Record<string, () => JSX.Element> = {
   M: FaceM,
   N: FaceN,
   O: FaceO,
+  P: FaceP,
 };
 
 export default function InvestorAvatar({

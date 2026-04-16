@@ -25,6 +25,7 @@ class InMemoryPortfolio:
         self.trading_costs = trading_costs or {}
         self.daily_snapshots = []  # [(date_str, total_asset, cash, holdings_copy)]
         self.transactions = []  # for win rate
+        self.cashflow_account = 0  # P 정삼절 전용
 
     def calc_fees(self, ticker, price, shares, trade_type):
         """portfolio.py:calc_fees()와 동일"""
@@ -530,8 +531,139 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
                                 }
                                 pf.transactions.append({"type": "buy", "profit": 0, "date": date_str})
 
+            # P: O와 동일 로직 + 장마감 정산 (baseline 리셋)
+            if inv_id == "P" and pf.holdings:
+                # 1) 종목별 손절 (-3%)
+                for ticker in list(pf.holdings.keys()):
+                    if ticker not in prices:
+                        continue
+                    h = pf.holdings[ticker]
+                    price = prices[ticker]["price"]
+                    if price / h["avg_price"] - 1 <= -0.03:
+                        exec_price, fee = pf.calc_fees(ticker, price, h["shares"], "sell")
+                        revenue = h["shares"] * exec_price
+                        profit = (exec_price - h["avg_price"]) * h["shares"]
+                        pf.cash += revenue - fee
+                        pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
+                        del pf.holdings[ticker]
+
+                # 2) 총자산 익절 (baseline 500만원 대비 +5%)
+                if pf.holdings:
+                    baseline = 5_000_000
+                    eval_total = pf.cash + sum(
+                        pf.holdings[t]["shares"] * prices[t]["price"]
+                        for t in pf.holdings if t in prices
+                    )
+                    daily_ret = (eval_total / baseline - 1) if baseline > 0 else 0
+                    if daily_ret >= 0.05:
+                        for ticker in list(pf.holdings.keys()):
+                            if ticker not in prices:
+                                continue
+                            h = pf.holdings[ticker]
+                            price = prices[ticker]["price"]
+                            exec_price, fee = pf.calc_fees(ticker, price, h["shares"], "sell")
+                            revenue = h["shares"] * exec_price
+                            profit = (exec_price - h["avg_price"]) * h["shares"]
+                            pf.cash += revenue - fee
+                            pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
+                            del pf.holdings[ticker]
+
+                # 3) 능동 트레이딩 근사 (O와 동일)
+                if pf.holdings and len(pf.holdings) >= 3:
+                    worst_ticker, worst_score = None, 0
+                    for ticker in list(pf.holdings.keys()):
+                        if ticker not in prices:
+                            continue
+                        h = pf.holdings[ticker]
+                        p = prices[ticker]
+                        profit_pct = p["price"] / h["avg_price"] - 1
+                        if profit_pct >= 0.03:
+                            continue
+                        signals = 0
+                        if p["change_pct"] <= O_PARAMS["momentum_drop"] * 100:
+                            signals += 1
+                        prev_vol = p.get("prev_volume", 0)
+                        if prev_vol > 0 and p["volume"] < prev_vol * O_PARAMS["volume_drop_ratio"]:
+                            signals += 1
+                        sma_5 = p.get("sma_5", 0)
+                        if sma_5 > 0 and p["price"] < sma_5 and p["prev_close"] > sma_5:
+                            signals += 1
+                        if signals >= 2 and signals > worst_score:
+                            worst_score = signals
+                            worst_ticker = ticker
+
+                    if worst_ticker:
+                        best_buy, best_score = None, 0
+                        for ticker, p in prices.items():
+                            if ticker in pf.holdings or p.get("sector", "") == "ETF":
+                                continue
+                            if p["change_pct"] < O_PARAMS["surge_price"] * 100:
+                                continue
+                            prev_vol = p.get("prev_volume", 0)
+                            if prev_vol <= 0 or p["volume"] < prev_vol * O_PARAMS["surge_volume"]:
+                                continue
+                            score = p["change_pct"] * (p["volume"] / prev_vol)
+                            if score > best_score:
+                                best_score = score
+                                best_buy = ticker
+
+                        if best_buy:
+                            sell_h = pf.holdings[worst_ticker]
+                            sell_price = prices[worst_ticker]["price"]
+                            sell_exec, sell_fee = pf.calc_fees(worst_ticker, sell_price, sell_h["shares"], "sell")
+                            sell_revenue = sell_h["shares"] * sell_exec
+                            sell_profit = (sell_exec - sell_h["avg_price"]) * sell_h["shares"]
+                            pf.cash += sell_revenue - sell_fee
+                            pf.transactions.append({"type": "sell", "profit": sell_profit, "date": date_str})
+                            del pf.holdings[worst_ticker]
+
+                            buy_budget = int(sell_revenue * 0.8)
+                            buy_price = prices[best_buy]["price"]
+                            buy_exec, _ = pf.calc_fees(best_buy, buy_price, 1, "buy")
+                            buy_shares = buy_budget // buy_exec
+                            if buy_shares > 0:
+                                buy_exec, buy_fee = pf.calc_fees(best_buy, buy_price, buy_shares, "buy")
+                                buy_cost = buy_shares * buy_exec + buy_fee
+                                pf.cash -= buy_cost
+                                pf.holdings[best_buy] = {
+                                    "name": prices[best_buy]["name"],
+                                    "shares": buy_shares,
+                                    "avg_price": buy_exec,
+                                }
+                                pf.transactions.append({"type": "buy", "profit": 0, "date": date_str})
+
+            # P 장마감 정산: 보유종목 강제 청산 → cashflow 정산 → baseline 리셋
+            if inv_id == "P":
+                baseline = 5_000_000
+                eval_total = pf.cash + sum(
+                    pf.holdings[t]["shares"] * prices[t]["price"]
+                    for t in pf.holdings if t in prices
+                )
+                pnl = eval_total - baseline
+                pf.cashflow_account += pnl
+
+                # 강제 청산
+                for ticker in list(pf.holdings.keys()):
+                    if ticker not in prices:
+                        continue
+                    h = pf.holdings[ticker]
+                    price = prices[ticker]["price"]
+                    exec_price, fee = pf.calc_fees(ticker, price, h["shares"], "sell")
+                    revenue = h["shares"] * exec_price
+                    profit = (exec_price - h["avg_price"]) * h["shares"]
+                    pf.cash += revenue - fee
+                    pf.transactions.append({"type": "sell", "profit": profit, "date": date_str})
+                    del pf.holdings[ticker]
+
+                pf.cash = baseline
+
             # 스냅샷
             pf.snapshot(date_str, prices)
+
+            # P: 스냅샷의 total_asset을 baseline + cashflow로 오버라이드
+            if inv_id == "P" and pf.daily_snapshots:
+                ds = pf.daily_snapshots[-1]
+                pf.daily_snapshots[-1] = (ds[0], 5_000_000 + pf.cashflow_account, ds[2], ds[3])
 
     print(f"   [100%] 완료!\n")
 

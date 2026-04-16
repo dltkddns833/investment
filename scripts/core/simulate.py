@@ -20,6 +20,7 @@ from portfolio import (
     evaluate,
     check_target_prices,
     merge_allocation_with_holdings,
+    save_portfolio,
 )
 from daily_pipeline import save_snapshots
 
@@ -95,7 +96,7 @@ def run_simulation(date_str=None):
         allocation = alloc_data["allocation"]
 
         # L/O: 기존 보유종목을 현재 비중으로 병합 (신규 진입만 allocation 패턴)
-        if inv_id in ("L", "O"):
+        if inv_id in ("L", "O", "P"):
             portfolio_now = load_portfolio(inv_id)
             if portfolio_now.get("holdings"):
                 allocation = merge_allocation_with_holdings(
@@ -193,6 +194,53 @@ def run_simulation(date_str=None):
                     rebalance_results["O"]["rebalanced"] = True
                     for t in all_trades:
                         logger.info(f"    [정익절] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
+
+    # 2.7 P 정삼절: O와 동일 규칙, baseline 고정 (500만원)
+    # 오늘 날짜: 장중 모니터링(p_monitor.py)이 담당하므로 스킵
+    # 과거 날짜: 시뮬레이션에서 일괄 체크
+    if "P" in investors:
+        from datetime import date as date_cls
+        is_past = date_str < date_cls.today().isoformat()
+        if is_past:
+            portfolio_p = load_portfolio("P")
+            holdings_p = portfolio_p.get("holdings", {})
+            if holdings_p:
+                all_trades = []
+
+                # 1) 종목별 손절 (-3%)
+                stop_trades = check_target_prices(
+                    "P", current_prices, date_str,
+                    sell_tranches=[],
+                    stop_loss=-0.03,
+                )
+                if stop_trades:
+                    all_trades.extend(stop_trades)
+                    portfolio_p = load_portfolio("P")
+                    holdings_p = portfolio_p.get("holdings", {})
+
+                # 2) 총자산 익절 (baseline 500만원 대비 +5%)
+                if holdings_p:
+                    prev_total = 5_000_000  # P는 항상 baseline 기준
+                    eval_amount = sum(
+                        holdings_p[t]["shares"] * current_prices[t]["price"]
+                        for t in holdings_p if t in current_prices
+                    )
+                    current_total = portfolio_p["cash"] + eval_amount
+                    daily_return_pct = (current_total / prev_total - 1) if prev_total > 0 else 0
+
+                    if daily_return_pct >= 0.05:
+                        from p_monitor import sell_all_holdings as p_sell_all
+                        profit_trades = p_sell_all(portfolio_p, current_prices, date_str,
+                                                    f"익절 (baseline 대비 {daily_return_pct*100:+.2f}%)")
+                        all_trades.extend(profit_trades)
+
+                if all_trades:
+                    if "P" not in rebalance_results:
+                        rebalance_results["P"] = {"rebalanced": False, "trades": []}
+                    rebalance_results["P"]["trades"].extend(all_trades)
+                    rebalance_results["P"]["rebalanced"] = True
+                    for t in all_trades:
+                        logger.info(f"    [정삼절] {t['type'].upper()} {t['ticker']} {t['shares']}주 @ {t['price']:,}원 ({t.get('reason', '')})")
 
     # 3. 포트폴리오 평가
     logger.info(f"\n [포트폴리오 평가]")
@@ -415,10 +463,111 @@ def update_closing_prices(date_str=None):
     # 종가 기준 스냅샷 갱신
     _save_snapshots_from_report(report, date_str)
 
+    # P 정삼절: 장마감 정산 (보유종목 강제 청산 + baseline 리셋)
+    if "P" in investors:
+        _settle_p_baseline(date_str, closing_prices)
+
     logger.info(f"\n 종가 반영 완료: daily_reports/{date_str}")
     logger.info(f"{'='*60}\n")
 
     return report
+
+
+def _settle_p_baseline(date_str, closing_prices):
+    """P 정삼절 장마감 정산: 보유종목 강제 청산 → cashflow_account 정산 → baseline 리셋"""
+    BASELINE = 5_000_000
+    portfolio_p = load_portfolio("P")
+    holdings_p = portfolio_p.get("holdings", {})
+
+    # 총 평가액 계산
+    eval_amount = sum(
+        holdings_p[t]["shares"] * closing_prices[t]["price"]
+        for t in holdings_p if t in closing_prices
+    )
+    total_value = portfolio_p["cash"] + eval_amount
+
+    # 손익 정산
+    pnl = total_value - BASELINE
+    cashflow = portfolio_p.get("cashflow_account", 0) + pnl
+
+    # 보유종목 강제 매도 (종가 기준 — 거래 기록만, 이미 evaluate 반영됨)
+    if holdings_p:
+        pending_transactions = []
+        for ticker in list(holdings_p.keys()):
+            if ticker not in closing_prices:
+                continue
+            h = holdings_p[ticker]
+            price = closing_prices[ticker]["price"]
+            exec_price, fee = calc_fees(ticker, price, h["shares"], "sell")
+            revenue = h["shares"] * exec_price
+            profit = (exec_price - h["avg_price"]) * h["shares"]
+            pending_transactions.append({
+                "investor_id": "P", "date": date_str, "type": "sell",
+                "ticker": ticker, "name": h["name"], "shares": h["shares"],
+                "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+            })
+        if pending_transactions:
+            supabase.table("transactions").insert(pending_transactions).execute()
+
+    # Baseline 리셋
+    portfolio_p["cash"] = BASELINE
+    portfolio_p["holdings"] = {}
+    portfolio_p["cashflow_account"] = cashflow
+    save_portfolio("P", portfolio_p)
+
+    # 스냅샷 갱신 (total_asset = baseline + cashflow)
+    total_asset = BASELINE + cashflow
+    snapshot_data = {
+        "investor_id": "P",
+        "date": date_str,
+        "holdings": {},
+        "cash": BASELINE,
+        "total_asset": total_asset,
+        "snapshot_at": datetime.now().isoformat(),
+        "cashflow_account": cashflow,
+    }
+    supabase.table("portfolio_snapshots").upsert(snapshot_data).execute()
+
+    # daily_reports의 P 데이터도 정산 후 자산으로 갱신
+    existing = supabase.table("daily_reports").select("*").eq("date", date_str).execute().data
+    if existing:
+        report = existing[0]
+        p_name = "정삼절"
+        if p_name in report["investor_details"]:
+            report["investor_details"][p_name]["total_asset"] = total_asset
+            report["investor_details"][p_name]["total_return"] = total_asset - BASELINE
+            report["investor_details"][p_name]["total_return_pct"] = round((total_asset / BASELINE - 1) * 100, 2)
+            report["investor_details"][p_name]["cash_ratio"] = 100.0
+            report["investor_details"][p_name]["num_holdings"] = 0
+
+            # rankings 재정렬
+            details = list(report["investor_details"].values())
+            details.sort(key=lambda x: x.get("total_return_pct", 0), reverse=True)
+            rankings = [
+                {
+                    "rank": i + 1,
+                    "investor": d["investor"],
+                    "strategy": d["strategy"],
+                    "total_asset": d["total_asset"],
+                    "total_return": d["total_return"],
+                    "total_return_pct": d["total_return_pct"],
+                    "num_holdings": d["num_holdings"],
+                    "cash_ratio": d["cash_ratio"],
+                    "rebalance_frequency_days": d.get("rebalance_frequency_days", 1),
+                    "rebalanced_today": d.get("rebalanced_today", False),
+                    "total_rebalances": d.get("total_rebalances", 0),
+                }
+                for i, d in enumerate(details)
+            ]
+            supabase.table("daily_reports").upsert({
+                "date": date_str,
+                "generated_at": report["generated_at"],
+                "market_prices": report["market_prices"],
+                "rankings": rankings,
+                "investor_details": report["investor_details"],
+            }).execute()
+
+    logger.info(f"  [정삼절] 장마감 정산: PnL {pnl:+,}원, cashflow {cashflow:,}원, total_asset {total_asset:,}원")
 
 
 if __name__ == "__main__":

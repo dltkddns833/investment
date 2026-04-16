@@ -7,6 +7,7 @@ import {
   getAssetHistory,
   getAssetComposition,
   getSentimentHistory,
+  getCashflowHistory,
   getConfig,
   getDailyStories,
   getBadges,
@@ -24,6 +25,7 @@ import LiveInvestorDetail from "@/components/LiveInvestorDetail";
 import BadgeList from "@/components/BadgeList";
 import InvestorAvatar from "@/components/InvestorAvatar";
 import InvestorRegimePerformance from "@/components/InvestorRegimePerformance";
+import CashflowChart from "@/components/CashflowChart";
 import { getMethodology } from "@/lib/methodology";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -51,12 +53,13 @@ export default async function InvestorPage({ params }: Props) {
     );
   }
 
-  const [report, allocation, assetHistory, assetComposition, sentimentHistory, stories, allBadges, leagueSeason, regimes] = await Promise.all([
+  const [report, allocation, assetHistory, assetComposition, sentimentHistory, cashflowHistory, stories, allBadges, leagueSeason, regimes] = await Promise.all([
     latestDate ? getDailyReport(latestDate) : null,
     latestDate ? getAllocation(id, latestDate) : null,
     getAssetHistory(profile.name),
     getAssetComposition(id),
     id === "G" ? getSentimentHistory(id) : Promise.resolve([]),
+    id === "P" ? getCashflowHistory() : Promise.resolve([]),
     latestDate ? getDailyStories(latestDate) : null,
     getBadges(),
     getLeagueStandings(),
@@ -217,6 +220,25 @@ export default async function InvestorPage({ params }: Props) {
           <h2 className="text-lg font-bold mb-3 section-header">감성 점수 추이</h2>
           <p className="text-xs text-gray-500 mb-3">뉴스 감성 분석 평균 점수 (-1.0 부정 ~ +1.0 긍정)</p>
           <SentimentTrendChart data={sentimentHistory} />
+        </section>
+      )}
+
+      {/* Cashflow Account (P only) */}
+      {id === "P" && cashflowHistory.length >= 1 && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-2 section-header">현금흐름 통장</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            매일 500만원 baseline으로 리셋. 일일 손익은 cashflow_account에 별도 정산.
+            {cashflowHistory.length > 0 && (
+              <span className={`ml-2 font-mono font-bold ${
+                cashflowHistory[cashflowHistory.length - 1].cashflow_account >= 0
+                  ? "text-red-400" : "text-blue-400"
+              }`}>
+                누적: {krw(cashflowHistory[cashflowHistory.length - 1].cashflow_account)}
+              </span>
+            )}
+          </p>
+          <CashflowChart data={cashflowHistory} />
         </section>
       )}
 

@@ -484,6 +484,32 @@ export async function getAssetHistory(
     }));
 }
 
+export interface CashflowSnapshot {
+  date: string;
+  cashflow_account: number;
+  daily_pnl: number;
+}
+
+export async function getCashflowHistory(): Promise<CashflowSnapshot[]> {
+  const { data } = await supabase
+    .from("portfolio_snapshots")
+    .select("date, total_asset, cashflow_account")
+    .eq("investor_id", "P")
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  return data
+    .filter((row) => row.cashflow_account != null)
+    .map((row, i, arr) => ({
+      date: row.date,
+      cashflow_account: row.cashflow_account ?? 0,
+      daily_pnl: i === 0
+        ? row.cashflow_account ?? 0
+        : (row.cashflow_account ?? 0) - (arr[i - 1].cashflow_account ?? 0),
+    }));
+}
+
 export interface AssetCompositionPoint {
   date: string;
   cash: number;
