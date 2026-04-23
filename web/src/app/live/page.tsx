@@ -3,8 +3,11 @@ import {
   getLatestRealPortfolio,
   getMetaDecisions,
   getConfig,
+  getProfile,
+  getInvestorSnapshots,
+  getAllocationByInvestorName,
 } from "@/lib/data";
-import LivePortfolioView from "@/components/LivePortfolioView";
+import LivePortfolioView, { type FollowInfo } from "@/components/LivePortfolioView";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +21,9 @@ export default async function LivePage() {
 
   const stockMap = Object.fromEntries(
     config.stock_universe.map((s) => [s.ticker, s])
+  );
+  const stockNameMap = Object.fromEntries(
+    config.stock_universe.map((s) => [s.ticker, s.name])
   );
 
   if (!portfolio) {
@@ -40,6 +46,31 @@ export default async function LivePage() {
     acquired_date: h.acquired_date || null,
   }));
 
+  // Follow 모드 데이터 (follow_investor_id + follow_start_date 존재 시)
+  let follow: FollowInfo | null = null;
+  const followId = config.follow.follow_investor_id;
+  const followStart = config.follow.follow_start_date;
+  if (followId && followStart) {
+    const profile = await getProfile(followId);
+    if (profile) {
+      const today = new Date().toLocaleDateString("en-CA", {
+        timeZone: "Asia/Seoul",
+      });
+      const [investorSnapshots, todayAllocation] = await Promise.all([
+        getInvestorSnapshots(followId, followStart),
+        getAllocationByInvestorName(profile.name, today),
+      ]);
+      follow = {
+        investorId: followId,
+        investorName: profile.name,
+        strategy: profile.strategy,
+        startDate: followStart,
+        todayAllocation,
+        investorSnapshots,
+      };
+    }
+  }
+
   return (
     <LivePortfolioView
       portfolio={portfolio}
@@ -47,6 +78,8 @@ export default async function LivePage() {
       decisions={decisions}
       holdings={holdings}
       initialCapital={2_000_000}
+      follow={follow}
+      stockNameMap={stockNameMap}
     />
   );
 }

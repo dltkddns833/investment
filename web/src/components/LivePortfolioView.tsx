@@ -3,9 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { krw, pct, signColor } from "@/lib/format";
-import type { RealPortfolioEntry, MetaDecision } from "@/lib/data";
+import type {
+  RealPortfolioEntry,
+  MetaDecision,
+  Allocation,
+  InvestorSnapshot,
+} from "@/lib/data";
 import LiveAssetChart from "./LiveAssetChart";
 import LiveDecisionHistory from "./LiveDecisionHistory";
+import LiveFollowBanner from "./LiveFollowBanner";
+import LiveTodayAllocation from "./LiveTodayAllocation";
+import LiveFollowComparison from "./LiveFollowComparison";
 import TooltipIcon from "./TooltipIcon";
 
 interface HoldingEntry {
@@ -17,12 +25,23 @@ interface HoldingEntry {
   acquired_date?: string | null;
 }
 
+export interface FollowInfo {
+  investorId: string;
+  investorName: string;
+  strategy: string;
+  startDate: string;
+  todayAllocation: Allocation | null;
+  investorSnapshots: InvestorSnapshot[];
+}
+
 interface Props {
   portfolio: RealPortfolioEntry;
   history: RealPortfolioEntry[];
   decisions: MetaDecision[];
   holdings: HoldingEntry[];
   initialCapital: number;
+  follow: FollowInfo | null;
+  stockNameMap: Record<string, string>;
 }
 
 // --- KIS 포트폴리오 데이터 타입 ---
@@ -76,6 +95,8 @@ export default function LivePortfolioView({
   decisions,
   holdings,
   initialCapital,
+  follow,
+  stockNameMap,
 }: Props) {
   const [kisData, setKisData] = useState<KISPortfolio | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -156,21 +177,39 @@ export default function LivePortfolioView({
   // KIS 잔고 사용, 없으면 DB cash 직접 사용
   const cash = hasKIS ? kisData.cash : portfolio.cash;
   const totalAsset = hasKIS ? kisData.total_asset : portfolio.total_asset;
-  const cumulativeReturn = ((totalAsset / initialCapital - 1) * 100);
 
-  // 전일 자산 기준 일일 수익률
-  const prevPortfolio = history.length >= 2 ? history[history.length - 2] : null;
-  const prevTotalAsset = prevPortfolio?.total_asset ?? initialCapital;
+  // 추종 모드: follow_start_date 이후로 history 필터 + 첫 레코드 기준 재계산
+  const followStartDate = follow?.startDate ?? null;
+  const followHistory = followStartDate
+    ? history.filter((h) => h.date >= followStartDate)
+    : history;
+  const baseRecord = followHistory[0] ?? history[0] ?? null;
+  const effectiveInitial = baseRecord?.total_asset ?? initialCapital;
+  const baseKospiPct = baseRecord?.kospi_cumulative_pct ?? null;
+  const baseKospiMultiplier =
+    baseKospiPct != null ? 1 + baseKospiPct / 100 : null;
+
+  const cumulativeReturn =
+    effectiveInitial > 0 ? (totalAsset / effectiveInitial - 1) * 100 : 0;
+
+  // 전일 자산 기준 일일 수익률 (follow 구간 내에서만)
+  const prevPortfolio =
+    followHistory.length >= 2 ? followHistory[followHistory.length - 2] : null;
+  const prevTotalAsset = prevPortfolio?.total_asset ?? effectiveInitial;
   const dailyReturn = hasKIS
-    ? ((totalAsset / prevTotalAsset - 1) * 100)
-    : (portfolio.daily_return_pct ?? 0);
+    ? (totalAsset / prevTotalAsset - 1) * 100
+    : portfolio.daily_return_pct ?? 0;
 
-  const kospiReturn = portfolio.kospi_cumulative_pct;
-  const alpha = hasKIS && kospiReturn != null
-    ? cumulativeReturn - kospiReturn
-    : portfolio.alpha_cumulative_pct;
+  // KOSPI 누적: follow 시작일 기준으로 리베이스
+  const rawKospiPct = portfolio.kospi_cumulative_pct;
+  const kospiReturn =
+    followStartDate && baseKospiMultiplier != null && rawKospiPct != null
+      ? ((1 + rawKospiPct / 100) / baseKospiMultiplier - 1) * 100
+      : rawKospiPct;
+  const alpha =
+    kospiReturn != null ? cumulativeReturn - kospiReturn : null;
 
-  const pnl = totalAsset - initialCapital;
+  const pnl = totalAsset - effectiveInitial;
   const fetchedAt = kisData?.fetchedAt ?? null;
 
   // 라이브 뱃지
@@ -180,14 +219,16 @@ export default function LivePortfolioView({
     ? { text: "종가", color: "bg-blue-500" }
     : null;
 
-  // 운용 통계 계산
-  const operatingDays = history.length;
-  const startDate = history.length > 0 ? history[0].date : portfolio.date;
+  // 운용 통계 계산 (follow 구간 기준)
+  const operatingDays = followHistory.length;
+  const startDate =
+    followStartDate ??
+    (history.length > 0 ? history[0].date : portfolio.date);
 
-  // MDD 계산
-  let peak = initialCapital;
+  // MDD 계산 (follow 구간 기준)
+  let peak = effectiveInitial;
   let mdd = 0;
-  for (const h of history) {
+  for (const h of followHistory) {
     if (h.total_asset > peak) peak = h.total_asset;
     const dd = (h.total_asset - peak) / peak;
     if (dd < mdd) mdd = dd;
@@ -197,15 +238,19 @@ export default function LivePortfolioView({
   const latestDecision = decisions.length > 0 ? decisions[0] : null;
   const currentRegime = latestDecision?.regime || null;
   const regimeLabel: Record<string, string> = { bull: "강세", neutral: "중립", bear: "약세" };
-  const regimeMaxPct: Record<string, number> = { bull: 90, neutral: 60, bear: 30 };
 
-  // 최근 리밸런싱 (skip이 아닌 executed)
-  const lastRebalance = decisions.find(
+  // follow 구간 내 매매 (skip이 아닌 executed)
+  const followDecisions = followStartDate
+    ? decisions.filter((d) => d.date >= followStartDate)
+    : decisions;
+  const lastRebalance = followDecisions.find(
     (d) => d.decision_type !== "skip" && d.executed
   );
 
-  // 승률 (일일 수익률 양수인 날 / 전체)
-  const dailyReturns = history.filter((h) => h.daily_return_pct != null && h.daily_return_pct !== 0);
+  // 승률 (follow 구간, 일일 수익률 양수인 날 / 전체)
+  const dailyReturns = followHistory.filter(
+    (h) => h.daily_return_pct != null && h.daily_return_pct !== 0
+  );
   const winDays = dailyReturns.filter((h) => (h.daily_return_pct ?? 0) > 0).length;
   const winRate = dailyReturns.length > 0 ? (winDays / dailyReturns.length) * 100 : 0;
 
@@ -217,8 +262,10 @@ export default function LivePortfolioView({
     ? dailyReturns.reduce((worst, h) => (h.daily_return_pct ?? 0) < (worst.daily_return_pct ?? 0) ? h : worst)
     : null;
 
-  // 총 매매 횟수
-  const totalTrades = decisions.filter((d) => d.executed && d.orders && d.orders.length > 0).length;
+  // 총 매매 횟수 (follow 구간)
+  const totalTrades = followDecisions.filter(
+    (d) => d.executed && d.orders && d.orders.length > 0
+  ).length;
 
   // 투자 비중 (주식 vs 현금)
   const investPct = totalAsset > 0 ? ((totalAsset - cash) / totalAsset * 100) : 0;
@@ -280,6 +327,16 @@ export default function LivePortfolioView({
         </div>
       </div>
 
+      {/* 추종 모드 배너 */}
+      {follow && (
+        <LiveFollowBanner
+          investorId={follow.investorId}
+          investorName={follow.investorName}
+          strategy={follow.strategy}
+          startDate={follow.startDate}
+        />
+      )}
+
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard
@@ -314,8 +371,22 @@ export default function LivePortfolioView({
         <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-400">운용 전략</h2>
           <p className="text-xs text-gray-300 leading-relaxed">
-            <span className="text-yellow-400 font-medium">목표: KOSPI 대비 초과 수익(알파 양수 유지).</span>{" "}
-            15명의 시뮬레이션 투자자 성과를 종합 분석하여 최적 종목과 비중을 결정하는 AI 메타 전략입니다.
+            {follow ? (
+              <>
+                <span className="text-amber-400 font-medium">
+                  모드: {follow.investorName}({follow.investorId}) 추종.
+                </span>{" "}
+                시뮬레이션 속 {follow.investorName}의 당일 allocation을 그대로 실전 {krw(initialCapital)} 자본으로 복제합니다.
+                레짐별 비중 제한은 해제되어 원본 전략을 재현하며, 손절/급락방어/손실한도 안전 장치만 적용됩니다.
+              </>
+            ) : (
+              <>
+                <span className="text-yellow-400 font-medium">
+                  목표: KOSPI 대비 초과 수익(알파 양수 유지).
+                </span>{" "}
+                15명의 시뮬레이션 투자자 성과를 종합 분석하여 최적 종목과 비중을 결정하는 AI 메타 전략입니다.
+              </>
+            )}
           </p>
 
           {/* 매매 규칙 */}
@@ -325,9 +396,17 @@ export default function LivePortfolioView({
               <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-blue-400">📅</span>
-                  <span className="text-gray-300 font-medium">리밸런싱: 격주 수요일</span>
+                  <span className="text-gray-300 font-medium">
+                    {follow
+                      ? `리밸런싱: 매일 (${follow.investorName}과 동일)`
+                      : "리밸런싱: 격주 수요일"}
+                  </span>
                 </div>
-                <p className="text-gray-500 pl-5">시뮬레이션 15명의 성과를 분석해 종목과 비중을 재조정합니다.</p>
+                <p className="text-gray-500 pl-5">
+                  {follow
+                    ? `매일 ${follow.investorName}이 결정한 종목과 비중을 그대로 실전에 적용합니다.`
+                    : "시뮬레이션 15명의 성과를 분석해 종목과 비중을 재조정합니다."}
+                </p>
               </div>
               <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
                 <div className="flex items-center gap-1.5">
@@ -347,28 +426,28 @@ export default function LivePortfolioView({
               </div>
               <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-red-400">🔺</span>
-                  <span className="text-gray-300 font-medium">익절: 매입가 대비 +10% (5영업일 보유 후)</span>
+                  <span className="text-orange-400">🛡️</span>
+                  <span className="text-gray-300 font-medium">급락 방어: +20% 도달 후 고점 대비 -15% 이탈 시 매도</span>
                 </div>
                 <p className="text-gray-500 pl-5">
-                  보유 종목이 매입가 대비 +10% 이상 오르면 수익을 확정합니다.
-                  단, 최소 5영업일 이상 보유해야 익절이 발동됩니다 (단기 변동 방지).
+                  충분히 오른 종목(+20%)이 고점 대비 급락하면 수익 반납을 막기 위해 즉시 매도합니다.
                 </p>
               </div>
               <div className="bg-white/5 rounded-lg p-2.5 space-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-yellow-400">💰</span>
                   <span className="text-gray-300 font-medium">
-                    최대 투자 비중:{" "}
-                    {currentRegime
-                      ? `${regimeMaxPct[currentRegime] ?? 60}% (${regimeLabel[currentRegime] ?? currentRegime})`
-                      : "시장 국면별 30~90%"
-                    }
+                    {follow
+                      ? `최대 투자 비중: ${follow.investorName} 원본 그대로 (레짐 제한 해제)`
+                      : currentRegime
+                      ? `최대 투자 비중: ${({bull: 90, neutral: 60, bear: 30} as Record<string, number>)[currentRegime] ?? 60}% (${regimeLabel[currentRegime] ?? currentRegime})`
+                      : "최대 투자 비중: 시장 국면별 30~90%"}
                   </span>
                 </div>
                 <p className="text-gray-500 pl-5">
-                  나머지는 현금으로 보유합니다. 약세장에서는 현금 비중을 높이고,
-                  강세장에서는 적극 투자합니다 (약세 30%, 중립 60%, 강세 90%).
+                  {follow
+                    ? `${follow.investorName}이 결정한 투자 비중을 레짐과 무관하게 그대로 반영합니다. 원본 전략의 공격성/방어성이 그대로 재현됩니다.`
+                    : "나머지는 현금으로 보유합니다. 약세장에서는 현금 비중을 높이고, 강세장에서는 적극 투자합니다 (약세 30%, 중립 60%, 강세 90%)."}
                 </p>
               </div>
             </div>
@@ -462,10 +541,26 @@ export default function LivePortfolioView({
                   style={{ width: `${Math.min(investPct, 100)}%` }}
                 />
               </div>
-              {currentRegime && (
+              {follow?.todayAllocation ? (
                 <p className="text-[11px] text-gray-500">
-                  현재 {regimeLabel[currentRegime]}에서 최대 {regimeMaxPct[currentRegime] ?? 60}%까지 투자 가능
+                  {follow.investorName} 오늘 목표:{" "}
+                  <span className="text-gray-300">
+                    {((follow.todayAllocation.allocation_sum ?? 0) * 100).toFixed(0)}%
+                  </span>{" · "}
+                  종목 {follow.todayAllocation.num_stocks}개
                 </p>
+              ) : follow ? (
+                <p className="text-[11px] text-gray-500">
+                  {follow.investorName} 원본 비중을 그대로 복제합니다 (레짐 제한 해제)
+                </p>
+              ) : (
+                currentRegime && (
+                  <p className="text-[11px] text-gray-500">
+                    현재 {regimeLabel[currentRegime]}에서 최대{" "}
+                    {({bull: 90, neutral: 60, bear: 30} as Record<string, number>)[currentRegime] ?? 60}
+                    %까지 투자 가능
+                  </p>
+                )
               )}
             </div>
           </div>
@@ -544,6 +639,33 @@ export default function LivePortfolioView({
           </div>
         </div>
       </div>
+
+      {/* 추종 비교 차트 */}
+      {follow && (
+        <LiveFollowComparison
+          history={history}
+          investorSnapshots={follow.investorSnapshots}
+          investorId={follow.investorId}
+          investorName={follow.investorName}
+          followStartDate={follow.startDate}
+        />
+      )}
+
+      {/* 오늘 추종 투자자 allocation vs 실전 */}
+      {follow && (
+        <LiveTodayAllocation
+          allocation={follow.todayAllocation}
+          liveHoldings={liveHoldings.map((h) => ({
+            ticker: h.ticker,
+            name: h.name,
+            evalAmount: h.evalAmount,
+          }))}
+          totalAsset={totalAsset}
+          stockNameMap={stockNameMap}
+          investorName={follow.investorName}
+          date={portfolio.date}
+        />
+      )}
 
       {/* 보유종목 */}
       <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">

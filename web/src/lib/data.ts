@@ -21,6 +21,12 @@ export interface InvestorConfig {
   rebalance_frequency_days: number;
 }
 
+export interface FollowConfig {
+  follow_investor_id: string | null;
+  follow_start_date: string | null;
+  rebalance_frequency: string | null;
+}
+
 export interface Config {
   simulation: {
     start_date: string;
@@ -30,6 +36,7 @@ export interface Config {
   };
   investors: InvestorConfig[];
   stock_universe: StockUniverse[];
+  follow: FollowConfig;
 }
 
 export interface InvestorProfile {
@@ -208,10 +215,16 @@ export async function getConfig(): Promise<Config> {
     .select("*")
     .eq("id", 1)
     .single();
+  const mm = data?.risk_limits?.meta_manager ?? {};
   return {
     simulation: data!.simulation,
     investors: data!.investors,
     stock_universe: data!.stock_universe,
+    follow: {
+      follow_investor_id: mm.follow_investor_id ?? null,
+      follow_start_date: mm.follow_start_date ?? null,
+      rebalance_frequency: mm.rebalance_frequency ?? null,
+    },
   } as Config;
 }
 
@@ -1509,4 +1522,47 @@ export async function getMetaDecisions(): Promise<MetaDecision[]> {
     .select("date, regime, decision_type, selected_strategies, rationale, target_allocation, orders, approved, executed")
     .order("date", { ascending: false });
   return (data ?? []) as MetaDecision[];
+}
+
+// --- Follow 모드 전용 ---
+
+export interface InvestorSnapshot {
+  date: string;
+  total_asset: number;
+}
+
+export async function getInvestorSnapshots(
+  investorId: string,
+  fromDate: string
+): Promise<InvestorSnapshot[]> {
+  const { data } = await supabase
+    .from("portfolio_snapshots")
+    .select("date, total_asset")
+    .eq("investor_id", investorId)
+    .gte("date", fromDate)
+    .order("date", { ascending: true });
+  return (data ?? []) as InvestorSnapshot[];
+}
+
+export async function getAllocationByInvestorName(
+  investorName: string,
+  date: string
+): Promise<Allocation | null> {
+  const { data } = await supabase
+    .from("allocations")
+    .select("*")
+    .eq("investor", investorName)
+    .eq("date", date)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    date: data.date,
+    investor: data.investor,
+    strategy: data.strategy,
+    rationale: data.rationale,
+    allocation: data.allocation,
+    allocation_sum: data.allocation_sum,
+    num_stocks: data.num_stocks,
+    sentiment_scores: data.sentiment_scores ?? null,
+  };
 }

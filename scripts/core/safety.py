@@ -315,20 +315,29 @@ def is_rebalance_day(date_str, meta_config=None):
     if meta_config is None:
         meta_config = get_meta_config()
 
-    target_day = meta_config.get("rebalance_day", "wednesday")
-    day_map = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4}
-    target_weekday = day_map.get(target_day, 2)
-
     d = datetime.strptime(date_str, "%Y-%m-%d")
-    if d.weekday() != target_weekday:
-        return False
 
+    # 주말/공휴일은 어떤 빈도에서도 제외
+    if d.weekday() >= 5:
+        return False
     kr_holidays = holidays.KR(years=d.year)
     if d.date() in kr_holidays:
         return False
 
-    # 격주 체크 (#48): biweekly이면 짝수 ISO 주만 실행
     freq = meta_config.get("rebalance_frequency", "weekly")
+
+    # daily: 영업일이면 매일 실행
+    if freq == "daily":
+        return True
+
+    target_day = meta_config.get("rebalance_day", "wednesday")
+    day_map = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4}
+    target_weekday = day_map.get(target_day, 2)
+
+    if d.weekday() != target_weekday:
+        return False
+
+    # 격주 체크 (#48): biweekly이면 짝수 ISO 주만 실행
     if freq == "biweekly":
         iso_week = d.isocalendar()[1]
         if iso_week % 2 != 0:
@@ -536,6 +545,12 @@ def enforce_regime_limit(allocation, regime, date_str=None, meta_config=None):
     """
     if meta_config is None:
         meta_config = get_meta_config()
+
+    # 추종 모드(follow_investor_id)에서는 레짐 비중 제한 해제 —
+    # 원본 투자자 전략을 그대로 재현하는 게 목적이므로 코드가 스케일다운하지 않음
+    if meta_config.get("follow_investor_id"):
+        alloc_sum = sum(allocation.values())
+        return allocation, alloc_sum, False
 
     max_invest = REGIME_LIMITS.get(regime, 0.60)
 

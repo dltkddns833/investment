@@ -42,6 +42,8 @@ export default function LiveDecisionHistory({
               .map(([id, w]) => `${id}(${(w * 100).toFixed(0)}%)`)
               .join(", ")
           : "-";
+        const followMatch = d.rationale?.match(/^\[([^\]]+추종)\]\s*/);
+        const followTag = followMatch ? followMatch[1] : null;
 
         return (
           <div
@@ -63,6 +65,11 @@ export default function LiveDecisionHistory({
                   className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full shrink-0 ${DECISION_TYPE_LABEL[d.decision_type].color}`}
                 >
                   {DECISION_TYPE_LABEL[d.decision_type].text}
+                </span>
+              )}
+              {followTag && (
+                <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full shrink-0 bg-amber-500/20 text-amber-300">
+                  {followTag}
                 </span>
               )}
               <span className="text-gray-500 text-xs flex-1 text-left truncate min-w-0 hidden sm:inline">

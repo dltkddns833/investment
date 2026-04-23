@@ -293,15 +293,14 @@ scripts/
 
 ## Meta Manager (실전 투자)
 
-16명 시뮬레이션 데이터를 종합 분석하여 실전 매매를 결정하는 AI 시스템.
+**현재 모드: A 강돌진 추종** (`follow_investor_id: "A"`, 2026-04-23~)  
+매일 A 투자자의 당일 allocation을 그대로 실전 target으로 사용한다. Claude의 독립적 종합 판단은 하지 않는다.
 
-**핵심 원칙**: 코스피 대비 초과 수익 (알파 양수 유지)
-
-**운영 방식**: 반자동 — 분석→결정→텔레그램 승인→KIS API 체결
-- 실행 시점: 매일 10:30 (오전장 흐름 확인 후, 장마감까지 2시간 여유)
-- 리밸런싱: **격주 수요일** 정규 리밸런싱 + **매일** 긴급 손절/급락방어 체크
+**운영 방식**: 반자동 — A allocation 복사→텔레그램 승인→KIS API 체결
+- 실행 시점: 매일 10:30
+- 리밸런싱: **매일** (A가 매일 리밸런싱) + **매일** 긴급 손절/급락방어 체크
 - 증권사: 한국투자증권 (KIS Developers REST API)
-- 초기 자금: 200만원
+- 초기 자금: 200만원 (A 시뮬 자본 500만원과 다르나 allocation은 비율이라 무관)
 
 **파이프라인 흐름:**
 ```
@@ -311,19 +310,18 @@ scripts/
 1. 매일: 긴급 체크 (레짐별 차등 손절 + 급락 방어 트레일링)
    ├─ 트리거 있으면 → execute_emergency_orders()
    └─ 트리거 없으면 → 계속
-2. 격주 수요일이면 → 전체 분석 → Claude 배분 결정 → execute_allocation()
-   아니면 → 스킵 (save_decision(decision_type="skip"))
+2. 매일 awaiting_decision 반환 → A allocation 복사 → execute_allocation()
 ```
 
 **보호 장치 (config.risk_limits.meta_manager):**
-- 리밸런싱 주기: 격주 수요일 (`rebalance_day: "wednesday"`, `rebalance_frequency: "biweekly"`)
-- 손절: 레짐별 차등 (bear -7%, neutral -8%, bull -10%), 보유기간 무시
-- 급락 방어: +20% 이상 도달 종목이 고점 대비 -15% 이탈 시 긴급 매도 (`trailing_protect_threshold_pct: 20`, `trailing_protect_drawdown_pct: 15`)
-- 익절: 긴급 매매에서 제거 (#55) — 수익 실현은 격주 리밸런싱에서 AI가 종합 판단
-- 최소 보유기간: 5영업일 (`min_holding_days: 5`) — 중간 구간은 홀딩 강제
-- 회전율 한도: 총자산 25% (`max_turnover_pct: 25`) — 초과 시 비례 축소 (단, 청산 매도는 축소 제외)
-- 레짐별 최대 투자 비중: bear 30%, neutral 60%, bull 90% (코드 자동 강제)
-- 안정화 기간: ~2026-04-10 대형주 위주 + 현금 최소 40% (`stabilization_end_date`)
+- `follow_investor_id: "A"` — A 추종 모드 플래그. `enforce_regime_limit()`이 이 값 있으면 레짐 비중 제한을 **스킵**(원본 전략 그대로 재현)
+- 리밸런싱 주기: 매일 (`rebalance_frequency: "daily"`)
+- 손절: 레짐별 차등 (bear -7%, neutral -8%, bull -10%), 보유기간 무시 — **유지**
+- 급락 방어: +20% 이상 도달 종목이 고점 대비 -15% 이탈 시 긴급 매도 — **유지**
+- 최소 보유기간: 1영업일 (`min_holding_days: 1`) — A 매일 교체 대응
+- 회전율 한도: 총자산 95% (`max_turnover_pct: 95`) — A 고회전 대응
+- 레짐별 최대 투자 비중: **follow 모드에서 해제** (A 원본 비중 그대로)
+- 안정화 기간: ~2026-04-10 종료 (더 이상 적용 안 됨)
 
 **안전 장치:**
 - 일일 손실 -3% → 자동 거래 중단
@@ -339,36 +337,29 @@ scripts/
 #### Step 1: 실행 + 상태 확인
 - `python3 scripts/core/meta_manager.py` 실행
 - status에 따라 분기:
-  - `awaiting_decision` → Step 2로 (정규 리밸런싱, 격주 수요일)
+  - `awaiting_decision` → Step 2로 (A allocation 복사, 매일)
   - `emergency_triggered` → Step 3b로 (긴급 손절/급락방어)
-  - `skip` → 비리밸런싱일 + 긴급 매매 없음 → 종료
   - `killed` / `daily_loss_halt` / `emergency_liquidated` → 해당 상태를 텔레그램으로 알리고 종료
 
-#### Step 2: 배분 결정 (Claude AI 판단, 격주 수요일만)
-분석 리포트를 바탕으로 최적 종목 배분을 결정한다.
+#### Step 2: A 강돌진 allocation 복사 (매일)
+Claude는 독립 판단하지 않는다. Supabase `allocations` 테이블에서 **오늘 날짜 + investor='강돌진'** 레코드를 조회해 그대로 사용.
 
-**사전 연구 참고**: 리밸런싱 전 GitHub 이슈에서 사전 토론/연구가 진행된 경우, 해당 이슈의 최종 합의안을 반드시 참고한다.
-- 4/15 리밸런싱: [#54](https://github.com/dltkddns833/investment/issues/54) — 삼성전자 2주 매수 (Bull 전환, 5인 만장일치). ⭐전략(I+J) 공통 보유 + 회전율 493K 이내 유일한 선택. 4/29 SK하이닉스 진입 위해 현금 124만원 확보.
+```python
+from scripts.core.supabase_client import supabase
+row = supabase.table('allocations').select('*').eq('investor', '강돌진').eq('date', date_str).execute().data[0]
+target_allocation = row['allocation']   # A의 배분 그대로
+a_rationale = row['rationale']
+```
 
-**종목 선택 원칙 (#48):**
-- **합의 종목 우선**: 16명 중 4명+ 보유 종목(E 제외)을 후보 풀로 사용. 합의 없는 종목은 원칙적 배제
-- **기존 보유 종목 유지 편향**: 명확한 매도 사유(손절 트리거, 펀더멘털 악화) 없이 교체 금지
-- **신규 종목 진입 제한**: 1회 리밸런싱에 최대 2개까지
-- **포지션 부분 조정**: 전량 교체 대신 비중 조절(±5~10%p) 우선
+- `target_allocation` = A의 allocation 원본 (수정 금지)
+- `rationale` = `"[A 강돌진 추종] " + a_rationale`
+- `selected_strategies` = `{"A": 1.0}`
 
-**비중 결정 기준:**
-- **스코어카드 추천(⭐) 전략의 보유 비중**을 참고하여 최종 비중 결정 (⚠️ dataWarning 있으면 추천 미부여)
-- **리스크 플래그**가 많은 전략의 종목은 비중 축소 또는 회피
-- **최근 5일 모멘텀** 상위 전략의 종목을 우선 고려
-
-**자동 보호 장치 (Claude가 초과해도 코드가 강제):**
-- **레짐별 투자 비중**: bear 30%, neutral 60%, bull 90% — `enforce_regime_limit()` 자동 스케일다운
+**자동 보호 장치 (유지):**
 - **stock_universe 검증**: universe 외 종목은 `validate_meta_allocation()`에서 자동 제거
-- **안정화 기간**: 허용 종목(STABILIZATION_LARGE_CAPS) 외 자동 제거 + 현금 최소 40%
-- **보유기간 제약**: "보유필수" 종목은 `compute_orders()`에서 매도 자동 스킵
-
-- stock_universe 종목만 사용, 배분 합계 ≤ 0.95, 최소 현금 5% 유지
-- 결과: `target_allocation` ({"005930.KS": 0.15, ...}), `rationale` (근거 텍스트), `selected_strategies` (참고한 전략)
+- **레짐별 투자 비중**: `follow_investor_id` 있으면 `enforce_regime_limit()` **스킵** (A 원본 재현)
+- **손절/급락방어**: 긴급 매매 단계에서 그대로 적용
+- **회전율/보유기간**: 95% / 1영업일로 완화 (A 고회전 대응)
 
 #### Step 3a: execute_allocation() 호출 (정규 리밸런싱)
 배분 결정 후 아래 Python 코드를 Bash로 실행:
