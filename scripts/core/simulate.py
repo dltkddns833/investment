@@ -22,6 +22,7 @@ from portfolio import (
     check_target_prices,
     merge_allocation_with_holdings,
     save_portfolio,
+    calc_fees,
 )
 from daily_pipeline import save_snapshots
 
