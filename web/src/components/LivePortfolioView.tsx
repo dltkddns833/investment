@@ -365,6 +365,12 @@ export default function LivePortfolioView({
         />
       </div>
 
+      {/* 보유종목 */}
+      <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-gray-400 mb-4">보유종목</h2>
+        <LiveHoldingsTableWithPrice holdings={liveHoldings} />
+      </div>
+
       {/* 운용 전략 & 현재 상태 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 전략 요약 */}
@@ -612,12 +618,12 @@ export default function LivePortfolioView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 bg-gray-800/50 rounded-xl p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-400 mb-4">자산 추이</h2>
-          <LiveAssetChart history={history} initialCapital={initialCapital} />
+          <LiveAssetChart history={followHistory} initialCapital={effectiveInitial} />
         </div>
         <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-400">포트폴리오 현황</h2>
           <div className="space-y-3">
-            <InfoRow label="초기 자금" value={krw(initialCapital)} />
+            <InfoRow label="초기 자금" value={krw(Math.round(effectiveInitial))} />
             <InfoRow
               label="현재 자산"
               value={krw(Math.round(totalAsset))}
@@ -666,12 +672,6 @@ export default function LivePortfolioView({
           date={portfolio.date}
         />
       )}
-
-      {/* 보유종목 */}
-      <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-400 mb-4">보유종목</h2>
-        <LiveHoldingsTableWithPrice holdings={liveHoldings} />
-      </div>
 
       {/* 매매 히스토리 */}
       <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">

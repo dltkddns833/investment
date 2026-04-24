@@ -26,11 +26,16 @@ export default function LiveAssetChart({ history, initialCapital }: Props) {
 
   const hasKospi = history.some((h) => h.kospi_cumulative_pct != null);
 
+  // KOSPI를 첫 레코드 기준으로 리베이스 (follow 모드 대응)
+  const baseKospiPct = history[0]?.kospi_cumulative_pct ?? null;
+  const baseKospiMul = baseKospiPct != null ? 1 + baseKospiPct / 100 : null;
+
   const data = history.map((h) => {
-    const kospiAsset =
-      h.kospi_cumulative_pct != null
-        ? Math.round(initialCapital * (1 + h.kospi_cumulative_pct / 100))
-        : null;
+    let kospiAsset: number | null = null;
+    if (h.kospi_cumulative_pct != null && baseKospiMul != null) {
+      const rebasedPct = ((1 + h.kospi_cumulative_pct / 100) / baseKospiMul - 1) * 100;
+      kospiAsset = Math.round(initialCapital * (1 + rebasedPct / 100));
+    }
     return {
       date: h.date.slice(5), // MM-DD
       fullDate: h.date,
