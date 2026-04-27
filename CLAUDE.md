@@ -128,7 +128,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - 시가 근처 체결을 위해 시간 트리거(10:30) 대신 파이프라인 완료 시점에 즉시 실행
   - 시뮬레이션 실패 시 메타 매니저 자동 스킵
 - `scripts/cron/meta_cron.sh` → Claude CLI로 메타 매니저 실행
-  - `meta_manager.py` 분석 → A 강돌진 allocation 복사 → `execute_allocation()` → 텔레그램 승인 → KIS 체결
+  - `meta_manager.py` 분석 → A 강돌진 allocation 복사 → `execute_allocation()` → 텔레그램 알림 → KIS 자동 체결 (승인 절차 생략)
 - plist `com.investment.meta.plist`는 unload 상태 (수동 백업용 보존)
 - 로그: `logs/meta/meta_YYYY-MM-DD.log`
 
@@ -298,7 +298,7 @@ scripts/
 **현재 모드: A 강돌진 추종** (`follow_investor_id: "A"`, 2026-04-23~)  
 매일 A 투자자의 당일 allocation을 그대로 실전 target으로 사용한다. Claude의 독립적 종합 판단은 하지 않는다.
 
-**운영 방식**: 반자동 — A allocation 복사→텔레그램 승인→KIS API 체결
+**운영 방식**: 자동 — A allocation 복사→텔레그램 알림→KIS API 자동 체결 (승인 절차 생략)
 - 실행 시점: 매일 시뮬레이션 직후 (daily_pipeline_cron.sh에서 체이닝)
 - 리밸런싱: **매일** (A가 매일 리밸런싱) + **매일** 긴급 손절/급락방어 체크
 - 증권사: 한국투자증권 (KIS Developers REST API)
@@ -334,7 +334,7 @@ scripts/
 - 누적 손실 -10% → 전량 청산
 - 킬스위치: `config.risk_limits.meta_manager.kill_switch`
 - 장 운영시간(09:00~15:20) 외 주문 차단
-- 텔레그램 승인 필수 (5분 타임아웃 시 취소)
+- 텔레그램 알림 (자동 승인 모드 — 즉시 체결, 승인 대기 없음)
 
 ### 메타 매니저 자동 실행 ("메타 매니저 실행해줘")
 
@@ -382,7 +382,7 @@ result = mm.execute_allocation(
 print(result)
 "
 ```
-- `execute_allocation()` 내부: **요일 가드** → **레짐 DB 강제** → 배분 검증(stock_universe 포함) → **레짐별 비중 강제** → 보유기간/안정화/회전율 필터 → 주문 생성 → 텔레그램 승인 → KIS API 체결 → meta_decisions + real_portfolio 저장
+- `execute_allocation()` 내부: **요일 가드** → **레짐 DB 강제** → 배분 검증(stock_universe 포함) → **레짐별 비중 강제** → 보유기간/안정화/회전율 필터 → 주문 생성 → 텔레그램 알림(자동 승인) → KIS API 체결 → meta_decisions + real_portfolio 저장
 - `save_real_portfolio()`: KOSPI 누적수익률을 **yfinance(^KS11) 직접 조회**로 계산 + 과거 real_portfolio 레코드의 kospi_cumulative_pct 자동 보정
 - 비리밸런싱일 호출 시 `{"status": "rejected"}` 반환 (`force=True`로 오버라이드 가능)
 
@@ -401,7 +401,7 @@ print(result)
 "
 ```
 - 긴급 매도만 실행 (신규 매수 없음)
-- 텔레그램 승인 필수 → KIS API 매도 → 저장
+- 텔레그램 알림(자동 승인) → KIS API 매도 → 저장
 - 결과를 확인하고 최종 상태를 텔레그램으로 알린다
 
 ## Web Dashboard

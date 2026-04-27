@@ -29,7 +29,7 @@ from safety import (
     is_stabilization_period, get_stabilization_tickers,
     enforce_regime_limit, STABILIZATION_LARGE_CAPS,
 )
-from send_telegram import send_telegram, send_approval_request, wait_for_approval
+from send_telegram import send_telegram
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -1083,21 +1083,8 @@ class MetaManager:
             })
             return {"status": "market_closed", "orders": orders}
 
-        # 텔레그램 승인 요청
-        send_approval_request(msg, self.date_str)
-        approved = wait_for_approval(self.date_str, timeout_sec=300)
-
-        if not approved:
-            notify("\u274c 긴급 매매 거부/타임아웃")
-            self.save_decision({
-                "regime": regime,
-                "decision_type": decision_type,
-                "rationale": auto_rationale + "\n(텔레그램 승인 거부/타임아웃 — 미체결)",
-                "orders": orders,
-                "approved": False,
-                "executed": False,
-            })
-            return {"status": "rejected", "orders": orders}
+        # 자동 승인 (텔레그램 승인 절차 생략)
+        send_telegram(msg + "\n\n\u2705 자동 승인 모드 — 즉시 실행")
 
         # 주문 실행
         notify("\u26a1 긴급 매매 실행 중...")
@@ -1274,24 +1261,8 @@ class MetaManager:
             })
             return {"status": "market_closed", "orders": orders}
 
-        # 승인 요청
-        send_approval_request(msg, self.date_str)
-        approved = wait_for_approval(self.date_str, timeout_sec=300)
-
-        if not approved:
-            notify("\u274c 주문 거부/타임아웃")
-            self.save_decision({
-                "regime": regime,
-                "decision_type": "regular",
-                "morning_session": morning_session,
-                "selected_strategies": selected_strategies,
-                "rationale": rationale,
-                "target_allocation": adjusted,
-                "orders": orders,
-                "approved": False,
-                "executed": False,
-            })
-            return {"status": "rejected", "orders": orders}
+        # 자동 승인 (텔레그램 승인 절차 생략)
+        send_telegram(msg + "\n\n\u2705 자동 승인 모드 — 즉시 실행")
 
         # 4. 주문 실행
         notify("\u26a1 주문 실행 중...")
