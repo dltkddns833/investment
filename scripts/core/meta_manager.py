@@ -34,7 +34,7 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-INITIAL_CAPITAL = 2_000_000  # 실전 초기 자금
+INITIAL_CAPITAL = 6_600_000  # 실전 초기 자금 (2026-04-27 리셋)
 
 REGIME_KR = {"bear": "약세장", "neutral": "중립장", "bull": "강세장"}
 
@@ -681,17 +681,25 @@ class MetaManager:
         except Exception as e:
             logger.error(f"meta_decisions 저장 실패: {e}")
 
-    def save_real_portfolio(self, executed_orders=None):
+    def save_real_portfolio(self, executed_orders=None, net_deposit=0):
         """KIS 잔고 기반 real_portfolio 테이블 저장
 
         Args:
             executed_orders: execute_orders() 결과 (매수 종목의 acquired_date 설정용)
+            net_deposit: 오늘 순입출금 (입금 +, 출금 -). TWR 계산에서 제외됨.
         """
         try:
             holdings_raw = self.kis.get_holdings()
             balance = self.kis.get_balance()
-            cash = balance.get("cash", 0)
             total_asset = balance.get("total_asset", 0)
+            kis_total_eval = balance.get("total_eval", 0)
+            # KIS dnca_tot_amt(출금가능 예수금)는 매수 대금 차감 전 값일 수 있음 →
+            # total_asset - total_eval로 진짜 가용 현금을 역산
+            cash = (
+                total_asset - kis_total_eval
+                if total_asset and kis_total_eval is not None
+                else balance.get("cash", 0)
+            )
 
             holdings = {}
             total_eval = 0
@@ -704,7 +712,7 @@ class MetaManager:
                 total_eval += h["eval_amount"]
 
             # acquired_date 병합: 이전 포트폴리오에서 계승 + 신규 매수 종목은 오늘 날짜
-            prev = get_prev_real_portfolio()
+            prev = get_prev_real_portfolio(before_date=self.date_str)
             prev_holdings = prev.get("holdings", {}) if prev else {}
             for ticker, h in holdings.items():
                 if ticker in prev_holdings and prev_holdings[ticker].get("acquired_date"):
@@ -732,13 +740,26 @@ class MetaManager:
             if total_asset <= 0:
                 total_asset = cash + total_eval
 
-            # 전일 포트폴리오에서 수익률 계산
-            prev = get_prev_real_portfolio()
-            daily_return_pct = 0
-            cumulative_return_pct = round((total_asset / INITIAL_CAPITAL - 1) * 100, 2)
+            # 전일 포트폴리오에서 수익률 계산 (시간가중수익률 TWR — 입출금 영향 제거)
+            prev = get_prev_real_portfolio(before_date=self.date_str)
+            prev_cum_deposits = prev.get("cumulative_deposits", 0) if prev else 0
+            cumulative_deposits = prev_cum_deposits + (net_deposit or 0)
 
+            # 운용 베이스라인 = 초기자본 + 누적입출금
+            baseline = INITIAL_CAPITAL + cumulative_deposits
+
+            daily_return_pct = 0
             if prev and prev.get("total_asset", 0) > 0:
-                daily_return_pct = round((total_asset / prev["total_asset"] - 1) * 100, 2)
+                # 입출금을 제외한 순수 운용수익률
+                daily_return_pct = round(
+                    ((total_asset - (net_deposit or 0)) / prev["total_asset"] - 1) * 100, 2
+                )
+
+            # TWR 누적: 어제 cumulative * (1 + 오늘 daily) - 1
+            prev_cum_pct = prev.get("cumulative_return_pct", 0) if prev else 0
+            cumulative_return_pct = round(
+                ((1 + prev_cum_pct / 100) * (1 + daily_return_pct / 100) - 1) * 100, 2
+            )
 
             # KOSPI 수익률 추적 (yfinance 실시간 조회 + 과거 데이터 자동 보정)
             kospi_cumulative_pct = None
@@ -793,6 +814,8 @@ class MetaManager:
                 "cumulative_return_pct": cumulative_return_pct,
                 "kospi_cumulative_pct": kospi_cumulative_pct,
                 "alpha_cumulative_pct": alpha_cumulative_pct,
+                "net_deposit": net_deposit or 0,
+                "cumulative_deposits": cumulative_deposits,
             }
             supabase.table("real_portfolio").upsert(row).execute()
             logger.info(f"real_portfolio 저장 완료: {self.date_str} (총자산: {total_asset:,}원, 알파: {alpha_cumulative_pct}%)")
@@ -1328,9 +1351,16 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="드라이런 (분석만, 주문 스킵)")
     parser.add_argument("--date", type=str, default=None, help="날짜 (YYYY-MM-DD)")
     parser.add_argument("--analyze-only", action="store_true", help="분석만 실행 (배분 결정 없이)")
+    parser.add_argument("--record-deposit", type=int, default=None,
+                        help="순입출금 기록 (입금 +, 출금 -). real_portfolio 재계산 후 종료")
     args = parser.parse_args()
 
     mm = MetaManager(date_str=args.date)
+
+    if args.record_deposit is not None:
+        mm.save_real_portfolio(net_deposit=args.record_deposit)
+        print(f"입출금 {args.record_deposit:+,}원 기록 완료 ({mm.date_str})")
+        sys.exit(0)
 
     if args.analyze_only:
         result = mm.run(dry_run=True)

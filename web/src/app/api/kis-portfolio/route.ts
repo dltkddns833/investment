@@ -164,11 +164,19 @@ async function fetchKISPortfolio(): Promise<KISPortfolio> {
 
   // output2: 잔고 요약
   const o2 = (data.output2 ?? [{}])[0];
+  const totalEval = Number(o2.scts_evlu_amt ?? 0);
+  const totalAsset = Number(o2.tot_evlu_amt ?? 0);
+  // KIS dnca_tot_amt(출금가능 예수금)는 매수 대금 차감 전 값일 수 있음 →
+  // total_asset - total_eval로 진짜 가용 현금을 역산
+  const realCash =
+    totalAsset && totalEval !== undefined
+      ? totalAsset - totalEval
+      : Number(o2.dnca_tot_amt ?? 0);
 
   return {
-    cash: Number(o2.dnca_tot_amt ?? 0),
-    total_eval: Number(o2.scts_evlu_amt ?? 0),
-    total_asset: Number(o2.tot_evlu_amt ?? 0),
+    cash: realCash,
+    total_eval: totalEval,
+    total_asset: totalAsset,
     holdings,
     fetchedAt: new Date().toISOString(),
   };

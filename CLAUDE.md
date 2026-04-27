@@ -66,6 +66,7 @@ python3 scripts/core/meta_manager.py                    # 실행 (분석 → 배
 python3 scripts/core/meta_manager.py --dry-run           # 드라이런 (분석만, 주문 스킵)
 python3 scripts/core/meta_manager.py --analyze-only      # 분석 결과만 출력
 python3 scripts/core/meta_manager.py --date 2026-03-28   # 특정 날짜
+python3 scripts/core/meta_manager.py --record-deposit 4600000   # 입금 기록 (출금은 음수)
 
 # KIS API 테스트
 python3 scripts/core/broker_client.py --test             # 삼성전자 현재가 조회
@@ -122,10 +123,13 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - 장마감 후 종가 반영 시 강제 청산 + cashflow_account 정산 + baseline 리셋
 - 로그: `logs/p_monitor/p_monitor_YYYY-MM-DD.log`
 
-### 오전 10:30 — 메타 매니저 (실전 투자)
-- plist: `~/Library/LaunchAgents/com.investment.meta.plist`
+### 시뮬레이션 직후 — 메타 매니저 (실전 투자, 체이닝)
+- 트리거: `daily_pipeline_cron.sh` 끝부분에서 시뮬레이션 성공 시 `meta_cron.sh` 직접 호출
+  - 시가 근처 체결을 위해 시간 트리거(10:30) 대신 파이프라인 완료 시점에 즉시 실행
+  - 시뮬레이션 실패 시 메타 매니저 자동 스킵
 - `scripts/cron/meta_cron.sh` → Claude CLI로 메타 매니저 실행
-  - `meta_manager.py` 분석 → Claude AI 배분 결정 → `execute_allocation()` → 텔레그램 승인 → KIS 체결
+  - `meta_manager.py` 분석 → A 강돌진 allocation 복사 → `execute_allocation()` → 텔레그램 승인 → KIS 체결
+- plist `com.investment.meta.plist`는 unload 상태 (수동 백업용 보존)
 - 로그: `logs/meta/meta_YYYY-MM-DD.log`
 
 ### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
@@ -136,18 +140,16 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 
 ### launchd 관리 명령
 ```bash
-# 전체 등록
+# 전체 등록 (meta는 pipeline에서 체이닝되므로 별도 등록 불필요)
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.o-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.p-monitor.plist
-launchctl load ~/Library/LaunchAgents/com.investment.meta.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 전체 해제
 launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.o-monitor.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.p-monitor.plist
-launchctl unload ~/Library/LaunchAgents/com.investment.meta.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 상태 확인
@@ -263,7 +265,7 @@ scripts/
 | `risk_events` | serial id | date, investor_id, event_type, severity, details(jsonb), action_taken | 리스크 이벤트 기록 |
 | `market_regimes` | date | regime(bull/neutral/bear), bull_score, kospi_price, ma20, ma60, ma20_slope, volume_ratio, volatility_20d, details(jsonb) | 일별 마켓 레짐 |
 | `meta_decisions` | date | regime, morning_session(jsonb), selected_strategies(jsonb), rationale, target_allocation(jsonb), orders(jsonb), approved, executed, kospi_return_pct, meta_return_pct, alpha_pct | 메타 매니저 일별 의사결정 |
-| `real_portfolio` | date | cash, holdings(jsonb), total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct | 실전 포트폴리오 스냅샷 |
+| `real_portfolio` | date | cash, holdings(jsonb), total_asset, daily_return_pct, cumulative_return_pct (TWR), kospi_cumulative_pct, alpha_cumulative_pct, net_deposit, cumulative_deposits | 실전 포트폴리오 스냅샷 (입출금 추적) |
 
 
 **환경변수:**
@@ -297,10 +299,14 @@ scripts/
 매일 A 투자자의 당일 allocation을 그대로 실전 target으로 사용한다. Claude의 독립적 종합 판단은 하지 않는다.
 
 **운영 방식**: 반자동 — A allocation 복사→텔레그램 승인→KIS API 체결
-- 실행 시점: 매일 10:30
+- 실행 시점: 매일 시뮬레이션 직후 (daily_pipeline_cron.sh에서 체이닝)
 - 리밸런싱: **매일** (A가 매일 리밸런싱) + **매일** 긴급 손절/급락방어 체크
 - 증권사: 한국투자증권 (KIS Developers REST API)
 - 초기 자금: 200만원 (A 시뮬 자본 500만원과 다르나 allocation은 비율이라 무관)
+- 입출금 추적: `--record-deposit` CLI로 기록 (TWR 기반 수익률 계산, 입금 점프 영향 제거)
+  - 입금 시: `python3 scripts/core/meta_manager.py --record-deposit 4600000`
+  - real_portfolio 테이블의 `net_deposit`, `cumulative_deposits` 컬럼에 누적 저장
+  - daily_return_pct는 입금 차감 후 계산, cumulative_return_pct는 시간가중수익률(TWR)
 
 **파이프라인 흐름:**
 ```

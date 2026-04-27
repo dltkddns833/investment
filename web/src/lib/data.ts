@@ -1485,6 +1485,8 @@ export interface RealPortfolioEntry {
   cumulative_return_pct: number;
   kospi_cumulative_pct: number | null;
   alpha_cumulative_pct: number | null;
+  net_deposit?: number;
+  cumulative_deposits?: number;
 }
 
 export interface MetaDecision {

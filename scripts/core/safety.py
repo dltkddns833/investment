@@ -221,16 +221,18 @@ def emergency_liquidate(kis_client, holdings):
 
 # --- 실전 포트폴리오 조회 ---
 
-def get_prev_real_portfolio():
-    """전일 실전 포트폴리오 조회"""
+def get_prev_real_portfolio(before_date=None):
+    """전일 실전 포트폴리오 조회
+
+    Args:
+        before_date: 'YYYY-MM-DD'. 지정 시 해당 날짜 미만(<)의 가장 최근 레코드 반환.
+                     None이면 전체에서 최신 1건.
+    """
     try:
-        result = (
-            supabase.table("real_portfolio")
-            .select("*")
-            .order("date", desc=True)
-            .limit(1)
-            .execute()
-        )
+        query = supabase.table("real_portfolio").select("*").order("date", desc=True).limit(1)
+        if before_date:
+            query = query.lt("date", before_date)
+        result = query.execute()
         if result.data:
             return result.data[0]
     except Exception as e:

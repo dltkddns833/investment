@@ -30,16 +30,20 @@ export default function LiveAssetChart({ history, initialCapital }: Props) {
   const baseKospiPct = history[0]?.kospi_cumulative_pct ?? null;
   const baseKospiMul = baseKospiPct != null ? 1 + baseKospiPct / 100 : null;
 
+  // TWR 기반 가상 자산: initialCapital * (1 + cumulative_return_pct/100)
+  // 입출금 점프 영향 제거 — 운용 성과만 표시
   const data = history.map((h) => {
     let kospiAsset: number | null = null;
     if (h.kospi_cumulative_pct != null && baseKospiMul != null) {
       const rebasedPct = ((1 + h.kospi_cumulative_pct / 100) / baseKospiMul - 1) * 100;
       kospiAsset = Math.round(initialCapital * (1 + rebasedPct / 100));
     }
+    const cumPct = h.cumulative_return_pct ?? 0;
+    const virtualAsset = Math.round(initialCapital * (1 + cumPct / 100));
     return {
       date: h.date.slice(5), // MM-DD
       fullDate: h.date,
-      totalAsset: h.total_asset,
+      totalAsset: virtualAsset,
       kospiAsset,
       returnPct: h.cumulative_return_pct,
       kospiPct: h.kospi_cumulative_pct,

@@ -51,6 +51,15 @@ cd "$PROJECT_DIR"
 SIM_EXIT=$?
 echo "시뮬레이션 종료코드: $SIM_EXIT" >> "$LOG_FILE"
 
+# 메타 매니저 (시뮬레이션 성공 시에만 즉시 실행 — 시가 근처 체결을 위해)
+if [ $SIM_EXIT -eq 0 ]; then
+    echo "--- 메타 매니저 실행 ---" >> "$LOG_FILE"
+    /bin/bash "$PROJECT_DIR/scripts/cron/meta_cron.sh"
+    echo "메타 매니저 종료코드: $?" >> "$LOG_FILE"
+else
+    echo "--- 시뮬레이션 실패로 메타 매니저 스킵 ---" >> "$LOG_FILE"
+fi
+
 # 주간 리포트 (첫 영업일이 아니면 자동 스킵)
 echo "--- 주간 리포트 체크 ---" >> "$LOG_FILE"
 cd "$PROJECT_DIR/scripts/reports"

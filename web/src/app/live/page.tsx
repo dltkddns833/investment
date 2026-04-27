@@ -77,7 +77,7 @@ export default async function LivePage() {
       history={history}
       decisions={decisions}
       holdings={holdings}
-      initialCapital={2_000_000}
+      initialCapital={6_600_000}
       follow={follow}
       stockNameMap={stockNameMap}
     />

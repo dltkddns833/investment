@@ -189,15 +189,36 @@ export default function LivePortfolioView({
   const baseKospiMultiplier =
     baseKospiPct != null ? 1 + baseKospiPct / 100 : null;
 
-  const cumulativeReturn =
-    effectiveInitial > 0 ? (totalAsset / effectiveInitial - 1) * 100 : 0;
+  // follow 구간 내 누적 입출금 (TWR 계산용 — 입금 영향 제거)
+  const baseCumulativeDeposits = baseRecord?.cumulative_deposits ?? 0;
+  const latestCumulativeDeposits = portfolio.cumulative_deposits ?? 0;
+  const followCumulativeDeposits = latestCumulativeDeposits - baseCumulativeDeposits;
+  const todayNetDeposit = portfolio.net_deposit ?? 0;
 
-  // 전일 자산 기준 일일 수익률 (follow 구간 내에서만)
+  // 누적수익률: DB의 TWR cumulative_return_pct 값 직접 사용 (입금 영향 이미 제거됨)
+  const cumulativeReturn = hasKIS
+    ? (() => {
+        // 실시간: 어제 cumulative + 오늘 daily 컴파운드
+        const prevCum =
+          followHistory.length >= 2
+            ? followHistory[followHistory.length - 2].cumulative_return_pct ?? 0
+            : 0;
+        const todayDaily =
+          ((totalAsset - todayNetDeposit) /
+            (followHistory.length >= 2
+              ? followHistory[followHistory.length - 2].total_asset
+              : effectiveInitial) -
+            1) * 100;
+        return ((1 + prevCum / 100) * (1 + todayDaily / 100) - 1) * 100;
+      })()
+    : portfolio.cumulative_return_pct ?? 0;
+
+  // 전일 자산 기준 일일 수익률 (입금 차감)
   const prevPortfolio =
     followHistory.length >= 2 ? followHistory[followHistory.length - 2] : null;
   const prevTotalAsset = prevPortfolio?.total_asset ?? effectiveInitial;
   const dailyReturn = hasKIS
-    ? (totalAsset / prevTotalAsset - 1) * 100
+    ? ((totalAsset - todayNetDeposit) / prevTotalAsset - 1) * 100
     : portfolio.daily_return_pct ?? 0;
 
   // KOSPI 누적: follow 시작일 기준으로 리베이스
@@ -209,7 +230,8 @@ export default function LivePortfolioView({
   const alpha =
     kospiReturn != null ? cumulativeReturn - kospiReturn : null;
 
-  const pnl = totalAsset - effectiveInitial;
+  // 운용 손익 = 현재 자산 - 시작 자산 - 누적 입금 (입출금 영향 제거)
+  const pnl = totalAsset - effectiveInitial - followCumulativeDeposits;
   const fetchedAt = kisData?.fetchedAt ?? null;
 
   // 라이브 뱃지
@@ -225,12 +247,13 @@ export default function LivePortfolioView({
     followStartDate ??
     (history.length > 0 ? history[0].date : portfolio.date);
 
-  // MDD 계산 (follow 구간 기준)
+  // MDD 계산 (TWR 기반 가상 자산으로 — 입금 점프 영향 제거)
   let peak = effectiveInitial;
   let mdd = 0;
   for (const h of followHistory) {
-    if (h.total_asset > peak) peak = h.total_asset;
-    const dd = (h.total_asset - peak) / peak;
+    const virtualAsset = effectiveInitial * (1 + (h.cumulative_return_pct ?? 0) / 100);
+    if (virtualAsset > peak) peak = virtualAsset;
+    const dd = (virtualAsset - peak) / peak;
     if (dd < mdd) mdd = dd;
   }
 
