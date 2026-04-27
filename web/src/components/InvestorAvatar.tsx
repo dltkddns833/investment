@@ -27,7 +27,12 @@ const SIZES = { sm: 24, md: 36, lg: 48 };
  * N 전몰빵 — Charlie Munger: 큰 안경, 확신에 찬 표정
  * O 정익절 — Mark Minervini: 슬릭백 다크헤어, 날카로운 눈매
  * P 정삼절 — Mark Minervini 변형: 짧은 머리, 담백한 표정, 리셋 심볼
+ * Q 정채원 — 디즈니 모아나풍 동양인 공주님: 긴 흑발 웨이브, 살짝 탄 피부, 큰 눈, 티아라
  */
+
+// Q 정채원 전용 피부톤 (살짝 탄 동양인)
+const SKIN_Q = "#e3b886";
+const SKIN_Q_SHADOW = "#b8895c";
 
 // skin, hair 색상
 const SKIN = "#f5d0a9";
@@ -479,6 +484,69 @@ function FaceP() {
   );
 }
 
+function FaceQ() {
+  // 정채원 — 디즈니 모아나풍 동양인 공주님 (와이프 ❤️)
+  // 긴 흑발 웨이브, 살짝 탄 동양인 피부, 큰 눈, 또렷한 미소, 작은 티아라
+  return (
+    <>
+      {/* 뒷머리 — 어깨 너머로 길게 흘러내리는 흑발 */}
+      <path d="M18 56 Q14 76 22 92 L34 90 Q28 76 30 60 Z" fill="#1a1410" />
+      <path d="M82 56 Q86 76 78 92 L66 90 Q72 76 70 60 Z" fill="#1a1410" />
+      {/* 머리카락 — 풍성한 웨이브 (양 옆에서 흘러내리는) */}
+      <path d="M22 52 Q20 28 50 22 Q80 28 78 52 Q78 70 74 84 L68 78 Q72 64 70 50 Q66 36 50 34 Q34 36 30 50 Q28 64 32 78 L26 84 Q22 70 22 52" fill="#231914" />
+      <path d="M26 50 Q26 30 50 26 Q74 30 74 50 Q74 60 71 70 Q70 56 68 48 Q60 38 50 38 Q40 38 32 48 Q30 56 29 70 Q26 60 26 50" fill="#3b2820" opacity="0.7" />
+      {/* 옆머리 (얼굴 일부 가림) */}
+      <path d="M28 46 Q26 60 30 72 Q33 64 34 54 Z" fill="#1a1410" />
+      <path d="M72 46 Q74 60 70 72 Q67 64 66 54 Z" fill="#1a1410" />
+      {/* 얼굴 — 살짝 탄 동양인 피부톤 */}
+      <ellipse cx="50" cy="55" rx="19" ry="22" fill={SKIN_Q} />
+      <ellipse cx="50" cy="58" rx="17" ry="18" fill={SKIN_Q_SHADOW} opacity="0.25" />
+      {/* 광대 홍조 (생기 있는 표정) */}
+      <ellipse cx="35" cy="60" rx="4" ry="2.5" fill="#f59ea8" opacity="0.45" />
+      <ellipse cx="65" cy="60" rx="4" ry="2.5" fill="#f59ea8" opacity="0.45" />
+      {/* 티아라 — 작고 우아한 공주 왕관 */}
+      <path d="M40 30 L44 24 L46 28 L50 22 L54 28 L56 24 L60 30 Z" fill="#fde68a" stroke="#f59e0b" strokeWidth="0.8" />
+      <circle cx="50" cy="25" r="1.4" fill="#fb7185" />
+      <circle cx="44" cy="28" r="0.9" fill="#a5f3fc" />
+      <circle cx="56" cy="28" r="0.9" fill="#a5f3fc" />
+      {/* 눈썹 — 부드러운 아치, 가는 */}
+      <path d="M33 47 Q40 43 45 46" stroke="#2d1810" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <path d="M55 46 Q60 43 67 47" stroke="#2d1810" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      {/* 큰 눈 — 동양인 + 디즈니 풍 */}
+      <ellipse cx="39" cy="53" rx="4.5" ry="4" fill="white" />
+      <ellipse cx="61" cy="53" rx="4.5" ry="4" fill="white" />
+      {/* 큰 갈색 홍채 (모아나 특유) */}
+      <ellipse cx="39" cy="53.5" rx="3.2" ry="3.4" fill="#5c3317" />
+      <ellipse cx="61" cy="53.5" rx="3.2" ry="3.4" fill="#5c3317" />
+      <ellipse cx="39" cy="54" rx="2.2" ry="2.5" fill="#3d1f0a" />
+      <ellipse cx="61" cy="54" rx="2.2" ry="2.5" fill="#3d1f0a" />
+      {/* 눈 하이라이트 — 반짝이는 큰 눈 */}
+      <circle cx="40.5" cy="51.5" r="1.2" fill="white" />
+      <circle cx="62.5" cy="51.5" r="1.2" fill="white" />
+      <circle cx="38" cy="55" r="0.5" fill="white" opacity="0.7" />
+      <circle cx="60" cy="55" r="0.5" fill="white" opacity="0.7" />
+      {/* 속눈썹 — 길고 풍성한 (위쪽) */}
+      <path d="M34.5 50 Q39 48 43.5 50" stroke="#1a1410" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      <path d="M56.5 50 Q61 48 65.5 50" stroke="#1a1410" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+      {/* 속눈썹 디테일 */}
+      <path d="M35 49.5 L34 47.8" stroke="#1a1410" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M37 49 L36.5 47" stroke="#1a1410" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M65 49.5 L66 47.8" stroke="#1a1410" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M63 49 L63.5 47" stroke="#1a1410" strokeWidth="0.7" strokeLinecap="round" />
+      {/* 작고 귀여운 코 */}
+      <path d="M48 58 Q50 62 52 58" stroke={SKIN_Q_SHADOW} strokeWidth="1" fill="none" strokeLinecap="round" />
+      <ellipse cx="50" cy="61" rx="1" ry="0.6" fill={SKIN_Q_SHADOW} opacity="0.5" />
+      {/* 입술 — 또렷하고 풍성한 핑크 입술 (모아나 미소) */}
+      <path d="M42 67 Q50 73 58 67" stroke="#c2185b" strokeWidth="1.5" fill="#ec4899" />
+      <path d="M44 68 Q50 71 56 68" fill="#f472b6" opacity="0.7" />
+      <path d="M46 67.5 Q50 65.5 54 67.5" stroke="#c2185b" strokeWidth="0.8" fill="none" />
+      {/* 귀걸이 (작은 진주) */}
+      <circle cx="26" cy="60" r="1.5" fill="#fef3c7" stroke="#f59e0b" strokeWidth="0.5" />
+      <circle cx="74" cy="60" r="1.5" fill="#fef3c7" stroke="#f59e0b" strokeWidth="0.5" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -496,6 +564,7 @@ const FACES: Record<string, () => JSX.Element> = {
   N: FaceN,
   O: FaceO,
   P: FaceP,
+  Q: FaceQ,
 };
 
 export default function InvestorAvatar({

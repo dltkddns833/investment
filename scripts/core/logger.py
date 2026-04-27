@@ -13,7 +13,7 @@ def get_logger(name):
     # 콘솔: INFO (정기 실행 모듈은 시간 포함)
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    timed_modules = {"o_monitor", "meta_manager"}
+    timed_modules = {"o_monitor", "q_monitor", "meta_manager"}
     if name in timed_modules:
         console.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%H:%M:%S'))
     else:
@@ -23,7 +23,8 @@ def get_logger(name):
     # 파일: DEBUG — 모듈별 하위 폴더 (pipeline/meta/o_monitor/storytelling)
     log_root = Path(__file__).resolve().parent.parent.parent / "logs"
     # 모듈명으로 폴더 결정 (기본값: pipeline)
-    folder_map = {"meta_manager": "meta", "o_monitor": "o_monitor", "storytelling": "storytelling"}
+    folder_map = {"meta_manager": "meta", "o_monitor": "o_monitor", "q_monitor": "q_monitor",
+                  "storytelling": "storytelling"}
     folder = folder_map.get(name, "pipeline")
     log_dir = log_root / folder
     log_dir.mkdir(parents=True, exist_ok=True)

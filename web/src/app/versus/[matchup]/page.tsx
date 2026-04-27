@@ -28,7 +28,7 @@ export default async function VersusDetailPage({ params }: Props) {
   }
 
   const [idA, idB] = parts;
-  const validIds = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
+  const validIds = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"];
   if (!validIds.includes(idA) || !validIds.includes(idB) || idA === idB) {
     return <p className="text-gray-400">유효하지 않은 투자자 ID입니다.</p>;
   }

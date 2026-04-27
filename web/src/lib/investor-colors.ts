@@ -136,9 +136,17 @@ const INVESTOR_COLORS: Record<string, InvestorColor> = {
     border: "border-sky-500/30",
     ring: "ring-sky-500/30",
   },
+  Q: {
+    primary: "#d946ef",
+    light: "#f0abfc",
+    bg: "rgba(217, 70, 239, 0.1)",
+    text: "text-fuchsia-400",
+    border: "border-fuchsia-500/30",
+    ring: "ring-fuchsia-500/30",
+  },
 };
 
-/** Get color config by investor ID (A~P) */
+/** Get color config by investor ID (A~Q) */
 export function getInvestorColor(id: string): InvestorColor {
   return INVESTOR_COLORS[id] ?? INVESTOR_COLORS.E;
 }
@@ -166,6 +174,7 @@ export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.N.primary,
   INVESTOR_COLORS.O.primary,
   INVESTOR_COLORS.P.primary,
+  INVESTOR_COLORS.Q.primary,
 ];
 
 /** Name → ID lookup */
@@ -186,6 +195,7 @@ const NAME_TO_ID: Record<string, string> = {
   전몰빵: "N",
   정익절: "O",
   정삼절: "P",
+  정채원: "Q",
 };
 
 export function investorIdByName(name: string): string | null {

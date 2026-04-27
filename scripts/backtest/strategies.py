@@ -461,6 +461,8 @@ STRATEGY_MAP = {
     "N": strategy_N,
     "O": strategy_O,
     "P": strategy_P,
+    # Q 정채원 — 장중 7세션 스캘핑은 분봉 데이터가 필요해 일봉 백테스트 불가능 (live-only)
+    "Q": None,
 }
 
 

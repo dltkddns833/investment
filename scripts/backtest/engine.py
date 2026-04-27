@@ -3,7 +3,7 @@ import copy
 from datetime import datetime, date, timedelta
 import holidays
 
-from .strategies import get_strategy, O_PARAMS
+from .strategies import get_strategy, O_PARAMS, STRATEGY_MAP
 from .price_cache import load_or_download, get_prices_at_date
 from .metrics import compute_metrics
 from .historical_indicators import compute_market_regime
@@ -361,6 +361,12 @@ def run_backtest(start_date, end_date, investor_ids=None, use_cache=True,
 
     if investor_ids is None:
         investor_ids = sorted(profiles.keys())
+
+    # 백테스트 불가 투자자(live-only, strategy=None) 자동 제외
+    unsupported = [i for i in investor_ids if get_strategy(i) is None and i in STRATEGY_MAP]
+    if unsupported:
+        print(f"   ⚠️  live-only 투자자 스킵 (분봉 데이터 필요): {', '.join(unsupported)}")
+        investor_ids = [i for i in investor_ids if i not in unsupported]
 
     # 2. 가격 데이터 로드
     price_df = load_or_download(tickers, start_date, end_date, use_cache=use_cache)

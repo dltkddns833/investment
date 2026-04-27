@@ -102,7 +102,7 @@ export default async function InvestorPage({ params }: Props) {
             </div>
           </div>
         </div>
-        <p className="text-gray-500 text-sm mt-3">{profile.description}</p>
+        <p className="text-gray-500 text-sm mt-3 whitespace-pre-line leading-relaxed">{profile.description}</p>
       </div>
 
       {/* Summary Cards */}

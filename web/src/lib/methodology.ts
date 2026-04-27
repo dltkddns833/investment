@@ -372,6 +372,29 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
+  Q: {
+    method: "장중 세션 스캘핑 (Intraday Session Scalping)",
+    representative:
+      'Linda Bradford Raschke — 단기 스윙·스캘핑의 대가, "Street Smarts" 저자',
+    core: "장중 7개 세션(09/10/11/12/13/14/15시)마다 직전 5분에 KIS API로 전체 KOSPI/KOSDAQ 등락률 +10~15% 급등 종목 1개를 선별, 정시에 시장가 매수 후 2분 간격으로 +5% 익절·-3% 손절을 체크하다 10분 후 강제 청산. stock_universe 무관, 1세션당 max 1,000만원 캡, 복리.",
+    evidence:
+      "Linda Raschke의 단기 모멘텀 트레이딩 — 짧은 시간 프레임에서 진입/청산을 명확히 정의하면 큰 추세 예측 없이도 일관된 수익 가능. 'Holy Grail Pattern', '80-20 Strategy' 등이 대표 셋업.",
+    similar: "Day Trader / HFT 단기 모멘텀, 급등주 단타, Opening Range Breakout",
+    links: [
+      {
+        label: "Linda Bradford Raschke — Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Linda_Bradford_Raschke",
+      },
+      {
+        label: "Street Smarts — Raschke & Connors (Book)",
+        url: "https://www.amazon.com/Street-Smarts-High-Probability-Short-Term-Strategies/dp/0965046109",
+      },
+      {
+        label: "Scalping (Trading Strategy) — Investopedia",
+        url: "https://www.investopedia.com/terms/s/scalping.asp",
+      },
+    ],
+  },
 };
 
 export type { Methodology, Link };

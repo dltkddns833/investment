@@ -183,6 +183,10 @@ def check_pipeline_status(date_str):
     investor_rows = supabase.table("profiles").select("id").execute().data
     all_investor_ids = sorted([r["id"] for r in investor_rows])
     for inv_id in all_investor_ids:
+        # Q 정채원: allocation 사용 안 함 (장중 q_monitor가 직접 매매)
+        if inv_id == "Q":
+            status["allocations"][inv_id] = "N/A"
+            continue
         alloc_result = supabase.table("allocations").select("investor_id").eq("investor_id", inv_id).eq("date", date_str).execute()
         status["allocations"][inv_id] = len(alloc_result.data) > 0
 
@@ -198,7 +202,10 @@ def print_status(date_str):
     print(f"  [1] 뉴스 수집:    {ok(s['news_collected'])}")
     print(f"  [2] 배분 결정:")
     for inv_id, done in s["allocations"].items():
-        print(f"       투자자 {inv_id}: {ok(done)}")
+        if done == "N/A":
+            print(f"       투자자 {inv_id}: N/A (스캘핑)")
+        else:
+            print(f"       투자자 {inv_id}: {ok(done)}")
     print(f"  [3] 시뮬레이션:   {ok(s['report_generated'])}")
     print(f"  [4] 스토리텔링:   {ok(s['stories_generated'])}")
     print()

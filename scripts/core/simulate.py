@@ -469,6 +469,10 @@ def update_closing_prices(date_str=None):
     if "P" in investors:
         _settle_p_baseline(date_str, closing_prices)
 
+    # Q 정채원: 미청산 보유종목 강제 매도 (스캘핑 미체결분 안전망)
+    if "Q" in investors:
+        _settle_q_holdings(date_str, closing_prices)
+
     logger.info(f"\n 종가 반영 완료: daily_reports/{date_str}")
     logger.info(f"{'='*60}\n")
 
@@ -570,6 +574,106 @@ def _settle_p_baseline(date_str, closing_prices):
             }).execute()
 
     logger.info(f"  [정삼절] 장마감 정산: PnL {pnl:+,}원, cashflow {cashflow:,}원, total_asset {total_asset:,}원")
+
+
+def _settle_q_holdings(date_str, closing_prices):
+    """Q 정채원 장마감 정산: q_monitor가 청산하지 못한 보유종목을 종가 기준 강제 매도.
+
+    Q는 stock_universe 밖 종목을 매매할 수 있으므로 closing_prices에 없는 ticker는
+    yfinance로 단건 조회한다. 종가 조회 실패 시 매수 평단으로 청산하여 PnL 0 처리.
+    """
+    portfolio_q = load_portfolio("Q")
+    holdings_q = portfolio_q.get("holdings", {})
+    if not holdings_q:
+        return  # 정상 청산됨
+
+    import yfinance as yf
+
+    pending = []
+    for ticker in list(holdings_q.keys()):
+        h = holdings_q[ticker]
+        if ticker in closing_prices:
+            price = closing_prices[ticker]["price"]
+        else:
+            try:
+                hist = yf.Ticker(ticker).history(period="1d")
+                price = int(hist["Close"].iloc[-1]) if not hist.empty else h["avg_price"]
+            except Exception:
+                price = h["avg_price"]
+        if price <= 0:
+            price = h["avg_price"]
+
+        exec_price, fee = calc_fees(ticker, price, h["shares"], "sell")
+        revenue = h["shares"] * exec_price
+        profit = (exec_price - h["avg_price"]) * h["shares"]
+        portfolio_q["cash"] += revenue - fee
+        del portfolio_q["holdings"][ticker]
+        pending.append({
+            "investor_id": "Q", "date": date_str, "type": "sell",
+            "ticker": ticker, "name": h["name"], "shares": h["shares"],
+            "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+        })
+
+    if not pending:
+        return
+
+    supabase.table("transactions").insert(pending).execute()
+    save_portfolio("Q", portfolio_q)
+
+    # daily_reports의 Q 데이터 갱신 + rankings 재정렬
+    total_asset = portfolio_q["cash"]
+    initial = 5_000_000
+    existing = supabase.table("daily_reports").select("*").eq("date", date_str).execute().data
+    if existing:
+        report = existing[0]
+        q_name = "정채원"
+        if q_name in report["investor_details"]:
+            d = report["investor_details"][q_name]
+            d["total_asset"] = total_asset
+            d["holdings"] = {}
+            d["holdings_value"] = 0
+            d["num_holdings"] = 0
+            d["cash"] = portfolio_q["cash"]
+            d["cash_ratio"] = 100.0
+            d["total_return"] = total_asset - initial
+            d["total_return_pct"] = round((total_asset / initial - 1) * 100, 2)
+
+            details = list(report["investor_details"].values())
+            details.sort(key=lambda x: x.get("total_return_pct", 0), reverse=True)
+            rankings = [
+                {
+                    "rank": i + 1,
+                    "investor": d2["investor"],
+                    "strategy": d2["strategy"],
+                    "total_asset": d2["total_asset"],
+                    "total_return": d2["total_return"],
+                    "total_return_pct": d2["total_return_pct"],
+                    "num_holdings": d2["num_holdings"],
+                    "cash_ratio": d2["cash_ratio"],
+                    "rebalance_frequency_days": d2.get("rebalance_frequency_days", 1),
+                    "rebalanced_today": d2.get("rebalanced_today", False),
+                    "total_rebalances": d2.get("total_rebalances", 0),
+                }
+                for i, d2 in enumerate(details)
+            ]
+            supabase.table("daily_reports").upsert({
+                "date": date_str,
+                "generated_at": report["generated_at"],
+                "market_prices": report["market_prices"],
+                "rankings": rankings,
+                "investor_details": report["investor_details"],
+            }).execute()
+
+    supabase.table("portfolio_snapshots").upsert({
+        "investor_id": "Q",
+        "date": date_str,
+        "holdings": {},
+        "cash": portfolio_q["cash"],
+        "total_asset": total_asset,
+        "snapshot_at": datetime.now().isoformat(),
+    }).execute()
+
+    logger.info(f"  [정채원] 장마감 정산: 미청산 {len(pending)}건 강제 매도, total_asset {total_asset:,}원")
 
 
 if __name__ == "__main__":
