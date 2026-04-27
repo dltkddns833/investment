@@ -543,9 +543,22 @@ cd web && pnpm build  # 빌드
 - N 전몰빵: 확신의 투자자, 당당한 ("확신이 없으면 안 한다", "분산은 무지에 대한 방어일 뿐이다", "이 종목 하나면 충분하다")
 - O 정익절: 냉철한 트레이더, 기계적 ("5% 찍고 바로 정리했다", "손절은 보험료다", "작은 수익이 모여 큰 돈이 된다")
 - P 정삼절: 담백한 실험자, 일관적 ("오늘도 500으로 시작이다", "복리 욕심 안 부린다", "수익은 통장으로, 베팅은 일정하게")
+- 메타: 실전 운용자 톤, 담백·수치 중심·1인칭 ("오늘은 A 강돌진 배분을 그대로 추종했다", "체결가 평균 슬리피지 0.04%", "KOSPI 대비 알파 +1.0%p로 확대됐다"). 자금/체결/알파 관점으로만 작성하고 시뮬 투자자 톤(확신·역발상·차트 운운)은 차용 금지
+
+**메타 매니저 일기 작성 규칙** (별도 절차, 16명 일기와 함께 생성)
+- 데이터 소스:
+  - `meta_decisions` 오늘 레코드 (regime, decision_type, target_allocation, orders, rationale, executed)
+  - `real_portfolio` 오늘 레코드 (total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct, net_deposit, cumulative_deposits)
+- 반드시 반영해야 할 사실:
+  - 추종 모드(`config.follow.follow_investor_id`)면 "[추종 대상] 배분 그대로 추종" 명시
+  - 일일 수익률 + KOSPI 대비 알파 (양수/음수 포함)
+  - 입금/출금 발생일(`net_deposit != 0`)이면 사실 명시 (TWR이라 수익률에 영향 없다는 점 포함)
+  - 긴급 손절(`decision_type == "emergency_stop_loss"`) / 급락 방어(`decision_type == "emergency_trailing_protect"`) 발생 시 해당 사실
+  - skip(비리밸런싱일)이면 "유지" 정도로 간결하게
+- 분량: 2~3문장, 줄바꿈(`\n`) 포함
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
-- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "전몰빵": "...", "정익절": "..."}` 형태 (투자자 이름 키)
+- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "정익절": "...", "정삼절": "...", "메타": "..."}` 형태 (투자자 이름 + "메타" 키)
 - `notify("✅ *Part B 완료* ({date}) — 코멘터리 & 투자자 일기가 저장되었습니다.")`
 
 ### 주의사항

@@ -35,7 +35,7 @@ src/
     versus/[matchup]/page.tsx ← 1:1 대결 상세 (자산 비교, 수익률 차이, 포지션 비교)
     league/page.tsx          ← 리그 (월간 시즌제 승점 순위, 누적 승점 차트, 시즌 아카이브 상세 보기(?season=YYYY-MM))
     backtest/page.tsx        ← 백테스트 결과 (기간 탭, 자산 추이, 성과 순위, 레이더 차트)
-    live/page.tsx            ← 실전 투자 (보유종목, 운용 전략/현황, 자산 추이(follow 구간 리베이스), 포트폴리오 현황, 매매 히스토리)
+    live/page.tsx            ← 실전 투자 (메타 매니저 일기, 보유종목, 운용 전략/현황, 자산 추이(follow 구간 리베이스), 포트폴리오 현황, 매매 히스토리)
     api/kis-portfolio/route.ts ← KIS API 프록시 (실전 보유종목/잔고 실시간 조회, 토큰 메모리 캐시)
     api/daily-detail/route.ts ← 날짜별 상세 API (코멘터리, 뉴스, 순위, 매매내역, 전일 순위)
   components/
@@ -88,6 +88,7 @@ src/
     LiveAssetChart.tsx        ← 실전 포트폴리오 자산 추이 라인 차트
     LiveHoldingsTable.tsx     ← 실전 보유종목 테이블
     LiveDecisionHistory.tsx   ← 메타 매니저 매매 히스토리 (접기/펼치기, 레짐 뱃지, 주문 상세)
+    LiveMetaDiary.tsx         ← 메타 매니저 일기 카드 (보라 테마, daily_stories.diaries["메타"] 표시)
   lib/
     supabase.ts               ← Supabase 클라이언트 (서버 전용, service_role key)
     data.ts                   ← Supabase 쿼리 (모든 타입 정의 포함, async 함수)

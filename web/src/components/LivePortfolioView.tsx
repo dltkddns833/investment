@@ -14,6 +14,7 @@ import LiveDecisionHistory from "./LiveDecisionHistory";
 import LiveFollowBanner from "./LiveFollowBanner";
 import LiveTodayAllocation from "./LiveTodayAllocation";
 import LiveFollowComparison from "./LiveFollowComparison";
+import LiveMetaDiary from "./LiveMetaDiary";
 import TooltipIcon from "./TooltipIcon";
 
 interface HoldingEntry {
@@ -42,6 +43,7 @@ interface Props {
   initialCapital: number;
   follow: FollowInfo | null;
   stockNameMap: Record<string, string>;
+  metaDiary: string | null;
 }
 
 // --- KIS 포트폴리오 데이터 타입 ---
@@ -97,6 +99,7 @@ export default function LivePortfolioView({
   initialCapital,
   follow,
   stockNameMap,
+  metaDiary,
 }: Props) {
   const [kisData, setKisData] = useState<KISPortfolio | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -387,6 +390,9 @@ export default function LivePortfolioView({
           highlight
         />
       </div>
+
+      {/* 메타 매니저 일기 */}
+      <LiveMetaDiary diary={metaDiary} date={portfolio.date} />
 
       {/* 보유종목 */}
       <div className="bg-gray-800/50 rounded-xl p-4 sm:p-5">

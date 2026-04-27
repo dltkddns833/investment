@@ -6,6 +6,7 @@ import {
   getProfile,
   getInvestorSnapshots,
   getAllocationByInvestorName,
+  getDailyStories,
 } from "@/lib/data";
 import LivePortfolioView, { type FollowInfo } from "@/components/LivePortfolioView";
 
@@ -18,6 +19,9 @@ export default async function LivePage() {
     getMetaDecisions(),
     getConfig(),
   ]);
+
+  const stories = portfolio ? await getDailyStories(portfolio.date) : null;
+  const metaDiary = stories?.diaries?.["메타"] ?? null;
 
   const stockMap = Object.fromEntries(
     config.stock_universe.map((s) => [s.ticker, s])
@@ -80,6 +84,7 @@ export default async function LivePage() {
       initialCapital={6_600_000}
       follow={follow}
       stockNameMap={stockNameMap}
+      metaDiary={metaDiary}
     />
   );
 }
