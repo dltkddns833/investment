@@ -64,6 +64,15 @@ export default function QTradeTimeline({ cycles }: Props) {
     byDate.get(c.date)!.push(c);
   }
 
+  // 날짜별 누적 수수료 (오래된 날짜 → 최신 순으로 합산)
+  const cumFeeByDate = new Map<string, number>();
+  const ascDates = Array.from(byDate.keys()).sort();
+  let runningFee = 0;
+  for (const d of ascDates) {
+    runningFee += byDate.get(d)!.reduce((s, c) => s + c.total_fee, 0);
+    cumFeeByDate.set(d, runningFee);
+  }
+
   const entries = Array.from(byDate.entries());
   const visible = showAll ? entries : entries.slice(0, 5);
 
@@ -71,6 +80,7 @@ export default function QTradeTimeline({ cycles }: Props) {
     <div className="space-y-4">
       {visible.map(([date, dayCycles]) => {
         const dayPnl = dayCycles.reduce((s, c) => s + c.pnl, 0);
+        const cumFee = cumFeeByDate.get(date) ?? 0;
         return (
           <div key={date}>
             <div className="flex items-center justify-between mb-2">
@@ -79,6 +89,9 @@ export default function QTradeTimeline({ cycles }: Props) {
                 <span className="text-xs text-gray-500">{dayCycles.length}회</span>
                 <span className={`text-xs font-mono font-bold ${dayPnl >= 0 ? "text-red-400" : "text-blue-400"}`}>
                   {krw(dayPnl)}
+                </span>
+                <span className="text-xs font-mono text-gray-500">
+                  · 누적 수수료 {krw(cumFee)}
                 </span>
               </div>
             </div>

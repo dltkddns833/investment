@@ -1601,6 +1601,7 @@ export interface QSummaryStats {
   win_rate: number;
   avg_pnl_pct: number;
   total_pnl: number;
+  total_fee: number;       // 누적 수수료·세금
   trading_days: number;
   avg_trades_per_day: number;
   top_stocks: { ticker: string; name: string; count: number }[];
@@ -1631,7 +1632,10 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
   const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number; name: string }[]> = {};
 
   for (const tx of txResult.data) {
-    const resolvedName = tx.name || nameCache.get(tx.ticker) || tx.ticker.split(".")[0];
+    // tx.name이 6자리 숫자 코드(저장 시 종목명 조회 실패)면 무시하고 stock_names → ticker prefix 순으로 폴백
+    const isCodeName = typeof tx.name === "string" && /^\d{6}$/.test(tx.name);
+    const resolvedName =
+      (!isCodeName && tx.name) || nameCache.get(tx.ticker) || tx.ticker.split(".")[0];
     if (tx.type === "buy") {
       if (!pendingBuys[tx.ticker]) pendingBuys[tx.ticker] = [];
       pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0, name: resolvedName });
@@ -1708,6 +1712,7 @@ export function computeQSummaryStats(cycles: QTradeCycle[]): QSummaryStats {
 
   const tradingDays = new Set(cycles.map((c) => c.date)).size;
   const totalPnl = cycles.reduce((s, c) => s + c.pnl, 0);
+  const totalFee = cycles.reduce((s, c) => s + c.total_fee, 0);
   const avgPnlPct = total > 0 ? cycles.reduce((s, c) => s + c.pnl_pct, 0) / total : 0;
 
   const stockCount = new Map<string, { name: string; count: number }>();
@@ -1732,6 +1737,7 @@ export function computeQSummaryStats(cycles: QTradeCycle[]): QSummaryStats {
     win_rate: total > 0 ? (win / total) * 100 : 0,
     avg_pnl_pct: avgPnlPct,
     total_pnl: totalPnl,
+    total_fee: totalFee,
     trading_days: tradingDays,
     avg_trades_per_day: tradingDays > 0 ? total / tradingDays : 0,
     top_stocks,

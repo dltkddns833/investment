@@ -107,7 +107,11 @@ def _pykrx_name(code):
 
 
 def fetch_market_name(client, code):
-    """KIS 현재가 응답에서 rprs_mrkt_kor_name 직접 조회. 이름 없으면 pykrx fallback."""
+    """KIS 현재가 응답에서 rprs_mrkt_kor_name 직접 조회. 이름 없으면 pykrx fallback.
+
+    KIS·pykrx 둘 다 실패 시 빈 문자열을 반환한다 (code 자체를 이름으로 쓰지 않음).
+    호출자는 name_hint(등락률 순위 응답의 hts_kor_isnm 등)로 폴백할 것.
+    """
     import requests
     url = f"{client.base_url}/uapi/domestic-stock/v1/quotations/inquire-price"
     params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": code}
@@ -117,9 +121,8 @@ def fetch_market_name(client, code):
     market_name = o.get("rprs_mrkt_kor_name", "")
     kis_name = o.get("hts_kor_isnm", "")
     price = int(o.get("stck_prpr", 0))
-    # KIS가 이름을 주지 않으면 pykrx로 보완
     if not kis_name or kis_name == code:
-        kis_name = _pykrx_name(code) or code
+        kis_name = _pykrx_name(code)  # 실패 시 "" 반환
     return market_name, kis_name, price
 
 
@@ -235,7 +238,10 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
         logger.warning(f"  현재가 0 — 매수 스킵")
         return None
 
-    name = kis_name or name_hint or code
+    # 종목명: KIS 현재가 응답 → 등락률 순위에서 받은 name_hint → pykrx 한 번 더 시도 → 최후엔 code
+    name = kis_name or name_hint or _pykrx_name(code) or code
+    if name == code:
+        logger.warning(f"  종목명 조회 실패 — code({code})를 name으로 사용")
     ticker = kis_to_yf_ticker(code, market_name)
 
     # 슬리피지 반영 체결가 추정 + 매수 수량

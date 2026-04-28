@@ -19,12 +19,6 @@ export default function QTradeStats({ stats, initialCapital }: Props) {
       color: "text-gray-200",
     },
     {
-      label: "승률",
-      value: `${stats.win_rate.toFixed(1)}%`,
-      sub: `익절 ${stats.win_count} · 손절 ${stats.loss_count} · 강제 ${stats.forced_count}`,
-      color: stats.win_rate >= 50 ? "text-red-400" : "text-blue-400",
-    },
-    {
       label: "평균 손익률",
       value: pct(stats.avg_pnl_pct),
       sub: "매매당 평균 수익률",
@@ -35,6 +29,12 @@ export default function QTradeStats({ stats, initialCapital }: Props) {
       value: krw(stats.total_pnl),
       sub: `누적 수익률 ${pct(cumReturnPct)}`,
       color: stats.total_pnl >= 0 ? "text-red-400" : "text-blue-400",
+    },
+    {
+      label: "누적 수수료",
+      value: krw(stats.total_fee),
+      sub: "거래수수료 + 증권거래세",
+      color: "text-gray-400",
     },
   ];
 
