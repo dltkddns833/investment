@@ -14,6 +14,7 @@ import {
   getLeagueStandings,
   getMarketRegimes,
 } from "@/lib/data";
+import QInvestorPage from "./QInvestorPage";
 import { krw } from "@/lib/format";
 import TransactionTable from "@/components/TransactionTable";
 import LiveAttributionSection from "@/components/LiveAttributionSection";
@@ -38,6 +39,9 @@ interface Props {
 
 export default async function InvestorPage({ params }: Props) {
   const { id } = await params;
+
+  if (id === "Q") return <QInvestorPage id={id} />;
+
   const [profile, portfolio, latestDate, config] = await Promise.all([
     getProfile(id),
     getPortfolio(id),

@@ -1568,3 +1568,163 @@ export async function getAllocationByInvestorName(
     sentiment_scores: data.sentiment_scores ?? null,
   };
 }
+
+// --- Q 정채원 전용 ---
+
+export interface QTradeCycle {
+  date: string;
+  ticker: string;
+  name: string;
+  buy_price: number;
+  sell_price: number;
+  shares: number;
+  pnl: number;
+  pnl_pct: number;
+  exit_reason: "win" | "loss" | "forced";
+  total_fee: number;
+}
+
+export interface QDailyStats {
+  date: string;
+  total_asset: number;
+  trade_count: number;
+  win_count: number;
+  loss_count: number;
+  forced_count: number;
+}
+
+export interface QSummaryStats {
+  total_trades: number;
+  win_count: number;
+  loss_count: number;
+  forced_count: number;
+  win_rate: number;
+  avg_pnl_pct: number;
+  total_pnl: number;
+  trading_days: number;
+  avg_trades_per_day: number;
+  top_stocks: { ticker: string; name: string; count: number }[];
+  kospi_count: number;
+  kosdaq_count: number;
+}
+
+export async function getQTradeCycles(): Promise<QTradeCycle[]> {
+  const { data } = await supabase
+    .from("transactions")
+    .select("date, type, ticker, name, shares, price, amount, profit, fee")
+    .eq("investor_id", "Q")
+    .order("date", { ascending: true });
+
+  if (!data) return [];
+
+  const cycles: QTradeCycle[] = [];
+  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number }[]> = {};
+
+  for (const tx of data) {
+    if (tx.type === "buy") {
+      if (!pendingBuys[tx.ticker]) pendingBuys[tx.ticker] = [];
+      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0 });
+    } else if (tx.type === "sell") {
+      const buys = pendingBuys[tx.ticker];
+      const buy = buys?.shift();
+      if (!buy) continue;
+
+      const pnl_pct = ((tx.price - buy.price) / buy.price) * 100;
+      let exit_reason: "win" | "loss" | "forced";
+      if (pnl_pct >= 4.5) exit_reason = "win";
+      else if (pnl_pct <= -2.5) exit_reason = "loss";
+      else exit_reason = "forced";
+
+      cycles.push({
+        date: tx.date,
+        ticker: tx.ticker,
+        name: tx.name,
+        buy_price: buy.price,
+        sell_price: tx.price,
+        shares: tx.shares,
+        pnl: tx.profit ?? (tx.price - buy.price) * tx.shares,
+        pnl_pct,
+        exit_reason,
+        total_fee: buy.fee + (tx.fee ?? 0),
+      });
+    }
+  }
+
+  return cycles;
+}
+
+export async function getQDailyStats(): Promise<QDailyStats[]> {
+  const [cyclesData, snapshotsResult] = await Promise.all([
+    getQTradeCycles(),
+    supabase
+      .from("portfolio_snapshots")
+      .select("date, total_asset")
+      .eq("investor_id", "Q")
+      .order("date", { ascending: true }),
+  ]);
+  const snapshotsData = snapshotsResult.data ?? [];
+
+  const assetMap = new Map(snapshotsData.map((s: { date: string; total_asset: number }) => [s.date, s.total_asset]));
+
+  const byDate = new Map<string, { win: number; loss: number; forced: number }>();
+  for (const cycle of cyclesData) {
+    if (!byDate.has(cycle.date)) byDate.set(cycle.date, { win: 0, loss: 0, forced: 0 });
+    const d = byDate.get(cycle.date)!;
+    d[cycle.exit_reason]++;
+  }
+
+  const allDates = new Set([...byDate.keys(), ...assetMap.keys()]);
+  return Array.from(allDates)
+    .sort()
+    .map((date) => {
+      const d = byDate.get(date) ?? { win: 0, loss: 0, forced: 0 };
+      return {
+        date,
+        total_asset: assetMap.get(date) ?? 0,
+        trade_count: d.win + d.loss + d.forced,
+        win_count: d.win,
+        loss_count: d.loss,
+        forced_count: d.forced,
+      };
+    });
+}
+
+export function computeQSummaryStats(cycles: QTradeCycle[]): QSummaryStats {
+  const win = cycles.filter((c) => c.exit_reason === "win").length;
+  const loss = cycles.filter((c) => c.exit_reason === "loss").length;
+  const forced = cycles.filter((c) => c.exit_reason === "forced").length;
+  const total = cycles.length;
+
+  const tradingDays = new Set(cycles.map((c) => c.date)).size;
+  const totalPnl = cycles.reduce((s, c) => s + c.pnl, 0);
+  const avgPnlPct = total > 0 ? cycles.reduce((s, c) => s + c.pnl_pct, 0) / total : 0;
+
+  const stockCount = new Map<string, { name: string; count: number }>();
+  for (const c of cycles) {
+    const code = c.ticker.split(".")[0];
+    if (!stockCount.has(code)) stockCount.set(code, { name: c.name, count: 0 });
+    stockCount.get(code)!.count++;
+  }
+  const top_stocks = Array.from(stockCount.entries())
+    .map(([ticker, { name, count }]) => ({ ticker, name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  const kospi_count = cycles.filter((c) => c.ticker.endsWith(".KS")).length;
+  const kosdaq_count = cycles.filter((c) => c.ticker.endsWith(".KQ")).length;
+
+  return {
+    total_trades: total,
+    win_count: win,
+    loss_count: loss,
+    forced_count: forced,
+    win_rate: total > 0 ? (win / total) * 100 : 0,
+    avg_pnl_pct: avgPnlPct,
+    total_pnl: totalPnl,
+    trading_days: tradingDays,
+    avg_trades_per_day: tradingDays > 0 ? total / tradingDays : 0,
+    top_stocks,
+    kospi_count,
+    kosdaq_count,
+  };
+}
