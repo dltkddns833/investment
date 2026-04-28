@@ -67,7 +67,7 @@ WebSearch로 한국 증시 관련 뉴스 15~20건 수집. 카테고리: 경제, 
 | K | 로로캅 | 글로벌 자산배분 | `asset_allocation.get_asset_allocation_data()` (**ETF만**) | 4~8 | 1.0 |
 | L | 신장모 | 분할매도 전략 | `momentum_data` + `technical_indicators` | 3~8 | 레짐별(bull 0.9, neutral 0.7, bear 0.4~0.5) |
 | M | 오판단 | 마켓 타이밍 | `market_regime.get_market_regime()` | 3~10 | 레짐별(bull 0.9, neutral 0.5, bear 0.3) |
-| N | 전몰빵 | 집중투자 | `momentum_data` + `quality_metrics` + `institutional_flow.get_institutional_flows()` | **2~3** (4초과 금지) | 1.0 |
+| N | 전몰빵 | 집중투자 | `momentum_data` + `quality_metrics` + `institutional_flow.get_institutional_flow(tickers=[...])` | **2~3** (4초과 금지) | 1.0 |
 | O | 정익절 | 단기 스윙 | `momentum_data` + `technical_indicators` (**신규 진입만**) | 5~8 | 1.0 |
 | P | 정삼절 | 고정 시드 스윙 | `momentum_data` + `technical_indicators` (**신규 진입만**) | 5~8 | 1.0 |
 
