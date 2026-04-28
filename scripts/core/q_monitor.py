@@ -1,10 +1,13 @@
-"""Q 정채원 장중 7세션 스캘핑 모니터링
+"""Q 정채원 장중 1분 상시 스캔 스캘핑 모니터링
 
-이슈 #57 Q 정채원 전략:
-  - 7세션: 09:00 / 10:00 / 11:00 / 12:00 / 13:00 / 14:00 / 15:00 매수
-  - 각 세션: XX:55 종목 선정 → XX:00 시장가 매수 → 2분 간격 5회 체크 → XX:10 강제 청산
-  - 첫 세션(09:00)은 08:50 ATS(시간외 단일가)로 선정, 데이터 부족 시 09:00 정규장 fallback
-  - 익절: 매수가 대비 +5% / 손절: 매수가 대비 -3%
+이슈 #57 Q 정채원 전략 (2026-04-28 변경 — 채원이 결정):
+  - 09:00 ~ 15:10 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
+  - +10~15% 밴드 1순위 발견 즉시 시장가 매수 (직전 1시간 거래량 비교 1위 우선)
+  - 매수 후 10분 모니터링: 1분 간격 가격 체크
+  - 익절: 매수가 대비 +5% / 손절: 매수가 대비 -3% / 미달성 시 매수+10분 강제 청산
+  - 동시 보유 1종목 (HOLDING 중에는 신규 스캔 스킵)
+  - 당일 재매수 금지 (매도 후 같은 종목 재진입 차단)
+  - 일일 매매 횟수 무제한 (운영 후 매매 내역 보고 추후 결정)
   - 자본: 복리 + 1,000만원 캡 (캡 초과분은 현금으로 보유)
   - 종목 범위: KOSPI + KOSDAQ 전체 (stock_universe 무관)
   - 종목 선정: 전일 종가 +10% 초과 ~ +15% 미만 + 전일 종가 ≥ 2,000원
@@ -35,19 +38,20 @@ from logger import get_logger
 logger = get_logger("q_monitor")
 
 INVESTOR_ID = "Q"
-TAKE_PROFIT_PCT = 5.0          # 매수가 대비 +5% 전 종목 익절
-STOP_LOSS_PCT = -3.0            # 매수가 대비 -3% 전 종목 손절
-MAX_CAPITAL_PER_SESSION = 10_000_000  # 세션당 매수 자본 캡
+TAKE_PROFIT_PCT = 5.0          # 매수가 대비 +5% 익절
+STOP_LOSS_PCT = -3.0            # 매수가 대비 -3% 손절
+MAX_CAPITAL_PER_TRADE = 10_000_000  # 매수당 자본 캡
 MIN_PREV_CLOSE = 2000           # 전일 종가 2,000원 미만 제외
 SURGE_RATE_MIN = 10.0           # 등락률 하한 (+10% 초과)
 SURGE_RATE_MAX = 15.0           # 등락률 상한 (+15% 미만)
 
-# 세션 구조: (select_min_offset, buy_hh) — buy 시각 5분 전이 select
-# 첫 세션은 buy_hh=9, select는 08:50 (정규장 직전 ATS)
-SESSION_BUY_HOURS = [9, 10, 11, 12, 13, 14, 15]
-SELECT_LEAD_MIN = 5             # XX:55 = XX:00 - 5분
-HOLD_DURATION_MIN = 10          # XX:00 ~ XX:10
-CHECK_INTERVAL_MIN = 2          # 2분 간격 모니터링
+# 1분 상시 스캔 윈도우
+SCAN_START_HH = 9               # 09:00 스캔 시작
+SCAN_START_MM = 0
+SCAN_END_HH = 15                # 15:10 스캔 종료 (매수 후 10분 강제 청산 윈도우 보장)
+SCAN_END_MM = 10
+HOLD_DURATION_MIN = 10          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 10분)
+SCAN_INTERVAL_MIN = 1           # 스캔 / 가격 체크 주기
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -80,18 +84,6 @@ def wait_until(target_dt, label=""):
     return True
 
 
-def session_times(today, buy_hh):
-    """(select_dt, buy_dt, close_dt) 반환"""
-    buy_dt = datetime.combine(today, datetime.min.time()).replace(hour=buy_hh, minute=0)
-    if buy_hh == 9:
-        # 첫 세션: 08:50 ATS 선정
-        select_dt = buy_dt.replace(hour=8, minute=50)
-    else:
-        select_dt = buy_dt - timedelta(minutes=SELECT_LEAD_MIN)
-    close_dt = buy_dt + timedelta(minutes=HOLD_DURATION_MIN)
-    return select_dt, buy_dt, close_dt
-
-
 # --- 티커 변환 ---
 
 def kis_to_yf_ticker(code, market_name=""):
@@ -102,15 +94,6 @@ def kis_to_yf_ticker(code, market_name=""):
     if "KSQ" in upper or "KOSDAQ" in upper:
         return f"{code}.KQ"
     return f"{code}.KS"
-
-
-def resolve_ticker(client, code):
-    """code → (yf_ticker, name). KIS 현재가 한 번 조회로 시장구분 확인"""
-    try:
-        info = client.get_current_price(code)
-        return None, info  # 시장명은 별도 조회 필요
-    except Exception:
-        return f"{code}.KS", {"name": code, "price": 0}
 
 
 def fetch_market_name(client, code):
@@ -126,34 +109,15 @@ def fetch_market_name(client, code):
 
 # --- 종목 선정 ---
 
-def pick_first_session_stock(client):
-    """08:50 ATS — 시간외 단일가 등락률 +10~15% & 전일종가 ≥2,000원, 거래량 큰 1개"""
-    try:
-        candidates = client.get_overtime_surge_stocks(market_iscd="0000", div_cls="2", max_count=30)
-    except Exception as e:
-        logger.warning(f"  ATS 조회 실패: {e}")
-        return None
+def pick_surge_stock(client, current_hh, today, exclude_codes=None):
+    """1분 스캔 — +10~15% 밴드 1순위 종목 선정 (3단계 필터).
 
-    filtered = []
-    for c in candidates:
-        rate = c.get("overtime_change_pct", 0)
-        price = c.get("overtime_price", 0)
-        if SURGE_RATE_MIN < rate < SURGE_RATE_MAX and price >= MIN_PREV_CLOSE:
-            filtered.append(c)
+    1차: 등락률 +10~15% & 전일 종가 ≥2,000원
+    2차: 직전 1시간 거래량 vs 전일 동시간대 거래량 증가율 최대 1개
+        - current_hh=9일 때 N-1=8 (정규장 외) → 거래량 비교 불가, 등락률 1위 fallback
+    """
+    exclude_codes = exclude_codes or set()
 
-    if not filtered:
-        logger.info("  [ATS] +10~15% 시간외 종목 없음")
-        return None
-
-    # 시간외 거래량 큰 순으로 1개 (ATS는 분봉 비교 어려움 — 단순화)
-    filtered.sort(key=lambda x: x.get("overtime_volume", 0), reverse=True)
-    top = filtered[0]
-    logger.info(f"  [ATS] 선정: {top['name']}({top['code']}) 시간외 {top['overtime_change_pct']:+.1f}%, 거래량 {top['overtime_volume']:,}")
-    return top
-
-
-def pick_regular_session_stock(client, buy_hh, today):
-    """일반 세션 종목 선정 (3단계 필터)"""
     # 1차 필터: 등락률 +10~15%
     try:
         candidates = client.get_surge_stocks(
@@ -165,12 +129,13 @@ def pick_regular_session_stock(client, buy_hh, today):
         return None
 
     if not candidates:
-        logger.info(f"  +{SURGE_RATE_MIN}~{SURGE_RATE_MAX}% 종목 없음")
         return None
 
-    # 2차 필터: 전일 종가 환산 (현재가 / (1 + change_pct/100))로 추정
+    # 2차 필터: 전일 종가 추정 (현재가 / (1 + change_pct/100))
     pre_filtered = []
     for c in candidates:
+        if c["code"] in exclude_codes:
+            continue
         rate = c.get("change_pct", 0)
         cur_price = c.get("price", 0)
         prev_close = cur_price / (1 + rate / 100) if rate > -100 else 0
@@ -179,11 +144,19 @@ def pick_regular_session_stock(client, buy_hh, today):
             pre_filtered.append(c)
 
     if not pre_filtered:
-        logger.info(f"  전일 종가 ≥{MIN_PREV_CLOSE}원 종목 없음")
         return None
 
+    # 9시대는 N-1=8시(정규장 외) — 거래량 비교 불가, 등락률 1위 fallback
+    if current_hh <= 9:
+        pre_filtered.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
+        top = pre_filtered[0]
+        logger.info(
+            f"  선정(등락률 1위): {top['name']}({top['code']}) {top.get('change_pct', 0):+.1f}%"
+        )
+        return top
+
     # 3차 필터: N-1시간 거래량 vs 전일 동시간대 거래량 증가율 최대
-    n_minus_1 = buy_hh - 1
+    n_minus_1 = current_hh - 1
     start_hhmm = f"{n_minus_1:02d}00"
     end_hhmm = f"{n_minus_1:02d}55"
     today_str = today.strftime("%Y%m%d")
@@ -209,10 +182,13 @@ def pick_regular_session_stock(client, buy_hh, today):
             best = c
 
     if not best:
-        logger.info(f"  거래량 비교 가능 종목 없음 — 단순 등락률 1위로 fallback")
-        # fallback: 등락률 1위
+        # 거래량 비교 실패 → 등락률 1위 fallback
         pre_filtered.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
-        return pre_filtered[0]
+        top = pre_filtered[0]
+        logger.info(
+            f"  선정(등락률 1위 fallback): {top['name']}({top['code']}) {top.get('change_pct', 0):+.1f}%"
+        )
+        return top
 
     logger.info(
         f"  선정: {best['name']}({best['code']}) {best.get('change_pct', 0):+.1f}%, "
@@ -230,7 +206,7 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
     """
     portfolio = load_portfolio(INVESTOR_ID)
     cash = portfolio["cash"]
-    capital = min(cash, MAX_CAPITAL_PER_SESSION)
+    capital = min(cash, MAX_CAPITAL_PER_TRADE)
 
     # 시장구분 + 종목명 + 현재가 조회 (1회)
     try:
@@ -344,68 +320,10 @@ def execute_sell_all(client, today_str, reason, dry_run=False):
     return trades
 
 
-# --- 모니터링 / 리포트 ---
-
-def monitor_session(client, ticker, buy_dt, close_dt, dry_run=False):
-    """매수 직후부터 close_dt까지 2분 간격으로 익절/손절 체크.
-    Returns: ("take_profit" | "stop_loss" | "force_close" | "none", trades, exit_pct)
-    """
-    portfolio = load_portfolio(INVESTOR_ID)
-    h = portfolio["holdings"].get(ticker)
-    if not h:
-        return ("none", [], 0)
-    avg_price = h["avg_price"]
-    code = ticker.split(".")[0]
-
-    # 체크 시각: buy_dt + 2, 4, 6, 8 minutes (5회: 0,2,4,6,8 — 단 0은 매수 직후라 제외하고 close_dt가 종료)
-    check_offsets_min = [CHECK_INTERVAL_MIN * i for i in range(1, HOLD_DURATION_MIN // CHECK_INTERVAL_MIN + 1)]
-    today_str = buy_dt.date().isoformat()
-
-    for offset in check_offsets_min:
-        check_dt = buy_dt + timedelta(minutes=offset)
-        if check_dt >= close_dt:
-            break
-        if not wait_until(check_dt, label=f"check +{offset}m"):
-            return ("kill_switch", [], 0)
-
-        try:
-            info = client.get_current_price(code)
-            current_price = info["price"]
-        except Exception as e:
-            logger.warning(f"  [+{offset}m] 시세 조회 실패: {e}")
-            continue
-        if current_price <= 0:
-            continue
-        pct = (current_price / avg_price - 1) * 100
-        logger.info(f"  [+{offset}m] {h['name']} {current_price:,}원 ({pct:+.2f}%)")
-
-        if pct >= TAKE_PROFIT_PCT:
-            trades = execute_sell_all(client, today_str, f"익절 ({pct:+.2f}%)", dry_run=dry_run)
-            return ("take_profit", trades, pct)
-        if pct <= STOP_LOSS_PCT:
-            trades = execute_sell_all(client, today_str, f"손절 ({pct:+.2f}%)", dry_run=dry_run)
-            return ("stop_loss", trades, pct)
-
-    # 모니터링 종료까지 익절/손절 미발생 → close_dt에 강제 청산
-    if not wait_until(close_dt, label="force close"):
-        return ("kill_switch", [], 0)
-
-    try:
-        info = client.get_current_price(code)
-        current_price = info["price"]
-        final_pct = (current_price / avg_price - 1) * 100
-    except Exception:
-        final_pct = 0
-
-    trades = execute_sell_all(client, today_str, f"강제 청산 ({final_pct:+.2f}%)", dry_run=dry_run)
-    return ("force_close", trades, final_pct)
-
+# --- 리포트 ---
 
 def refresh_daily_report(date_str):
-    """Q 매매 후 daily_reports & portfolio_snapshots 갱신. 가격은 holdings 시세를 KIS로 즉시 조회.
-
-    holdings가 비어있어도 cash 기준 평가 결과를 갱신한다.
-    """
+    """Q 매매 후 daily_reports & portfolio_snapshots 갱신. 가격은 holdings 시세를 KIS로 즉시 조회."""
     try:
         client = KISClient()
         portfolio = load_portfolio(INVESTOR_ID)
@@ -477,7 +395,7 @@ def refresh_daily_report(date_str):
         logger.error(f"  daily_reports 갱신 실패: {e}")
 
 
-# --- 메인 ---
+# --- 메인 (1분 상시 스캔) ---
 
 def run_monitor(dry_run=False):
     today = date.today()
@@ -487,76 +405,156 @@ def run_monitor(dry_run=False):
         return
 
     client = KISClient()
-    notify(f"⚡ *정채원 모니터링 시작* ({today_str}) — 7세션 스캘핑 (dry_run={dry_run})")
+    notify(f"⚡ *[정채원 Q] 모니터링 시작* ({today_str}) — 1분 상시 스캔 (dry_run={dry_run})")
     logger.info(f"Q 정채원 모니터링 시작 ({today_str}, dry_run={dry_run})")
 
-    summary = []  # 각 세션의 결과 저장
+    base_dt = datetime.combine(today, datetime.min.time())
+    scan_start = base_dt.replace(hour=SCAN_START_HH, minute=SCAN_START_MM)
+    scan_end = base_dt.replace(hour=SCAN_END_HH, minute=SCAN_END_MM)
 
-    for session_idx, buy_hh in enumerate(SESSION_BUY_HOURS, start=1):
-        select_dt, buy_dt, close_dt = session_times(today, buy_hh)
+    # 09:00 전이면 대기
+    if datetime.now() < scan_start:
+        logger.info(f"스캔 시작 {scan_start.strftime('%H:%M')}까지 대기")
+        if not wait_until(scan_start, label="scan start"):
+            return
 
-        # 종료된 세션은 스킵
-        if datetime.now() >= close_dt:
-            logger.info(f"[S{session_idx}] {buy_hh:02d}:00 세션 — 이미 종료, 스킵")
-            continue
+    state = "IDLE"          # IDLE / HOLDING
+    holding = None          # {"ticker", "name", "code", "avg_price", "buy_dt", "hold_close_dt"}
 
+    # 당일 이미 매매한 종목은 재매수 금지 — 시작 시 transactions에서 로드
+    # (재기동/재시작 시 같은 종목 반복 매수 방지)
+    traded_today_codes = set()
+    try:
+        existing_txs = supabase.table("transactions").select("ticker").eq(
+            "investor_id", INVESTOR_ID).eq("date", today_str).execute().data or []
+        for tx in existing_txs:
+            ticker = tx.get("ticker", "")
+            if ticker:
+                traded_today_codes.add(ticker.split(".")[0])
+        if traded_today_codes:
+            logger.info(f"당일 거래 종목 {len(traded_today_codes)}개 로드 (재매수 금지): {sorted(traded_today_codes)}")
+    except Exception as e:
+        logger.warning(f"당일 거래 종목 로드 실패: {e}")
+
+    # 시작 시 portfolio에 holdings가 남아있으면 HOLDING 상태로 인계 (이전 프로세스 비정상 종료 대비)
+    portfolio = load_portfolio(INVESTOR_ID)
+    if portfolio.get("holdings"):
+        ticker, h = next(iter(portfolio["holdings"].items()))
+        holding = {
+            "ticker": ticker,
+            "name": h["name"],
+            "code": ticker.split(".")[0],
+            "avg_price": h["avg_price"],
+            "buy_dt": datetime.now(),  # 인수 시각을 buy_dt로 — 즉시 가격 체크 후 청산 판단
+            "hold_close_dt": datetime.now() + timedelta(minutes=HOLD_DURATION_MIN),
+        }
+        state = "HOLDING"
+        logger.info(f"기존 보유 인계: {h['name']}({ticker}) avg={h['avg_price']:,}원")
+
+    summary = []            # 종료 요약용 매매 결과
+
+    while datetime.now() < scan_end or state == "HOLDING":
         if check_kill_switch():
             logger.warning("킬스위치 활성화 — 모니터링 중단")
-            notify("🛑 정채원: 킬스위치 활성화로 중단")
+            notify("🛑 *[정채원 Q]* 킬스위치 활성화로 중단")
             break
 
-        # 1) 종목 선정 — select_dt까지 대기
-        logger.info(f"\n[S{session_idx}] {buy_hh:02d}:00 세션 — 선정 시각 {select_dt.strftime('%H:%M')}")
-        if not wait_until(select_dt, label=f"S{session_idx} select"):
-            break
+        now = datetime.now()
 
-        if buy_hh == 9:
-            picked = pick_first_session_stock(client)
-            # ATS 빈손 → 09:00 정규장 데이터 fallback
-            if not picked:
-                logger.info(f"  [ATS fallback] 09:00 정규장으로 종목 선정 시도")
-                if not wait_until(buy_dt, label=f"S{session_idx} fallback to buy_dt"):
-                    break
-                picked = pick_regular_session_stock(client, buy_hh, today)
-        else:
-            picked = pick_regular_session_stock(client, buy_hh, today)
+        if state == "HOLDING":
+            # 매수 종목 가격 체크
+            try:
+                info = client.get_current_price(holding["code"])
+                current_price = info["price"]
+            except Exception as e:
+                logger.warning(f"  [HOLD] 시세 조회 실패: {e}")
+                current_price = 0
 
-        if not picked:
-            logger.info(f"  [S{session_idx}] 후보 없음 — 세션 스킵")
-            summary.append(f"S{session_idx} {buy_hh:02d}:00 — 스킵 (후보 없음)")
-            continue
+            elapsed_min = int((now - holding["buy_dt"]).total_seconds() // 60)
+            exit_reason = None
+            exit_pct = 0.0
 
-        # 2) 매수 시각까지 대기 (이미 buy_dt를 지났으면 즉시)
-        if datetime.now() < buy_dt:
-            if not wait_until(buy_dt, label=f"S{session_idx} buy"):
+            if current_price > 0:
+                pct = (current_price / holding["avg_price"] - 1) * 100
+                exit_pct = pct
+                logger.info(f"  [HOLD +{elapsed_min}m] {holding['name']} {current_price:,}원 ({pct:+.2f}%)")
+                if pct >= TAKE_PROFIT_PCT:
+                    exit_reason = f"익절 ({pct:+.2f}%)"
+                elif pct <= STOP_LOSS_PCT:
+                    exit_reason = f"손절 ({pct:+.2f}%)"
+
+            if not exit_reason and now >= holding["hold_close_dt"]:
+                exit_reason = f"강제 청산 ({exit_pct:+.2f}%)"
+
+            if exit_reason:
+                trades = execute_sell_all(client, today_str, exit_reason, dry_run=dry_run)
+                if trades:
+                    emoji = "💰" if "익절" in exit_reason else ("🛑" if "손절" in exit_reason else "⏰")
+                    notify(f"{emoji} *[정채원 Q] {holding['name']} 청산* {exit_pct:+.2f}% — {exit_reason}")
+                    summary.append(
+                        f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
+                        f"{exit_pct:+.2f}% ({exit_reason})"
+                    )
+                if not dry_run:
+                    refresh_daily_report(today_str)
+                state = "IDLE"
+                holding = None
+
+        else:  # IDLE
+            # 스캔 윈도우 종료 시각이 지났으면 더 이상 매수 안 함
+            if now >= scan_end:
                 break
 
-        # 3) 매수
-        bought = execute_buy(client, picked["code"], picked.get("name", ""), today_str, dry_run=dry_run)
-        if not bought:
-            logger.info(f"  [S{session_idx}] 매수 실패 — 세션 스킵")
-            summary.append(f"S{session_idx} {buy_hh:02d}:00 — 매수 실패")
-            continue
-        ticker, name, exec_price, shares = bought
-        notify(
-            f"⚡ *S{session_idx} {buy_hh:02d}:00 매수* {name}\n"
-            f"{shares}주 × {exec_price:,}원 = {shares*exec_price:,}원 (코드 {picked['code']})"
-        )
-        if not dry_run:
-            refresh_daily_report(today_str)
+            current_hh = now.hour
+            picked = pick_surge_stock(client, current_hh, today, exclude_codes=traded_today_codes)
+            if picked:
+                bought = execute_buy(client, picked["code"], picked.get("name", ""), today_str, dry_run=dry_run)
+                if bought:
+                    ticker, name, exec_price, shares = bought
+                    buy_dt = datetime.now()
+                    hold_close_dt = buy_dt + timedelta(minutes=HOLD_DURATION_MIN)
+                    holding = {
+                        "ticker": ticker,
+                        "name": name,
+                        "code": picked["code"],
+                        "avg_price": exec_price,
+                        "buy_dt": buy_dt,
+                        "hold_close_dt": hold_close_dt,
+                    }
+                    traded_today_codes.add(picked["code"])
+                    state = "HOLDING"
+                    notify(
+                        f"⚡ *[정채원 Q] {buy_dt.strftime('%H:%M')} 매수* {name}\n"
+                        f"{shares}주 × {exec_price:,}원 = {shares * exec_price:,}원 "
+                        f"(코드 {picked['code']}, 청산 ~{hold_close_dt.strftime('%H:%M')})"
+                    )
+                    if not dry_run:
+                        refresh_daily_report(today_str)
 
-        # 4) 모니터링 + 강제 청산
-        outcome, trades, pct = monitor_session(client, ticker, buy_dt, close_dt, dry_run=dry_run)
-
-        if outcome == "kill_switch":
-            notify("🛑 정채원: 킬스위치 활성화 — 모니터링 종료")
+        # 다음 분까지 대기 (HOLDING이면서 hold_close가 다음 분 이내면 그 시각까지만 대기)
+        next_min = (datetime.now() + timedelta(minutes=SCAN_INTERVAL_MIN)).replace(second=0, microsecond=0)
+        if state == "HOLDING" and holding and holding["hold_close_dt"] < next_min:
+            target = holding["hold_close_dt"]
+        else:
+            target = next_min
+        if not wait_until(target, label="next tick"):
             break
 
-        outcome_emoji = {"take_profit": "💰", "stop_loss": "🛑", "force_close": "⏰", "none": "⚠️"}
-        emoji = outcome_emoji.get(outcome, "•")
-        msg = f"{emoji} *S{session_idx} 청산* {name} ({pct:+.2f}%, {outcome})"
-        notify(msg)
-        summary.append(f"S{session_idx} {buy_hh:02d}:00 — {name} {pct:+.2f}% ({outcome})")
+    # 윈도우 종료 시 holding 잔여분 강제 청산
+    if state == "HOLDING" and holding:
+        try:
+            info = client.get_current_price(holding["code"])
+            final_price = info["price"]
+            final_pct = (final_price / holding["avg_price"] - 1) * 100
+        except Exception:
+            final_pct = 0
+        trades = execute_sell_all(client, today_str, f"종료 청산 ({final_pct:+.2f}%)", dry_run=dry_run)
+        if trades:
+            notify(f"⏰ *[정채원 Q] {holding['name']} 종료 청산* {final_pct:+.2f}%")
+            summary.append(
+                f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
+                f"{final_pct:+.2f}% (종료 청산)"
+            )
         if not dry_run:
             refresh_daily_report(today_str)
 
@@ -564,16 +562,17 @@ def run_monitor(dry_run=False):
     portfolio = load_portfolio(INVESTOR_ID)
     cash = portfolio["cash"]
     final = (
-        f"⚡ *정채원 모니터링 종료* ({today_str})\n"
+        f"⚡ *[정채원 Q] 모니터링 종료* ({today_str})\n"
         f"현금: {cash:,}원\n"
-        + "\n".join(f"• {s}" for s in summary)
+        f"매매 횟수: {len(summary)}회\n"
+        + ("\n".join(f"• {s}" for s in summary) if summary else "• 매매 없음")
     )
     notify(final)
     logger.info(final)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Q 정채원 7세션 스캘핑 모니터링")
+    parser = argparse.ArgumentParser(description="Q 정채원 1분 상시 스캔 스캘핑 모니터링")
     parser.add_argument("--dry-run", action="store_true", help="매매 없이 로그만")
     args = parser.parse_args()
     run_monitor(dry_run=args.dry_run)

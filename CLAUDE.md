@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (모멘텀+펀더멘털+수급 3중 필터)
 - O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (총자산 +5% 전 종목 익절, 종목별 -3% 손절, 30분마다 모멘텀 이탈→급등 종목 교체, 일일 최대 3회)
 - P 정삼절: 고정 시드 스윙 / 장중 10분 간격 모니터링 / 5~8종목 (O와 동일 매매 규칙, 단 매일 500만원 baseline 리셋 + cashflow_account 별도 정산, 복리 제거 실험)
-- Q 정채원: 장중 7세션 스캘핑 / 매시간 정각 매수 → 10분 안에 청산 / 1종목 집중 (전일 종가 +10~15% 급등 + 직전 1시간 거래량 폭증 1개, +5% 익절/-3% 손절/XX:10 강제 청산, 1세션 max 1,000만원 캡, **stock_universe 무관, 전체 KOSPI/KOSDAQ 대상 매매**)
+- Q 정채원: 장중 1분 상시 스캔 스캘핑 / 09:00~15:10 1분 간격 +10~15% 밴드 발견 즉시 매수 → 매수+10분 안에 청산 / 1종목 집중 (전일 종가 +10~15% 급등 + 직전 1시간 거래량 폭증 1위, +5% 익절/-3% 손절/매수+10분 강제 청산, 동시 보유 1종목, 당일 재매수 금지, 매매당 max 1,000만원 캡, **stock_universe 무관, 전체 KOSPI/KOSDAQ 대상 매매**)
 
 ## Session Start Check
 
@@ -87,8 +87,8 @@ python3 scripts/core/o_monitor.py --dry-run     # 매도 없이 로그만
 python3 scripts/core/p_monitor.py              # 실행 (09:10~15:20)
 python3 scripts/core/p_monitor.py --dry-run     # 매도 없이 로그만
 
-# Q 정채원 7세션 스캘핑 모니터링 (08:50 ATS → 09/10/11/12/13/14/15시 매수 → XX:10 청산)
-python3 scripts/core/q_monitor.py              # 실행 (08:45 시작)
+# Q 정채원 1분 상시 스캔 모니터링 (09:00~15:10, +10~15% 발견 즉시 매수 → 매수+10분 청산)
+python3 scripts/core/q_monitor.py              # 실행 (08:45 시작, 09:00 스캔 개시)
 python3 scripts/core/q_monitor.py --dry-run     # 매매 없이 로그만
 
 # 테스트 실행
@@ -128,16 +128,19 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - 장마감 후 종가 반영 시 강제 청산 + cashflow_account 정산 + baseline 리셋
 - 로그: `logs/p_monitor/p_monitor_YYYY-MM-DD.log`
 
-### 오전 8:45 — Q 정채원 7세션 스캘핑
+### 오전 8:45 — Q 정채원 1분 상시 스캔 스캘핑 (2026-04-28~ 변경)
 - plist: `~/Library/LaunchAgents/com.investment.q-monitor.plist`
 - `scripts/cron/q_monitor_cron.sh` → `scripts/core/q_monitor.py`
-  - 08:50 ATS 종목 선정(시간외 등락률 +10~15% 1위) → 09:00 매수 → 09:10 청산
-  - 09:55/10:55/11:55/12:55/13:55/14:55 종목 선정 → 정각 매수 → XX:10 청산
-  - 종목 선정: KIS 등락률 순위(`FHPST01700000`) + 분봉 거래량 비교(`FHKST03010230`)
-  - 매매: +5% 익절 / -3% 손절 / 미달성 시 XX:10 강제 청산
+  - 09:00 ~ 15:10 동안 **1분 간격 KIS 등락률 순위 상시 스캔**
+  - +10~15% 밴드 1순위 종목 발견 즉시 시장가 매수 (당일 재매수 금지 가드)
+  - 매수 후 10분 모니터링 (1분 간격 가격 체크) → +5% 익절 / -3% 손절 / 매수+10분 강제 청산
+  - 동시 보유 **1종목** (HOLDING 중에는 신규 스캔 스킵)
+  - 종목 선정: KIS 등락률 순위(`FHPST01700000`) + 직전 1시간 분봉 거래량 비교(`FHKST03010230`, 9시대는 등락률 1위 fallback)
   - 매매 발생 시 `daily_reports` + `portfolio_snapshots` 즉시 갱신
-  - 자본: 시드 500만원 복리, 1세션당 매수 자본 max 1,000만원 캡
+  - 자본: 시드 500만원 복리, 매매당 max 1,000만원 캡
+  - 일일 매매 횟수: 무제한 (운영 후 매매 내역 보고 추후 제한 결정)
   - 종목 범위: stock_universe 무관, 전체 KOSPI/KOSDAQ
+  - 재기동 시 transactions에서 당일 거래 종목 자동 로드 → 재매수 차단
 - 로그: `logs/q_monitor/q_monitor_YYYY-MM-DD.log`
 
 ### 시뮬레이션 직후 — 메타 매니저 (실전 투자, 체이닝)
@@ -491,7 +494,7 @@ cd web && pnpm build  # 빌드
 - K 에이전트에는 추가로 `scripts/modules/asset_allocation.py`의 `get_asset_allocation_data()` 결과를 전달 (ETF 카테고리별 수익률/변동성/추세 데이터)
 - L 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (코스닥 성장주 발굴 + 기술적 필터). RSI > 70 과매수 종목 진입 금지, MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. 분할매도 규칙(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. allocation은 **신규 진입 종목만** 포함 (기존 보유종목은 simulate.py가 자동 병합하여 보호, 목표가 매도는 `check_target_prices()`가 자동 처리)
 - M 에이전트에는 추가로 `scripts/modules/market_regime.py`의 `get_market_regime()` 결과를 전달. 레짐에 따라 allocation 합계를 조절: bull→0.9, neutral→0.5, bear→0.3 (나머지는 현금)
-- N 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/institutional_flow.py`의 `get_institutional_flows()` 결과를 전달 (3중 필터로 최고 확신 2~3종목 선별)
+- N 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/institutional_flow.py`의 `get_institutional_flow()` 결과를 전달 (3중 필터로 최고 확신 2~3종목 선별). **호출 시 ticker는 반드시 list로 전달**: `get_institutional_flow(['005930.KS', '000660.KS'])`. 잘못된 형식은 ValueError raise됨
 - O 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (모멘텀+기술적 진입점 판단)
 - P 에이전트에는 O와 동일한 데이터 전달: `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과 (동일 매매 규칙, 자본 운용만 다름)
 - 에이전트는 분석 후 `save_allocation()`으로 Supabase에 저장
