@@ -1608,22 +1608,33 @@ export interface QSummaryStats {
   kosdaq_count: number;
 }
 
-export async function getQTradeCycles(): Promise<QTradeCycle[]> {
-  const { data } = await supabase
-    .from("transactions")
-    .select("date, type, ticker, name, shares, price, amount, profit, fee")
-    .eq("investor_id", "Q")
-    .order("date", { ascending: true });
+export async function getStockNames(): Promise<Map<string, string>> {
+  const { data } = await supabase.from("stock_names").select("ticker, name");
+  const map = new Map<string, string>();
+  for (const row of data ?? []) map.set(row.ticker, row.name);
+  return map;
+}
 
-  if (!data) return [];
+export async function getQTradeCycles(): Promise<QTradeCycle[]> {
+  const [txResult, nameCache] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("date, type, ticker, name, shares, price, amount, profit, fee")
+      .eq("investor_id", "Q")
+      .order("date", { ascending: true }),
+    getStockNames(),
+  ]);
+
+  if (!txResult.data) return [];
 
   const cycles: QTradeCycle[] = [];
-  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number }[]> = {};
+  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number; name: string }[]> = {};
 
-  for (const tx of data) {
+  for (const tx of txResult.data) {
+    const resolvedName = tx.name || nameCache.get(tx.ticker) || tx.ticker.split(".")[0];
     if (tx.type === "buy") {
       if (!pendingBuys[tx.ticker]) pendingBuys[tx.ticker] = [];
-      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0 });
+      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0, name: resolvedName });
     } else if (tx.type === "sell") {
       const buys = pendingBuys[tx.ticker];
       const buy = buys?.shift();
@@ -1638,7 +1649,7 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
       cycles.push({
         date: tx.date,
         ticker: tx.ticker,
-        name: tx.name,
+        name: buy.name,
         buy_price: buy.price,
         sell_price: tx.price,
         shares: tx.shares,

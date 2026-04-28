@@ -96,15 +96,31 @@ def kis_to_yf_ticker(code, market_name=""):
     return f"{code}.KS"
 
 
+def _pykrx_name(code):
+    """pykrx로 한글 종목명 조회 (KIS 이름 응답 실패 시 fallback)"""
+    try:
+        from pykrx import stock as pykrx_stock
+        name = pykrx_stock.get_market_ticker_name(code)
+        return name if name else ""
+    except Exception:
+        return ""
+
+
 def fetch_market_name(client, code):
-    """KIS 현재가 응답에서 rprs_mrkt_kor_name 직접 조회"""
+    """KIS 현재가 응답에서 rprs_mrkt_kor_name 직접 조회. 이름 없으면 pykrx fallback."""
     import requests
     url = f"{client.base_url}/uapi/domestic-stock/v1/quotations/inquire-price"
     params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": code}
     resp = requests.get(url, headers=client._headers("FHKST01010100"), params=params, timeout=10)
     data = resp.json()
     o = data.get("output", {})
-    return o.get("rprs_mrkt_kor_name", ""), o.get("hts_kor_isnm", "") or code, int(o.get("stck_prpr", 0))
+    market_name = o.get("rprs_mrkt_kor_name", "")
+    kis_name = o.get("hts_kor_isnm", "")
+    price = int(o.get("stck_prpr", 0))
+    # KIS가 이름을 주지 않으면 pykrx로 보완
+    if not kis_name or kis_name == code:
+        kis_name = _pykrx_name(code) or code
+    return market_name, kis_name, price
 
 
 # --- 종목 선정 ---
@@ -262,6 +278,12 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
         "ticker": ticker, "name": name, "shares": shares,
         "price": exec_price, "amount": cost, "fee": fee,
     }).execute()
+    # 종목명 영구 캐시 (stock_universe 외부 종목 이름 보존)
+    market = "KOSPI" if ticker.endswith(".KS") else "KOSDAQ"
+    supabase.table("stock_names").upsert(
+        {"ticker": ticker, "name": name, "market": market, "updated_at": "now()"},
+        on_conflict="ticker",
+    ).execute()
     save_portfolio(INVESTOR_ID, portfolio)
     logger.info(f"  ✅ BUY {name}({ticker}) {shares}주 × {exec_price:,}원 = {cost:,}원")
     return ticker, name, exec_price, shares

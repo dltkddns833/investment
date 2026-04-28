@@ -30,6 +30,9 @@ function TradeCard({ cycle }: { cycle: QTradeCycle }) {
         <div className="text-xs text-gray-500 mt-0.5 font-mono">
           매수 {cycle.buy_price.toLocaleString()} → 매도 {cycle.sell_price.toLocaleString()}
           <span className="ml-2 text-gray-600">{cycle.shares}주</span>
+          {cycle.total_fee > 0 && (
+            <span className="ml-2 text-gray-700">수수료 {cycle.total_fee.toLocaleString()}원</span>
+          )}
         </div>
       </div>
       <div className="text-right shrink-0">
