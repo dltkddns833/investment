@@ -1,6 +1,7 @@
 "use client";
 
 import { QSummaryStats } from "@/lib/data";
+import Link from "next/link";
 
 interface Props {
   stats: QSummaryStats;
@@ -45,18 +46,18 @@ export default function QStockPool({ stats }: Props) {
         <p className="text-xs text-gray-500 mb-2">자주 매매한 종목 (Top {top_stocks.length})</p>
         <div className="space-y-1.5">
           {top_stocks.map((s) => (
-            <div key={s.ticker} className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-20 truncate shrink-0">{s.name}</span>
+            <Link key={s.ticker} href={`/stocks/${encodeURIComponent(s.ticker)}`} className="flex items-center gap-2 group">
+              <span className="text-xs text-gray-400 w-20 truncate shrink-0 group-hover:text-blue-300 transition-colors">{s.name}</span>
               <div className="flex-1 h-5 bg-white/5 rounded overflow-hidden">
                 <div
-                  className="h-full bg-yellow-500/40 rounded flex items-center px-1.5 transition-all"
+                  className="h-full bg-yellow-500/40 group-hover:bg-yellow-500/60 rounded flex items-center px-1.5 transition-all"
                   style={{ width: `${(s.count / maxCount) * 100}%`, minWidth: "2rem" }}
                 >
                   <span className="text-xs font-mono text-yellow-300">{s.count}</span>
                 </div>
               </div>
               <span className="text-xs text-gray-600 w-6 text-right">{s.ticker.split(".")[0]}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

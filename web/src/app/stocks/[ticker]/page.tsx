@@ -3,6 +3,7 @@ import {
   getLatestReportDate,
   getDailyReport,
   getStockTransactions,
+  getStockNames,
 } from "@/lib/data";
 import { krw } from "@/lib/format";
 import RealStockChart from "@/components/RealStockChart";
@@ -24,13 +25,38 @@ export default async function StockDetailPage({ params }: Props) {
   const { ticker } = await params;
   const decodedTicker = decodeURIComponent(ticker);
 
-  const [config, latestDate, transactions] = await Promise.all([
+  const [config, latestDate, transactions, stockNamesCache] = await Promise.all([
     getConfig(),
     getLatestReportDate(),
     getStockTransactions(decodedTicker),
+    getStockNames(),
   ]);
 
-  const stockInfo = config.stock_universe.find((s) => s.ticker === decodedTicker);
+  // stock_universe 외 종목(Q 스캘핑 등)은 Yahoo Finance로 현재가 직접 조회
+  async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_pct: number } | null> {
+    try {
+      const res = await fetch(
+        `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`,
+        { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      if (!meta) return null;
+      const price = Math.round(meta.regularMarketPrice);
+      const prevClose = Math.round(meta.chartPreviousClose || meta.previousClose);
+      const change_pct = prevClose > 0 ? +((((price - prevClose) / prevClose) * 100).toFixed(2)) : 0;
+      return { price, change_pct };
+    } catch {
+      return null;
+    }
+  }
+
+  const stockInfo = config.stock_universe.find((s) => s.ticker === decodedTicker)
+    ?? (stockNamesCache.has(decodedTicker)
+      ? { ticker: decodedTicker, name: stockNamesCache.get(decodedTicker)!, sector: "", description: "" }
+      : null);
+
   if (!stockInfo) {
     return (
       <div>
@@ -40,7 +66,8 @@ export default async function StockDetailPage({ params }: Props) {
   }
 
   const report = latestDate ? (await getDailyReport(latestDate))! : null;
-  const marketPrice = report?.market_prices[decodedTicker];
+  const marketPrice = report?.market_prices[decodedTicker]
+    ?? (stockInfo.sector === "" ? await fetchYahooPrice(decodedTicker) ?? undefined : undefined);
   const etfData = isEtfTicker(stockInfo.sector) ? getEtfData(decodedTicker) : null;
 
   // Find holders
@@ -87,12 +114,18 @@ export default async function StockDetailPage({ params }: Props) {
         종목 분석
       </Link>
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl md:text-3xl font-bold">{stockInfo.name}</h1>
-          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-            <SectorIcon sector={stockInfo.sector} className="w-3 h-3" />
-            {stockInfo.sector}
-          </span>
+          {stockInfo.sector ? (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+              <SectorIcon sector={stockInfo.sector} className="w-3 h-3" />
+              {stockInfo.sector}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">
+              ⚡ Q 스캘핑 종목
+            </span>
+          )}
         </div>
         <p className="text-gray-500 text-sm mt-1">{decodedTicker}</p>
         {(stockInfo.description || etfData?.objective) && (

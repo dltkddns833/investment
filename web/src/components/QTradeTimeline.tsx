@@ -3,6 +3,7 @@
 import { QTradeCycle } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
 import { useState } from "react";
+import Link from "next/link";
 
 interface Props {
   cycles: QTradeCycle[];
@@ -21,7 +22,9 @@ function TradeCard({ cycle }: { cycle: QTradeCycle }) {
     <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-gray-200 truncate">{cycle.name}</span>
+          <Link href={`/stocks/${encodeURIComponent(cycle.ticker)}`} className="text-sm font-medium text-gray-200 hover:text-blue-300 transition-colors truncate">
+            {cycle.name}
+          </Link>
           <span className="text-xs text-gray-600">{cycle.ticker.split(".")[0]}</span>
           <span className={`text-xs px-1.5 py-0.5 rounded border ${badge.cls}`}>
             {badge.label}
