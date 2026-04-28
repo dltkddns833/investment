@@ -1582,6 +1582,8 @@ export interface QTradeCycle {
   pnl_pct: number;
   exit_reason: "win" | "loss" | "forced";
   total_fee: number;
+  buy_at: string | null;
+  sell_at: string | null;
 }
 
 export interface QDailyStats {
@@ -1620,16 +1622,16 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
   const [txResult, nameCache] = await Promise.all([
     supabase
       .from("transactions")
-      .select("date, type, ticker, name, shares, price, amount, profit, fee")
+      .select("date, type, ticker, name, shares, price, amount, profit, fee, executed_at, id")
       .eq("investor_id", "Q")
-      .order("date", { ascending: true }),
+      .order("id", { ascending: true }),
     getStockNames(),
   ]);
 
   if (!txResult.data) return [];
 
   const cycles: QTradeCycle[] = [];
-  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number; name: string }[]> = {};
+  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number; name: string; executed_at: string | null }[]> = {};
 
   for (const tx of txResult.data) {
     // tx.name이 6자리 숫자 코드(저장 시 종목명 조회 실패)면 무시하고 stock_names → ticker prefix 순으로 폴백
@@ -1638,7 +1640,7 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
       (!isCodeName && tx.name) || nameCache.get(tx.ticker) || tx.ticker.split(".")[0];
     if (tx.type === "buy") {
       if (!pendingBuys[tx.ticker]) pendingBuys[tx.ticker] = [];
-      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0, name: resolvedName });
+      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0, name: resolvedName, executed_at: tx.executed_at ?? null });
     } else if (tx.type === "sell") {
       const buys = pendingBuys[tx.ticker];
       const buy = buys?.shift();
@@ -1661,6 +1663,8 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
         pnl_pct,
         exit_reason,
         total_fee: buy.fee + (tx.fee ?? 0),
+        buy_at: buy.executed_at,
+        sell_at: tx.executed_at ?? null,
       });
     }
   }

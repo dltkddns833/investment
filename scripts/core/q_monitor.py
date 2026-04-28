@@ -283,6 +283,7 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
         "investor_id": INVESTOR_ID, "date": today_str, "type": "buy",
         "ticker": ticker, "name": name, "shares": shares,
         "price": exec_price, "amount": cost, "fee": fee,
+        "executed_at": datetime.now().isoformat(),
     }).execute()
     # 종목명 영구 캐시 (stock_universe 외부 종목 이름 보존)
     market = "KOSPI" if ticker.endswith(".KS") else "KOSDAQ"
@@ -336,6 +337,7 @@ def execute_sell_all(client, today_str, reason, dry_run=False):
             "investor_id": INVESTOR_ID, "date": today_str, "type": "sell",
             "ticker": ticker, "name": name, "shares": sell_shares,
             "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+            "executed_at": datetime.now().isoformat(),
         })
         pct = (exec_price / h["avg_price"] - 1) * 100
         trades.append({"ticker": ticker, "name": name, "shares": sell_shares,
@@ -535,6 +537,8 @@ def run_monitor(dry_run=False):
 
             current_hh = now.hour
             picked = pick_surge_stock(client, current_hh, today, exclude_codes=traded_today_codes)
+            if not picked:
+                logger.info(f"  [스캔 {now.strftime('%H:%M')}] 후보 없음")
             if picked:
                 bought = execute_buy(client, picked["code"], picked.get("name", ""), today_str, dry_run=dry_run)
                 if bought:

@@ -15,9 +15,18 @@ const EXIT_LABEL: Record<string, { label: string; cls: string }> = {
   forced: { label: "강제청산", cls: "bg-gray-500/15 text-gray-400 border-gray-500/20" },
 };
 
+function fmtTime(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" });
+}
+
 function TradeCard({ cycle }: { cycle: QTradeCycle }) {
   const badge = EXIT_LABEL[cycle.exit_reason];
   const isProfit = cycle.pnl >= 0;
+  const buyTime = fmtTime(cycle.buy_at);
+  const sellTime = fmtTime(cycle.sell_at);
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
       <div className="flex-1 min-w-0">
@@ -29,6 +38,13 @@ function TradeCard({ cycle }: { cycle: QTradeCycle }) {
           <span className={`text-xs px-1.5 py-0.5 rounded border ${badge.cls}`}>
             {badge.label}
           </span>
+          {(buyTime || sellTime) && (
+            <span className="text-xs text-gray-600 font-mono">
+              {buyTime}
+              {buyTime && sellTime && " → "}
+              {sellTime}
+            </span>
+          )}
         </div>
         <div className="text-xs text-gray-500 mt-0.5 font-mono">
           매수 {cycle.buy_price.toLocaleString()} → 매도 {cycle.sell_price.toLocaleString()}
