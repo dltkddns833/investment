@@ -18,7 +18,7 @@ const RECOMMENDED_MATCHUPS = [
   { idA: "M", idB: "A", desc: "마켓 타이밍 vs 공격적 모멘텀" },
   { idA: "N", idB: "B", desc: "집중투자 vs 균형 분산" },
   { idA: "O", idB: "P", desc: "복리 스윙 vs 고정 시드 스윙" },
-  { idA: "Q", idB: "O", desc: "장중 7세션 스캘핑 vs 복리 스윙" },
+  { idA: "Q", idB: "O", desc: "장중 1분 상시 스캔 스캘핑 vs 복리 스윙" },
 ];
 
 export default async function VersusPage() {

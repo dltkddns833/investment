@@ -373,10 +373,10 @@ const methodologies: Record<string, Methodology> = {
     ],
   },
   Q: {
-    method: "장중 세션 스캘핑 (Intraday Session Scalping)",
+    method: "장중 1분 상시 스캔 스캘핑 (Intraday 1-min Scan Scalping)",
     representative:
       'Linda Bradford Raschke — 단기 스윙·스캘핑의 대가, "Street Smarts" 저자',
-    core: "장중 7개 세션(09/10/11/12/13/14/15시)마다 직전 5분에 KIS API로 전체 KOSPI/KOSDAQ 등락률 +10~15% 급등 종목 1개를 선별, 정시에 시장가 매수 후 2분 간격으로 +5% 익절·-3% 손절을 체크하다 10분 후 강제 청산. stock_universe 무관, 1세션당 max 1,000만원 캡, 복리.",
+    core: "09:00~15:10 동안 1분 간격으로 KIS API 등락률 순위를 상시 스캔하여 전체 KOSPI/KOSDAQ에서 +10~15% 밴드 1순위(직전 1시간 거래량 vs 전일 동시간대 폭증 우선) 종목을 발견 즉시 시장가 매수, 매수 후 10분 동안 1분 간격으로 +5% 익절·-3% 손절을 체크하다 미달성 시 강제 청산. 동시 보유 1종목, 당일 재매수 금지, stock_universe 무관, 매매당 max 1,000만원 캡, 복리, 일일 매매 횟수 무제한.",
     evidence:
       "Linda Raschke의 단기 모멘텀 트레이딩 — 짧은 시간 프레임에서 진입/청산을 명확히 정의하면 큰 추세 예측 없이도 일관된 수익 가능. 'Holy Grail Pattern', '80-20 Strategy' 등이 대표 셋업.",
     similar: "Day Trader / HFT 단기 모멘텀, 급등주 단타, Opening Range Breakout",
