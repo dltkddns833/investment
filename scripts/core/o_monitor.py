@@ -23,7 +23,7 @@ from supabase_client import supabase
 from market import get_stock_prices, get_stock_prices_parallel
 from portfolio import load_portfolio, load_profile, save_portfolio, evaluate, calc_fees
 from safety import check_kill_switch
-from daily_pipeline import notify
+from daily_pipeline import notify, notify_monitor
 from logger import get_logger
 
 logger = get_logger("o_monitor")
@@ -415,7 +415,7 @@ def run_monitor(dry_run=False):
     today_str = date.today().isoformat()
     prev_total_asset = get_prev_total_asset()
     logger.info(f"O 정익절 모니터링 시작 ({today_str}, 전일 자산: {prev_total_asset:,}원, dry_run={dry_run})")
-    notify(f"👁️ *정익절 모니터링 시작* ({today_str})\n전일 자산: {prev_total_asset:,}원 | 익절 +5% = {int(prev_total_asset * 1.05):,}원 | 종목별 손절 -3%")
+    notify_monitor(f"👁️ *정익절 모니터링 시작* ({today_str})\n전일 자산: {prev_total_asset:,}원 | 익절 +5% = {int(prev_total_asset * 1.05):,}원 | 종목별 손절 -3%")
 
     check_count = 0
     total_trades = []
@@ -431,7 +431,7 @@ def run_monitor(dry_run=False):
         # 킬스위치 체크
         if check_kill_switch():
             logger.warning("킬스위치 활성화 — 모니터링 중단")
-            notify("🛑 정익절: 킬스위치 활성화로 모니터링 중단")
+            notify_monitor("🛑 정익절: 킬스위치 활성화로 모니터링 중단")
             break
 
         # 보유종목 확인
@@ -479,7 +479,7 @@ def run_monitor(dry_run=False):
                     logger.info(f"  🛑 {t['ticker']} {t['shares']}주 ({t['reason']})")
                 msg = f"🛑 *정익절 손절* ({datetime.now().strftime('%H:%M')})\n" + \
                     "\n".join(f"• {t['ticker']} {t['shares']}주 ({t['reason']})" for t in stop_trades)
-                notify(msg)
+                notify_monitor(msg)
                 refresh_daily_report(all_prices, today_str)
                 portfolio = load_portfolio(INVESTOR_ID)
                 holdings = portfolio.get("holdings", {})
@@ -501,7 +501,7 @@ def run_monitor(dry_run=False):
                 if trades:
                     total_trades.extend(trades)
                     msg = f"💰 *정익절 익절 달성!* ({datetime.now().strftime('%H:%M')})\n총자산 {total_asset:,.0f}원 ({daily_return_pct:+.2f}%)\n전 종목 {len(trades)}건 매도 완료"
-                    notify(msg)
+                    notify_monitor(msg)
                     refresh_daily_report(all_prices, today_str)
             else:
                 logger.info(f"  [dry-run] 전 종목 매도 스킵")
@@ -563,7 +563,7 @@ def run_monitor(dry_run=False):
                                 f"(당일 {result['buy_change_pct']:+.1f}%, 거래량 {vol_ratio}x)\n"
                                 f"교체 {daily_swap_count}/{MAX_DAILY_SWAPS}"
                             )
-                            notify(msg)
+                            notify_monitor(msg)
                             refresh_daily_report(all_prices, today_str)
                             logger.info(f"  ✅ 교체 완료 ({daily_swap_count}/{MAX_DAILY_SWAPS})")
                         elif result:

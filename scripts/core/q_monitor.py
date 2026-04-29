@@ -32,7 +32,7 @@ from supabase_client import supabase
 from portfolio import load_portfolio, load_profile, save_portfolio, evaluate, calc_fees
 from broker_client import KISClient
 from safety import check_kill_switch
-from daily_pipeline import notify
+from daily_pipeline import notify, notify_monitor
 from logger import get_logger
 
 logger = get_logger("q_monitor")
@@ -435,7 +435,7 @@ def run_monitor(dry_run=False):
         return
 
     client = KISClient()
-    notify(f"⚡ *[정채원 Q] 모니터링 시작* ({today_str}) — 1분 상시 스캔 (dry_run={dry_run})")
+    notify_monitor(f"⚡ *[정채원 Q] 모니터링 시작* ({today_str}) — 1분 상시 스캔 (dry_run={dry_run})")
     logger.info(f"Q 정채원 모니터링 시작 ({today_str}, dry_run={dry_run})")
 
     base_dt = datetime.combine(today, datetime.min.time())
@@ -486,7 +486,7 @@ def run_monitor(dry_run=False):
     while datetime.now() < scan_end or state == "HOLDING":
         if check_kill_switch():
             logger.warning("킬스위치 활성화 — 모니터링 중단")
-            notify("🛑 *[정채원 Q]* 킬스위치 활성화로 중단")
+            notify_monitor("🛑 *[정채원 Q]* 킬스위치 활성화로 중단")
             break
 
         now = datetime.now()
@@ -520,7 +520,7 @@ def run_monitor(dry_run=False):
                 trades = execute_sell_all(client, today_str, exit_reason, dry_run=dry_run)
                 if trades:
                     emoji = "💰" if "익절" in exit_reason else ("🛑" if "손절" in exit_reason else "⏰")
-                    notify(f"{emoji} *[정채원 Q] {holding['name']} 청산* {exit_pct:+.2f}% — {exit_reason}")
+                    notify_monitor(f"{emoji} *[정채원 Q] {holding['name']} 청산* {exit_pct:+.2f}% — {exit_reason}")
                     summary.append(
                         f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
                         f"{exit_pct:+.2f}% ({exit_reason})"
@@ -555,7 +555,7 @@ def run_monitor(dry_run=False):
                     }
                     traded_today_codes.add(picked["code"])
                     state = "HOLDING"
-                    notify(
+                    notify_monitor(
                         f"⚡ *[정채원 Q] {buy_dt.strftime('%H:%M')} 매수* {name}\n"
                         f"{shares}주 × {exec_price:,}원 = {shares * exec_price:,}원 "
                         f"(코드 {picked['code']}, 청산 ~{hold_close_dt.strftime('%H:%M')})"
@@ -582,7 +582,7 @@ def run_monitor(dry_run=False):
             final_pct = 0
         trades = execute_sell_all(client, today_str, f"종료 청산 ({final_pct:+.2f}%)", dry_run=dry_run)
         if trades:
-            notify(f"⏰ *[정채원 Q] {holding['name']} 종료 청산* {final_pct:+.2f}%")
+            notify_monitor(f"⏰ *[정채원 Q] {holding['name']} 종료 청산* {final_pct:+.2f}%")
             summary.append(
                 f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
                 f"{final_pct:+.2f}% (종료 청산)"

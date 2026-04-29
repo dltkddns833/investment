@@ -13,6 +13,13 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
+TELEGRAM_MONITOR_BOT_TOKEN = os.environ.get("TELEGRAM_MONITOR_BOT_TOKEN")
+TELEGRAM_MONITOR_CHAT_ID = os.environ.get("TELEGRAM_MONITOR_CHAT_ID")
+TELEGRAM_MONITOR_API = (
+    f"https://api.telegram.org/bot{TELEGRAM_MONITOR_BOT_TOKEN}"
+    if TELEGRAM_MONITOR_BOT_TOKEN else None
+)
+
 
 def send_telegram(message):
     url = f"{TELEGRAM_API}/sendMessage"
@@ -29,6 +36,26 @@ def send_telegram(message):
         })
     resp.raise_for_status()
     print("텔레그램 발송 완료")
+    return resp.json().get("result", {}).get("message_id")
+
+
+def send_telegram_monitor(message):
+    """모니터링 전용 봇으로 발송 (장중 매매 알림용). 토큰 없으면 메인 봇으로 폴백."""
+    if not TELEGRAM_MONITOR_API:
+        return send_telegram(message)
+    url = f"{TELEGRAM_MONITOR_API}/sendMessage"
+    resp = requests.post(url, json={
+        "chat_id": TELEGRAM_MONITOR_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown",
+    })
+    if resp.status_code == 400:
+        resp = requests.post(url, json={
+            "chat_id": TELEGRAM_MONITOR_CHAT_ID,
+            "text": message,
+        })
+    resp.raise_for_status()
+    print("모니터봇 발송 완료")
     return resp.json().get("result", {}).get("message_id")
 
 
