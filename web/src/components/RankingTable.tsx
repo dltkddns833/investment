@@ -122,7 +122,7 @@ function getColumns() {
     }),
     col.accessor("total_return_pct", {
       header: "누적 수익률",
-      meta: { className: "text-right" },
+      meta: { className: "text-right hidden sm:table-cell" },
       cell: (info) => {
         const v = info.getValue();
         const cls =

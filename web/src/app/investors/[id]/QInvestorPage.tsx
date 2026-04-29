@@ -199,23 +199,6 @@ export default async function QInvestorPage({ id }: Props) {
         </section>
       )}
 
-      {/* 일별 매매 결과 분포 */}
-      {dailyStats.some((d) => d.trade_count > 0) && (
-        <section className="glass-card p-4 md:p-5 animate-in">
-          <h2 className="text-lg font-bold mb-3 section-header">📅 일별 매매 결과</h2>
-          <p className="text-xs text-gray-500 mb-3">매매가 발생한 날의 익절/손절/강제청산 분포</p>
-          <QDailyBar data={dailyStats} />
-        </section>
-      )}
-
-      {/* 자산 추이 */}
-      {assetHistory.length >= 1 && (
-        <section className="glass-card p-4 md:p-5 animate-in">
-          <h2 className="text-lg font-bold mb-3 section-header">📈 자산 추이</h2>
-          <AssetChart data={assetHistory} initialCapital={portfolio.initial_capital} />
-        </section>
-      )}
-
       {/* 트레이드 타임라인 */}
       {cycles.length > 0 && (
         <section className="glass-card p-4 md:p-5 animate-in">
@@ -225,11 +208,28 @@ export default async function QInvestorPage({ id }: Props) {
         </section>
       )}
 
+      {/* 일별 매매 결과 분포 */}
+      {dailyStats.some((d) => d.trade_count > 0) && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-3 section-header">📅 일별 매매 결과</h2>
+          <p className="text-xs text-gray-500 mb-3">매매가 발생한 날의 익절/손절/강제청산 분포</p>
+          <QDailyBar data={dailyStats} />
+        </section>
+      )}
+
       {/* 종목 풀 분석 */}
       {cycles.length > 0 && (
         <section className="glass-card p-4 md:p-5 animate-in">
           <h2 className="text-lg font-bold mb-3 section-header">🏷️ 종목 풀 분석</h2>
           <QStockPool stats={stats} />
+        </section>
+      )}
+
+      {/* 자산 추이 */}
+      {assetHistory.length >= 1 && (
+        <section className="glass-card p-4 md:p-5 animate-in">
+          <h2 className="text-lg font-bold mb-3 section-header">📈 자산 추이</h2>
+          <AssetChart data={assetHistory} initialCapital={portfolio.initial_capital} />
         </section>
       )}
 
