@@ -4,6 +4,7 @@ import { QTradeCycle } from "@/lib/data";
 import { krw, pct } from "@/lib/format";
 import { useState } from "react";
 import Link from "next/link";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface Props {
   cycles: QTradeCycle[];
@@ -20,6 +21,11 @@ function fmtTime(iso: string | null): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" });
+}
+
+function todayKST(): string {
+  return new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" })
+    .replace(/\. /g, "-").replace(".", "");
 }
 
 function TradeCard({ cycle }: { cycle: QTradeCycle }) {
@@ -66,12 +72,52 @@ function TradeCard({ cycle }: { cycle: QTradeCycle }) {
   );
 }
 
+function DateGroup({ date, dayCycles, defaultOpen }: { date: string; dayCycles: QTradeCycle[]; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const dayPnl = dayCycles.reduce((s, c) => s + c.pnl, 0);
+  const dayFee = dayCycles.reduce((s, c) => s + c.total_fee, 0);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between mb-2 hover:opacity-80 transition-opacity"
+      >
+        <div className="flex items-center gap-1.5">
+          {open ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+          <span className="text-xs font-medium text-gray-400">{date}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{dayCycles.length}회</span>
+          <span className={`text-xs font-mono font-bold ${dayPnl >= 0 ? "text-red-400" : "text-blue-400"}`}>
+            {krw(dayPnl)}
+          </span>
+          {dayFee > 0 && (
+            <span className="text-xs font-mono text-gray-500">
+              · 수수료 {krw(dayFee)}
+            </span>
+          )}
+        </div>
+      </button>
+      {open && (
+        <div className="glass-card px-4 py-1">
+          {dayCycles.map((c, i) => (
+            <TradeCard key={`${c.ticker}-${i}`} cycle={c} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function QTradeTimeline({ cycles }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   if (cycles.length === 0) {
     return <p className="text-gray-500 text-sm">아직 체결된 매매가 없습니다.</p>;
   }
+
+  const today = todayKST();
 
   // group by date (most recent first)
   const byDate = new Map<string, QTradeCycle[]>();
@@ -80,45 +126,20 @@ export default function QTradeTimeline({ cycles }: Props) {
     byDate.get(c.date)!.push(c);
   }
 
-  // 날짜별 누적 수수료 (오래된 날짜 → 최신 순으로 합산)
-  const cumFeeByDate = new Map<string, number>();
-  const ascDates = Array.from(byDate.keys()).sort();
-  let runningFee = 0;
-  for (const d of ascDates) {
-    runningFee += byDate.get(d)!.reduce((s, c) => s + c.total_fee, 0);
-    cumFeeByDate.set(d, runningFee);
-  }
-
+  const totalFee = cycles.reduce((s, c) => s + c.total_fee, 0);
   const entries = Array.from(byDate.entries());
   const visible = showAll ? entries : entries.slice(0, 5);
 
   return (
     <div className="space-y-4">
-      {visible.map(([date, dayCycles]) => {
-        const dayPnl = dayCycles.reduce((s, c) => s + c.pnl, 0);
-        const cumFee = cumFeeByDate.get(date) ?? 0;
-        return (
-          <div key={date}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-gray-400">{date}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">{dayCycles.length}회</span>
-                <span className={`text-xs font-mono font-bold ${dayPnl >= 0 ? "text-red-400" : "text-blue-400"}`}>
-                  {krw(dayPnl)}
-                </span>
-                <span className="text-xs font-mono text-gray-500">
-                  · 누적 수수료 {krw(cumFee)}
-                </span>
-              </div>
-            </div>
-            <div className="glass-card px-4 py-1">
-              {dayCycles.map((c, i) => (
-                <TradeCard key={`${c.ticker}-${i}`} cycle={c} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      {totalFee > 0 && (
+        <p className="text-xs text-gray-500 font-mono">
+          누적 수수료 합계: <span className="text-gray-400">{krw(totalFee)}</span>
+        </p>
+      )}
+      {visible.map(([date, dayCycles]) => (
+        <DateGroup key={date} date={date} dayCycles={dayCycles} defaultOpen={date === today} />
+      ))}
       {entries.length > 5 && (
         <button
           onClick={() => setShowAll(!showAll)}

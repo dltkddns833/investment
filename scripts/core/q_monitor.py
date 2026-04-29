@@ -20,7 +20,7 @@ Usage:
 import sys
 import time
 import argparse
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import holidays
@@ -283,7 +283,7 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
         "investor_id": INVESTOR_ID, "date": today_str, "type": "buy",
         "ticker": ticker, "name": name, "shares": shares,
         "price": exec_price, "amount": cost, "fee": fee,
-        "executed_at": datetime.now().isoformat(),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
     }).execute()
     # 종목명 영구 캐시 (stock_universe 외부 종목 이름 보존)
     market = "KOSPI" if ticker.endswith(".KS") else "KOSDAQ"
@@ -337,7 +337,7 @@ def execute_sell_all(client, today_str, reason, dry_run=False):
             "investor_id": INVESTOR_ID, "date": today_str, "type": "sell",
             "ticker": ticker, "name": name, "shares": sell_shares,
             "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
-            "executed_at": datetime.now().isoformat(),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
         })
         pct = (exec_price / h["avg_price"] - 1) * 100
         trades.append({"ticker": ticker, "name": name, "shares": sell_shares,
@@ -418,7 +418,7 @@ def refresh_daily_report(date_str):
             "holdings": result["holdings"],
             "cash": portfolio["cash"],
             "total_asset": result["total_asset"],
-            "snapshot_at": datetime.now().isoformat(),
+            "snapshot_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
         logger.info(f"  📊 daily_reports 갱신 (자산 {result['total_asset']:,}원)")
     except Exception as e:
