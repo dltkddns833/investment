@@ -113,7 +113,7 @@ export default async function QInvestorPage({ id }: Props) {
           </div>
           <div>
             <p className="text-xs text-gray-600">청산 규칙</p>
-            <p className="text-base font-bold text-gray-300">+5% 익절 / -3% 손절 / 10분 강제</p>
+            <p className="text-base font-bold text-gray-300">+4% 익절 / -3% 손절 / 30분 강제</p>
           </div>
         </div>
       </div>
@@ -171,11 +171,12 @@ export default async function QInvestorPage({ id }: Props) {
         <h2 className="text-lg font-bold mb-3 section-header">⚡ 스캘핑 운영 규칙</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { label: "스캔 시간", value: "09:00 ~ 15:10 (1분 간격)", icon: "🕐" },
-            { label: "진입 조건", value: "전일 종가 +10~15% 밴드 + 1시간 거래량 폭증", icon: "📊" },
-            { label: "익절", value: "+5% 달성 시 즉시 매도", icon: "✅" },
+            { label: "스캔 시간", value: "09:00 ~ 14:50 (1분 간격)", icon: "🕐" },
+            { label: "진입 조건", value: "직전 15분 거래량 ≥3배(2배 fallback) + 등락률 ≥+5% + 전일 종가 ≥ 2,000원", icon: "📊" },
+            { label: "9시대 fallback", value: "분봉 비교 불가 → 당일 누적 거래량 1위", icon: "🌅" },
+            { label: "익절", value: "+4% 달성 시 즉시 매도", icon: "✅" },
             { label: "손절", value: "-3% 도달 시 즉시 매도", icon: "🛑" },
-            { label: "강제청산", value: "매수 후 10분 경과 시 무조건 청산", icon: "⏱" },
+            { label: "강제청산", value: "매수 후 30분 경과 시 무조건 청산", icon: "⏱" },
             { label: "동시 보유", value: "1종목 고정 (비보유 중 상시 스캔)", icon: "🎯" },
             { label: "당일 재매수", value: "당일 체결 종목 재진입 금지", icon: "🚫" },
             { label: "종목 범위", value: "전체 KOSPI + KOSDAQ (universe 무관)", icon: "🌐" },

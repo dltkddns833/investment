@@ -611,7 +611,7 @@ class KISClient:
 
     @retry(max_retries=2, backoff_base=0.5)
     def get_overtime_surge_stocks(self, market_iscd="0000", div_cls="2", min_volume=0, max_count=30):
-        """시간외 단일가 등락률 순위 (Q 첫 세션 08:50용)
+        """시간외 단일가 등락률 순위 (참고용 — 현행 Q 알고리즘은 09:00 정규장 1분 상시 스캔이라 미사용)
 
         TR_ID: FHPST02340000 (국내주식 시간외등락율순위)
         화면번호: 20234.
@@ -668,9 +668,9 @@ if __name__ == "__main__":
     parser.add_argument("--holdings", action="store_true", help="보유종목 조회")
     parser.add_argument("--price", type=str, help="종목코드 현재가 조회")
     parser.add_argument("--market", action="store_true", help="KOSPI 시장 요약")
-    parser.add_argument("--surge", action="store_true", help="장중 등락률 순위 (기본 +10~15%)")
-    parser.add_argument("--surge-min", type=float, default=10.0, help="등락률 하한 (기본 10.0)")
-    parser.add_argument("--surge-max", type=float, default=15.0, help="등락률 상한 (기본 15.0)")
+    parser.add_argument("--surge", action="store_true", help="장중 등락률 순위 (기본 +5~30%)")
+    parser.add_argument("--surge-min", type=float, default=5.0, help="등락률 하한 (기본 5.0)")
+    parser.add_argument("--surge-max", type=float, default=30.0, help="등락률 상한 (기본 30.0)")
     parser.add_argument("--volume-rank", action="store_true", help="거래증가율 순위")
     parser.add_argument("--overtime", action="store_true", help="시간외 단일가 상승률 순위")
     parser.add_argument("--minute-chart", type=str, help="분봉 조회 (종목코드)")

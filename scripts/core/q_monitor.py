@@ -1,17 +1,20 @@
 """Q 정채원 장중 1분 상시 스캔 스캘핑 모니터링
 
-이슈 #57 Q 정채원 전략 (2026-04-28 변경 — 채원이 결정):
-  - 09:00 ~ 15:10 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
-  - +10~15% 밴드 1순위 발견 즉시 시장가 매수 (직전 1시간 거래량 비교 1위 우선)
-  - 매수 후 10분 모니터링: 1분 간격 가격 체크
-  - 익절: 매수가 대비 +5% / 손절: 매수가 대비 -3% / 미달성 시 매수+10분 강제 청산
+이슈 #57 Q 정채원 전략 (2026-04-29 변경 — 거래량 폭증 매집 추종):
+  - 09:00 ~ 14:50 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
+  - 종목 선정 (4단계 필터):
+      1) 등락률 ≥ +5% (상한 없음, 음전 자동 제외)
+      2) 전일 종가 ≥ 2,000원
+      3) 9시대(09:00~09:59): 분봉 비교 불가 → 당일 누적 거래량 상위 1개 fallback
+      4) 10시 이후: 직전 15분 거래량 / 전일 동시간대 15분 거래량 ≥ 3배
+                   (3배 후보 없으면 ≥ 2배로 fallback)
+  - 매수 후 30분 모니터링: 1분 간격 가격 체크
+  - 익절: 매수가 대비 +4% / 손절: 매수가 대비 -3% / 미달성 시 매수+30분 강제 청산
   - 동시 보유 1종목 (HOLDING 중에는 신규 스캔 스킵)
   - 당일 재매수 금지 (매도 후 같은 종목 재진입 차단)
   - 일일 매매 횟수 무제한 (운영 후 매매 내역 보고 추후 결정)
   - 자본: 복리 + 1,000만원 캡 (캡 초과분은 현금으로 보유)
   - 종목 범위: KOSPI + KOSDAQ 전체 (stock_universe 무관)
-  - 종목 선정: 전일 종가 +10% 초과 ~ +15% 미만 + 전일 종가 ≥ 2,000원
-              + 직전 1시간 거래량 vs 전일 동시간대 거래량 증가율 최대 1개
 
 Usage:
     python3 scripts/core/q_monitor.py              # 실행
@@ -38,20 +41,26 @@ from logger import get_logger
 logger = get_logger("q_monitor")
 
 INVESTOR_ID = "Q"
-TAKE_PROFIT_PCT = 5.0          # 매수가 대비 +5% 익절
+TAKE_PROFIT_PCT = 4.0           # 매수가 대비 +4% 익절
 STOP_LOSS_PCT = -3.0            # 매수가 대비 -3% 손절
 MAX_CAPITAL_PER_TRADE = 10_000_000  # 매수당 자본 캡
 MIN_PREV_CLOSE = 2000           # 전일 종가 2,000원 미만 제외
-SURGE_RATE_MIN = 10.0           # 등락률 하한 (+10% 초과)
-SURGE_RATE_MAX = 15.0           # 등락률 상한 (+15% 미만)
+SURGE_RATE_MIN = 5.0            # 등락률 하한 (≥ +5%)
+SURGE_RATE_MAX = 30.0           # 등락률 상한 (사실상 일일 등락제한 ±30%까지 허용)
 
 # 1분 상시 스캔 윈도우
 SCAN_START_HH = 9               # 09:00 스캔 시작
 SCAN_START_MM = 0
-SCAN_END_HH = 15                # 15:10 스캔 종료 (매수 후 10분 강제 청산 윈도우 보장)
-SCAN_END_MM = 10
-HOLD_DURATION_MIN = 10          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 10분)
+SCAN_END_HH = 14                # 14:50 스캔 종료 (매수 후 30분 강제 청산 윈도우 보장)
+SCAN_END_MM = 50
+HOLD_DURATION_MIN = 30          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 30분)
 SCAN_INTERVAL_MIN = 1           # 스캔 / 가격 체크 주기
+
+# 거래량 폭증 매집 추종 파라미터 (2026-04-29~)
+VOLUME_RATIO_MIN = 3.0          # 직전 15분 거래량 / 전일 동시간대 ≥ 3배 (1차)
+VOLUME_RATIO_FALLBACK = 2.0     # 3배 후보 없으면 2배로 완화 (2차)
+SEARCH_WINDOW_MIN = 15          # 거래량 비교 서치 윈도우 (분)
+HOUR9_FALLBACK_HH = 10          # 이 시각(HH) 미만이면 분봉 비교 대신 누적 거래량 fallback
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -128,16 +137,28 @@ def fetch_market_name(client, code):
 
 # --- 종목 선정 ---
 
-def pick_surge_stock(client, current_hh, today, exclude_codes=None):
-    """1분 스캔 — +10~15% 밴드 1순위 종목 선정 (3단계 필터).
+def search_window_hhmm(now_dt, window_min=SEARCH_WINDOW_MIN):
+    """직전 window_min분 윈도우의 (start_hhmm, end_hhmm) 4자리 문자열.
 
-    1차: 등락률 +10~15% & 전일 종가 ≥2,000원
-    2차: 직전 1시간 거래량 vs 전일 동시간대 거래량 증가율 최대 1개
-        - current_hh=9일 때 N-1=8 (정규장 외) → 거래량 비교 불가, 등락률 1위 fallback
+    예) now_dt=11:23 → ("1108", "1123")
+    """
+    end = now_dt.replace(second=0, microsecond=0)
+    start = end - timedelta(minutes=window_min)
+    return start.strftime("%H%M"), end.strftime("%H%M")
+
+
+def pick_surge_stock(client, now_dt, today, exclude_codes=None):
+    """1분 스캔 — 거래량 폭증 매집 추종 종목 선정 (4단계 필터).
+
+    1차: 등락률 ≥ +5% (음전 자동 제외, 상한 없음)
+    2차: 전일 종가 ≥ 2,000원
+    3차: 9시대(now_dt.hour < 10)는 분봉 비교 불가 → 당일 누적 거래량 1위 fallback
+    4차: 10시 이후는 직전 SEARCH_WINDOW_MIN분 거래량 / 전일 동시간대 ≥ VOLUME_RATIO_MIN(3배)
+         3배 후보 없으면 ≥ VOLUME_RATIO_FALLBACK(2배) 으로 완화. 둘 다 없으면 None.
     """
     exclude_codes = exclude_codes or set()
 
-    # 1차 필터: 등락률 +10~15%
+    # 1차 필터: 등락률 ≥ +5%
     try:
         candidates = client.get_surge_stocks(
             rate_min=SURGE_RATE_MIN, rate_max=SURGE_RATE_MAX,
@@ -150,7 +171,7 @@ def pick_surge_stock(client, current_hh, today, exclude_codes=None):
     if not candidates:
         return None
 
-    # 2차 필터: 전일 종가 추정 (현재가 / (1 + change_pct/100))
+    # 2차 필터: 전일 종가 추정 (현재가 / (1 + change_pct/100)) ≥ 2,000원
     pre_filtered = []
     for c in candidates:
         if c["code"] in exclude_codes:
@@ -165,24 +186,22 @@ def pick_surge_stock(client, current_hh, today, exclude_codes=None):
     if not pre_filtered:
         return None
 
-    # 9시대는 N-1=8시(정규장 외) — 거래량 비교 불가, 등락률 1위 fallback
-    if current_hh <= 9:
-        pre_filtered.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
+    # 3차: 9시대 fallback — 분봉 비교 불가 → 당일 누적 거래량 1위
+    if now_dt.hour < HOUR9_FALLBACK_HH:
+        pre_filtered.sort(key=lambda x: x.get("volume", 0), reverse=True)
         top = pre_filtered[0]
         logger.info(
-            f"  선정(등락률 1위): {top['name']}({top['code']}) {top.get('change_pct', 0):+.1f}%"
+            f"  선정(9시대 누적거래량 1위): {top['name']}({top['code']}) "
+            f"{top.get('change_pct', 0):+.1f}%, 누적거래량 {top.get('volume', 0):,}"
         )
         return top
 
-    # 3차 필터: N-1시간 거래량 vs 전일 동시간대 거래량 증가율 최대
-    n_minus_1 = current_hh - 1
-    start_hhmm = f"{n_minus_1:02d}00"
-    end_hhmm = f"{n_minus_1:02d}55"
+    # 4차: 직전 SEARCH_WINDOW_MIN분 거래량 폭증 비율
+    start_hhmm, end_hhmm = search_window_hhmm(now_dt)
     today_str = today.strftime("%Y%m%d")
     yday_str = prev_business_day(today).strftime("%Y%m%d")
 
-    best = None
-    best_ratio = 0
+    measured = []  # (ratio, candidate) — 거래량 비교 성공한 후보들
     for c in pre_filtered:
         try:
             today_v = client.get_volume_in_window(c["code"], today_str, start_hhmm, end_hhmm)
@@ -193,26 +212,36 @@ def pick_surge_stock(client, current_hh, today, exclude_codes=None):
         if yday_v <= 0:
             continue
         ratio = today_v / yday_v
-        if ratio > best_ratio:
-            best_ratio = ratio
-            c["volume_ratio"] = ratio
-            c["today_window_vol"] = today_v
-            c["yday_window_vol"] = yday_v
-            best = c
+        c["volume_ratio"] = ratio
+        c["today_window_vol"] = today_v
+        c["yday_window_vol"] = yday_v
+        measured.append((ratio, c))
 
-    if not best:
-        # 거래량 비교 실패 → 등락률 1위 fallback
-        pre_filtered.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
-        top = pre_filtered[0]
-        logger.info(
-            f"  선정(등락률 1위 fallback): {top['name']}({top['code']}) {top.get('change_pct', 0):+.1f}%"
-        )
-        return top
+    if not measured:
+        logger.info(f"  거래량 비교 후보 없음 (윈도우 {start_hhmm}~{end_hhmm})")
+        return None
 
+    # ≥ 3배 1차 필터 → 비율 최대 1개
+    qualified = [(r, c) for r, c in measured if r >= VOLUME_RATIO_MIN]
+    label = f"≥{VOLUME_RATIO_MIN:.0f}배"
+    if not qualified:
+        # ≥ 2배 fallback
+        qualified = [(r, c) for r, c in measured if r >= VOLUME_RATIO_FALLBACK]
+        label = f"≥{VOLUME_RATIO_FALLBACK:.0f}배 fallback"
+        if not qualified:
+            logger.info(
+                f"  거래량 폭증 후보 없음 (최대 비율 {max(r for r, _ in measured):.2f}x, "
+                f"윈도우 {start_hhmm}~{end_hhmm})"
+            )
+            return None
+
+    qualified.sort(key=lambda x: x[0], reverse=True)
+    best_ratio, best = qualified[0]
     logger.info(
-        f"  선정: {best['name']}({best['code']}) {best.get('change_pct', 0):+.1f}%, "
-        f"거래량 비교 {best.get('today_window_vol', 0):,}/{best.get('yday_window_vol', 0):,} "
-        f"= {best_ratio:.1f}x"
+        f"  선정({label}): {best['name']}({best['code']}) "
+        f"{best.get('change_pct', 0):+.1f}%, "
+        f"거래량 {best.get('today_window_vol', 0):,}/{best.get('yday_window_vol', 0):,} "
+        f"= {best_ratio:.2f}x ({start_hhmm}~{end_hhmm})"
     )
     return best
 
@@ -535,8 +564,7 @@ def run_monitor(dry_run=False):
             if now >= scan_end:
                 break
 
-            current_hh = now.hour
-            picked = pick_surge_stock(client, current_hh, today, exclude_codes=traded_today_codes)
+            picked = pick_surge_stock(client, now, today, exclude_codes=traded_today_codes)
             if not picked:
                 logger.info(f"  [스캔 {now.strftime('%H:%M')}] 후보 없음")
             if picked:
