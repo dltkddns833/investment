@@ -19,10 +19,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "정채원의 작전실",
   description: "거래량 폭증 매집 추종 스캘핑 — 실시간 운영 모니터링",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/jcw-icon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/jcw-icon.svg", type: "image/svg+xml" },
+      { url: "/jcw-icon-maskable.svg", type: "image/svg+xml", sizes: "any" },
+    ],
     shortcut: "/jcw-icon.svg",
-    apple: "/jcw-icon.svg",
+    apple: "/jcw-icon-maskable.svg",
   },
 };
 
