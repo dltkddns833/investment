@@ -44,10 +44,10 @@ export default function HoldingCard({ holding }: Props) {
       }).format(new Date(holding.buy_at_kst))
     : "-";
 
-  // PnL 게이지 (본전을 시각 중앙 50%에 고정 — 손절 -3% → 0%, 익절 +4% → 100%)
+  // PnL 게이지 (본전을 시각 중앙 50%에 고정 — 손절 -3% → 0%, 트레일링 +5% → 100%)
   const pnlPct = holding.pnl_pct ?? 0;
   const minPct = -3;
-  const maxPct = 4;
+  const maxPct = 5;
   const clamped = Math.max(minPct, Math.min(maxPct, pnlPct));
   const breakEvenPct = 50;
   const gaugePct =
@@ -112,7 +112,7 @@ export default function HoldingCard({ holding }: Props) {
         <div className="flex justify-between text-xs text-gray-500 mb-1.5">
           <span>손절 -3%</span>
           <span>본전</span>
-          <span>익절 +4%</span>
+          <span>트레일링 +5%</span>
         </div>
         <div className="relative h-2 rounded-full bg-slate-800 overflow-hidden">
           <div

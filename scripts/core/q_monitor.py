@@ -1,18 +1,23 @@
 """Q 정채원 장중 1분 상시 스캔 스캘핑 모니터링
 
-이슈 #57 Q 정채원 전략 (2026-04-29 변경 — 거래량 폭증 매집 추종):
-  - 09:00 ~ 14:50 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
-  - 종목 선정 (4단계 필터):
-      1) 등락률 ≥ +5% (상한 없음, 음전 자동 제외)
+이슈 #57 Q 정채원 전략 (2026-04-30 v2 — 04-30 운영 데이터 반영):
+  - 10:00 ~ 14:50 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
+    (9시대 fallback 폐기 — 분봉 비교 불가 + 0승 2패 데이터)
+  - 종목 선정 (3단계 필터):
+      1) 등락률 ≥ +7% (상한 없음, 음전 자동 제외)
       2) 전일 종가 ≥ 2,000원
-      3) 9시대(09:00~09:59): 분봉 비교 불가 → 당일 누적 거래량 상위 1개 fallback
-      4) 10시 이후: 직전 15분 거래량 / 전일 동시간대 15분 거래량 ≥ 3배
-                   (3배 후보 없으면 ≥ 2배로 fallback)
+      3) 직전 15분 거래량 / 전일 동시간대 15분 거래량 ≥ 4배
+         (4배 후보 없으면 ≥ 3배로 fallback. 둘 다 없으면 진입 안 함)
   - 매수 후 30분 모니터링: 1분 간격 가격 체크
-  - 익절: 매수가 대비 +4% / 손절: 매수가 대비 -3% / 미달성 시 매수+30분 강제 청산
+  - 손절: 매수가 대비 -3% (즉시 청산)
+  - 익절: 트레일링 — 매수가 대비 +5% 도달 시 활성화 → 고점 대비 -1% 되돌림 시 청산
+  - 강제 청산: 매수+30분 (익절/손절 미발동 시)
   - 동시 보유 1종목 (HOLDING 중에는 신규 스캔 스킵)
   - 당일 재매수 금지 (매도 후 같은 종목 재진입 차단)
-  - 일일 매매 횟수 무제한 (운영 후 매매 내역 보고 추후 결정)
+  - **일일 매매 한도 8회** (8회째 BUY 이후 추가 진입 차단)
+  - **연패 쿨다운**: 직전 3사이클 모두 손실(<0%)이면 1시간 진입 차단
+  - **레짐 게이트**: market_regimes의 오늘 레짐이 bear 또는 bull_score ≤ 2이면
+    임계값 모두 1.5배 적용 (등락률 +10.5%, 거래량 6배/4.5배)
   - 자본: 복리 + 1,000만원 캡 (캡 초과분은 현금으로 보유)
   - 종목 범위: KOSPI + KOSDAQ 전체 (stock_universe 무관)
 
@@ -41,26 +46,34 @@ from logger import get_logger
 logger = get_logger("q_monitor")
 
 INVESTOR_ID = "Q"
-TAKE_PROFIT_PCT = 4.0           # 매수가 대비 +4% 익절
 STOP_LOSS_PCT = -3.0            # 매수가 대비 -3% 손절
+TRAILING_ACTIVATE_PCT = 5.0     # +5% 도달 시 트레일링 활성화
+TRAILING_PULLBACK_PCT = 1.0     # 활성화 후 고점 대비 -1% 되돌림 시 청산
 MAX_CAPITAL_PER_TRADE = 10_000_000  # 매수당 자본 캡
 MIN_PREV_CLOSE = 2000           # 전일 종가 2,000원 미만 제외
-SURGE_RATE_MIN = 5.0            # 등락률 하한 (≥ +5%)
+SURGE_RATE_MIN = 7.0            # 등락률 하한 (≥ +7%, 04-30 v2 5→7 상향)
 SURGE_RATE_MAX = 30.0           # 등락률 상한 (사실상 일일 등락제한 ±30%까지 허용)
 
 # 1분 상시 스캔 윈도우
-SCAN_START_HH = 9               # 09:00 스캔 시작
+# 09:00~09:59는 분봉 비교 불가하여 진입 불가, 10:00부터 시도 (09시 fallback 폐기)
+SCAN_START_HH = 10              # 10:00 스캔 시작 (9시대 fallback 폐기, 04-30 v2)
 SCAN_START_MM = 0
 SCAN_END_HH = 14                # 14:50 스캔 종료 (매수 후 30분 강제 청산 윈도우 보장)
 SCAN_END_MM = 50
 HOLD_DURATION_MIN = 30          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 30분)
 SCAN_INTERVAL_MIN = 1           # 스캔 / 가격 체크 주기
 
-# 거래량 폭증 매집 추종 파라미터 (2026-04-29~)
-VOLUME_RATIO_MIN = 3.0          # 직전 15분 거래량 / 전일 동시간대 ≥ 3배 (1차)
-VOLUME_RATIO_FALLBACK = 2.0     # 3배 후보 없으면 2배로 완화 (2차)
+# 거래량 폭증 매집 추종 파라미터 (04-30 v2 — 3→4배, 2→3배 상향)
+VOLUME_RATIO_MIN = 4.0          # 직전 15분 거래량 / 전일 동시간대 ≥ 4배 (1차)
+VOLUME_RATIO_FALLBACK = 3.0     # 4배 후보 없으면 3배로 완화 (2차)
 SEARCH_WINDOW_MIN = 15          # 거래량 비교 서치 윈도우 (분)
-HOUR9_FALLBACK_HH = 10          # 이 시각(HH) 미만이면 분봉 비교 대신 누적 거래량 fallback
+
+# 일일 매매 한도 + 연패 쿨다운 + 약세 레짐 게이트 (04-30 v2 추가)
+DAILY_TRADE_LIMIT = 8           # 일일 BUY 횟수 한도 (8회 도달 시 추가 진입 차단)
+LOSS_STREAK_THRESHOLD = 3       # 직전 N사이클 모두 손실이면 쿨다운 발동
+COOLDOWN_MINUTES = 60           # 연패 쿨다운 시간 (분)
+WEAK_REGIME_MULTIPLIER = 1.5    # 약세 레짐(bear or bull_score≤2) 시 임계값 배수
+WEAK_REGIME_BULL_SCORE = 2      # bull_score 이 값 이하면 약세로 판정
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -135,6 +148,49 @@ def fetch_market_name(client, code):
     return market_name, kis_name, price
 
 
+# --- 레짐 게이트 ---
+
+def get_regime_thresholds(today):
+    """오늘(또는 직전 영업일) 마켓 레짐을 조회해 임계값 multiplier를 결정.
+
+    Returns: (rate_min, volume_ratio_min, volume_ratio_fallback, regime_label)
+      - 레짐이 bear 또는 bull_score ≤ WEAK_REGIME_BULL_SCORE 이면 1.5배 적용
+      - 그 외(혹은 조회 실패)는 기본 임계값
+    """
+    try:
+        rows = supabase.table("market_regimes").select("regime,bull_score").eq(
+            "date", today.isoformat()
+        ).execute().data
+        if not rows:
+            # 오늘 레코드 없으면 직전 영업일
+            yday = prev_business_day(today)
+            rows = supabase.table("market_regimes").select("regime,bull_score").eq(
+                "date", yday.isoformat()
+            ).execute().data
+        if not rows:
+            return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "unknown"
+        r = rows[0]
+        regime = r.get("regime") or ""
+        score = r.get("bull_score") or 0
+        weak = (regime == "bear") or (score <= WEAK_REGIME_BULL_SCORE)
+        if weak:
+            m = WEAK_REGIME_MULTIPLIER
+            label = f"{regime} (bull_score={score}) 약세 → 임계 {m}x"
+            return (
+                SURGE_RATE_MIN * m,
+                VOLUME_RATIO_MIN * m,
+                VOLUME_RATIO_FALLBACK * m,
+                label,
+            )
+        return (
+            SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK,
+            f"{regime} (bull_score={score}) 정상",
+        )
+    except Exception as e:
+        logger.warning(f"레짐 조회 실패 — 기본 임계값 사용: {e}")
+        return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "error"
+
+
 # --- 종목 선정 ---
 
 def search_window_hhmm(now_dt, window_min=SEARCH_WINDOW_MIN):
@@ -147,21 +203,30 @@ def search_window_hhmm(now_dt, window_min=SEARCH_WINDOW_MIN):
     return start.strftime("%H%M"), end.strftime("%H%M")
 
 
-def pick_surge_stock(client, now_dt, today, exclude_codes=None):
-    """1분 스캔 — 거래량 폭증 매집 추종 종목 선정 (4단계 필터).
+def pick_surge_stock(client, now_dt, today, exclude_codes=None,
+                     rate_min=SURGE_RATE_MIN,
+                     volume_ratio_min=VOLUME_RATIO_MIN,
+                     volume_ratio_fallback=VOLUME_RATIO_FALLBACK):
+    """1분 스캔 — 거래량 폭증 매집 추종 종목 선정 (3단계 필터).
 
-    1차: 등락률 ≥ +5% (음전 자동 제외, 상한 없음)
+    1차: 등락률 ≥ rate_min (음전 자동 제외, 상한 없음)
     2차: 전일 종가 ≥ 2,000원
-    3차: 9시대(now_dt.hour < 10)는 분봉 비교 불가 → 당일 누적 거래량 1위 fallback
-    4차: 10시 이후는 직전 SEARCH_WINDOW_MIN분 거래량 / 전일 동시간대 ≥ VOLUME_RATIO_MIN(3배)
-         3배 후보 없으면 ≥ VOLUME_RATIO_FALLBACK(2배) 으로 완화. 둘 다 없으면 None.
+    3차: 직전 SEARCH_WINDOW_MIN분 거래량 / 전일 동시간대 ≥ volume_ratio_min
+         volume_ratio_min 후보 없으면 ≥ volume_ratio_fallback 으로 완화. 둘 다 없으면 None.
+
+    9시대(now_dt.hour < 10)는 분봉 비교 불가하여 None 반환 (04-30 v2 폐기).
+    레짐 게이트가 약세이면 호출자가 임계값을 1.5배로 넘김.
     """
     exclude_codes = exclude_codes or set()
 
-    # 1차 필터: 등락률 ≥ +5%
+    # 9시대는 분봉 비교 불가 — 진입 안 함
+    if now_dt.hour < 10:
+        return None
+
+    # 1차 필터: 등락률 ≥ rate_min
     try:
         candidates = client.get_surge_stocks(
-            rate_min=SURGE_RATE_MIN, rate_max=SURGE_RATE_MAX,
+            rate_min=rate_min, rate_max=SURGE_RATE_MAX,
             min_volume=100000, max_count=30, exclude_special=True,
         )
     except Exception as e:
@@ -186,17 +251,7 @@ def pick_surge_stock(client, now_dt, today, exclude_codes=None):
     if not pre_filtered:
         return None
 
-    # 3차: 9시대 fallback — 분봉 비교 불가 → 당일 누적 거래량 1위
-    if now_dt.hour < HOUR9_FALLBACK_HH:
-        pre_filtered.sort(key=lambda x: x.get("volume", 0), reverse=True)
-        top = pre_filtered[0]
-        logger.info(
-            f"  선정(9시대 누적거래량 1위): {top['name']}({top['code']}) "
-            f"{top.get('change_pct', 0):+.1f}%, 누적거래량 {top.get('volume', 0):,}"
-        )
-        return top
-
-    # 4차: 직전 SEARCH_WINDOW_MIN분 거래량 폭증 비율
+    # 3차: 직전 SEARCH_WINDOW_MIN분 거래량 폭증 비율
     start_hhmm, end_hhmm = search_window_hhmm(now_dt)
     today_str = today.strftime("%Y%m%d")
     yday_str = prev_business_day(today).strftime("%Y%m%d")
@@ -221,13 +276,11 @@ def pick_surge_stock(client, now_dt, today, exclude_codes=None):
         logger.info(f"  거래량 비교 후보 없음 (윈도우 {start_hhmm}~{end_hhmm})")
         return None
 
-    # ≥ 3배 1차 필터 → 비율 최대 1개
-    qualified = [(r, c) for r, c in measured if r >= VOLUME_RATIO_MIN]
-    label = f"≥{VOLUME_RATIO_MIN:.0f}배"
+    qualified = [(r, c) for r, c in measured if r >= volume_ratio_min]
+    label = f"≥{volume_ratio_min:.1f}배"
     if not qualified:
-        # ≥ 2배 fallback
-        qualified = [(r, c) for r, c in measured if r >= VOLUME_RATIO_FALLBACK]
-        label = f"≥{VOLUME_RATIO_FALLBACK:.0f}배 fallback"
+        qualified = [(r, c) for r, c in measured if r >= volume_ratio_fallback]
+        label = f"≥{volume_ratio_fallback:.1f}배 fallback"
         if not qualified:
             logger.info(
                 f"  거래량 폭증 후보 없음 (최대 비율 {max(r for r, _ in measured):.2f}x, "
@@ -464,34 +517,85 @@ def run_monitor(dry_run=False):
         return
 
     client = KISClient()
-    notify_monitor(f"⚡ *[정채원 Q] 모니터링 시작* ({today_str}) — 1분 상시 스캔 (dry_run={dry_run})")
+
+    # 레짐 게이트 — 시작 시 임계값 결정 (장중 변경 안 함)
+    rate_min, vol_min, vol_fallback, regime_label = get_regime_thresholds(today)
+    logger.info(f"레짐: {regime_label}")
+    logger.info(
+        f"임계값: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
+        f"(fallback {vol_fallback:.1f}배)"
+    )
+
+    notify_monitor(
+        f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
+        f"레짐: {regime_label}\n"
+        f"임계: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
+        f"(fallback {vol_fallback:.1f}배)\n"
+        f"한도: 일일 {DAILY_TRADE_LIMIT}회, 연패 {LOSS_STREAK_THRESHOLD}회 → "
+        f"{COOLDOWN_MINUTES}분 쿨다운\n"
+        f"(dry_run={dry_run})"
+    )
     logger.info(f"Q 정채원 모니터링 시작 ({today_str}, dry_run={dry_run})")
 
     base_dt = datetime.combine(today, datetime.min.time())
     scan_start = base_dt.replace(hour=SCAN_START_HH, minute=SCAN_START_MM)
     scan_end = base_dt.replace(hour=SCAN_END_HH, minute=SCAN_END_MM)
 
-    # 09:00 전이면 대기
+    # 스캔 시작 시각 전이면 대기 (10:00)
     if datetime.now() < scan_start:
         logger.info(f"스캔 시작 {scan_start.strftime('%H:%M')}까지 대기")
         if not wait_until(scan_start, label="scan start"):
             return
 
     state = "IDLE"          # IDLE / HOLDING
-    holding = None          # {"ticker", "name", "code", "avg_price", "buy_dt", "hold_close_dt"}
+    holding = None          # {"ticker","name","code","avg_price","buy_dt","hold_close_dt",
+                            #  "peak_pct","trailing_active"}
 
-    # 당일 이미 매매한 종목은 재매수 금지 — 시작 시 transactions에서 로드
-    # (재기동/재시작 시 같은 종목 반복 매수 방지)
+    # 당일 이미 매매한 종목은 재매수 금지 + 일일 매매 한도 카운트 — 시작 시 transactions 로드
     traded_today_codes = set()
+    buy_count = 0           # 오늘 BUY 횟수 (DAILY_TRADE_LIMIT 비교용)
+    cycle_results = []      # 오늘 청산된 사이클의 ret_pct 리스트 (쿨다운 판단용)
+    last_sell_dt = None     # 마지막 청산 시각 (쿨다운 시작점)
+    cooldown_until = None   # 쿨다운 해제 시각
+
     try:
-        existing_txs = supabase.table("transactions").select("ticker").eq(
-            "investor_id", INVESTOR_ID).eq("date", today_str).execute().data or []
+        existing_txs = supabase.table("transactions").select(
+            "ticker,type,price,executed_at"
+        ).eq("investor_id", INVESTOR_ID).eq("date", today_str).execute().data or []
+        # 코드 set + buy 카운트
+        # 사이클 손익 재구성 — 매수↔매도 짝짓기 (executed_at 순)
+        existing_txs.sort(key=lambda x: x.get("executed_at") or "")
+        prior_buy = None
         for tx in existing_txs:
             ticker = tx.get("ticker", "")
             if ticker:
                 traded_today_codes.add(ticker.split(".")[0])
+            if tx["type"] == "buy":
+                buy_count += 1
+                prior_buy = tx
+            elif tx["type"] == "sell" and prior_buy:
+                try:
+                    ret = (tx["price"] / prior_buy["price"] - 1) * 100
+                    cycle_results.append(ret)
+                    last_sell_dt = datetime.fromisoformat(
+                        (tx.get("executed_at") or "").split(".")[0].replace("Z", "+00:00")
+                    ).replace(tzinfo=None) + timedelta(hours=9)  # KST 보정
+                except Exception:
+                    pass
+                prior_buy = None
         if traded_today_codes:
-            logger.info(f"당일 거래 종목 {len(traded_today_codes)}개 로드 (재매수 금지): {sorted(traded_today_codes)}")
+            logger.info(
+                f"당일 거래 종목 {len(traded_today_codes)}개 로드 "
+                f"(buy_count={buy_count}, 사이클 {len(cycle_results)}건): {sorted(traded_today_codes)}"
+            )
+        # 재기동 시 직전 N사이클 손실이면 쿨다운 복원
+        if (
+            len(cycle_results) >= LOSS_STREAK_THRESHOLD
+            and all(r < 0 for r in cycle_results[-LOSS_STREAK_THRESHOLD:])
+            and last_sell_dt
+        ):
+            cooldown_until = last_sell_dt + timedelta(minutes=COOLDOWN_MINUTES)
+            logger.info(f"  연패 쿨다운 복원: {cooldown_until.strftime('%H:%M')}까지 진입 차단")
     except Exception as e:
         logger.warning(f"당일 거래 종목 로드 실패: {e}")
 
@@ -506,6 +610,8 @@ def run_monitor(dry_run=False):
             "avg_price": h["avg_price"],
             "buy_dt": datetime.now(),  # 인수 시각을 buy_dt로 — 즉시 가격 체크 후 청산 판단
             "hold_close_dt": datetime.now() + timedelta(minutes=HOLD_DURATION_MIN),
+            "peak_pct": 0.0,
+            "trailing_active": False,
         }
         state = "HOLDING"
         logger.info(f"기존 보유 인계: {h['name']}({ticker}) avg={h['avg_price']:,}원")
@@ -536,11 +642,30 @@ def run_monitor(dry_run=False):
             if current_price > 0:
                 pct = (current_price / holding["avg_price"] - 1) * 100
                 exit_pct = pct
-                logger.info(f"  [HOLD +{elapsed_min}m] {holding['name']} {current_price:,}원 ({pct:+.2f}%)")
-                if pct >= TAKE_PROFIT_PCT:
-                    exit_reason = f"익절 ({pct:+.2f}%)"
-                elif pct <= STOP_LOSS_PCT:
+                # 고점 갱신
+                if pct > holding["peak_pct"]:
+                    holding["peak_pct"] = pct
+                # 트레일링 활성화
+                if not holding["trailing_active"] and pct >= TRAILING_ACTIVATE_PCT:
+                    holding["trailing_active"] = True
+                    logger.info(f"  [HOLD +{elapsed_min}m] 트레일링 익절 활성화 ({pct:+.2f}%)")
+
+                trail_tag = " 🎯" if holding["trailing_active"] else ""
+                logger.info(
+                    f"  [HOLD +{elapsed_min}m] {holding['name']} {current_price:,}원 "
+                    f"({pct:+.2f}%, peak {holding['peak_pct']:+.2f}%){trail_tag}"
+                )
+                # 손절 — 즉시
+                if pct <= STOP_LOSS_PCT:
                     exit_reason = f"손절 ({pct:+.2f}%)"
+                # 트레일링 익절 — 활성화 후 고점 대비 -1%p 되돌림
+                elif (
+                    holding["trailing_active"]
+                    and pct <= holding["peak_pct"] - TRAILING_PULLBACK_PCT
+                ):
+                    exit_reason = (
+                        f"트레일링 익절 ({pct:+.2f}%, peak {holding['peak_pct']:+.2f}%)"
+                    )
 
             if not exit_reason and now >= holding["hold_close_dt"]:
                 exit_reason = f"강제 청산 ({exit_pct:+.2f}%)"
@@ -548,11 +673,34 @@ def run_monitor(dry_run=False):
             if exit_reason:
                 trades = execute_sell_all(client, today_str, exit_reason, dry_run=dry_run)
                 if trades:
-                    emoji = "💰" if "익절" in exit_reason else ("🛑" if "손절" in exit_reason else "⏰")
-                    notify_monitor(f"{emoji} *[정채원 Q] {holding['name']} 청산* {exit_pct:+.2f}% — {exit_reason}")
+                    if "익절" in exit_reason:
+                        emoji = "💰"
+                    elif "손절" in exit_reason:
+                        emoji = "🛑"
+                    else:
+                        emoji = "⏰"
+                    notify_monitor(
+                        f"{emoji} *[정채원 Q] {holding['name']} 청산* {exit_pct:+.2f}% — {exit_reason}"
+                    )
                     summary.append(
                         f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
                         f"{exit_pct:+.2f}% ({exit_reason})"
+                    )
+                # 사이클 결과 기록 + 쿨다운 판단
+                cycle_results.append(exit_pct)
+                last_sell_dt = datetime.now()
+                if (
+                    len(cycle_results) >= LOSS_STREAK_THRESHOLD
+                    and all(r < 0 for r in cycle_results[-LOSS_STREAK_THRESHOLD:])
+                ):
+                    cooldown_until = last_sell_dt + timedelta(minutes=COOLDOWN_MINUTES)
+                    logger.info(
+                        f"  ⚠️ 연패 {LOSS_STREAK_THRESHOLD}회 → 쿨다운 "
+                        f"{cooldown_until.strftime('%H:%M')}까지 진입 차단"
+                    )
+                    notify_monitor(
+                        f"⚠️ *[정채원 Q] 연패 쿨다운* — {LOSS_STREAK_THRESHOLD}회 연속 손실, "
+                        f"~{cooldown_until.strftime('%H:%M')} 진입 중단"
                     )
                 if not dry_run:
                     refresh_daily_report(today_str)
@@ -564,32 +712,65 @@ def run_monitor(dry_run=False):
             if now >= scan_end:
                 break
 
-            picked = pick_surge_stock(client, now, today, exclude_codes=traded_today_codes)
-            if not picked:
-                logger.info(f"  [스캔 {now.strftime('%H:%M')}] 후보 없음")
-            if picked:
-                bought = execute_buy(client, picked["code"], picked.get("name", ""), today_str, dry_run=dry_run)
-                if bought:
-                    ticker, name, exec_price, shares = bought
-                    buy_dt = datetime.now()
-                    hold_close_dt = buy_dt + timedelta(minutes=HOLD_DURATION_MIN)
-                    holding = {
-                        "ticker": ticker,
-                        "name": name,
-                        "code": picked["code"],
-                        "avg_price": exec_price,
-                        "buy_dt": buy_dt,
-                        "hold_close_dt": hold_close_dt,
-                    }
-                    traded_today_codes.add(picked["code"])
-                    state = "HOLDING"
-                    notify_monitor(
-                        f"⚡ *[정채원 Q] {buy_dt.strftime('%H:%M')} 매수* {name}\n"
-                        f"{shares}주 × {exec_price:,}원 = {shares * exec_price:,}원 "
-                        f"(코드 {picked['code']}, 청산 ~{hold_close_dt.strftime('%H:%M')})"
+            # 일일 매매 한도 체크
+            if buy_count >= DAILY_TRADE_LIMIT:
+                logger.info(
+                    f"  [스캔 {now.strftime('%H:%M')}] 일일 매매 한도 도달 "
+                    f"({buy_count}/{DAILY_TRADE_LIMIT}) — 추가 진입 차단"
+                )
+                # 한도 도달 시 더 이상 진입할 일 없으니 종료
+                break
+
+            # 연패 쿨다운 체크
+            if cooldown_until and now < cooldown_until:
+                logger.info(
+                    f"  [스캔 {now.strftime('%H:%M')}] 쿨다운 중 "
+                    f"(~{cooldown_until.strftime('%H:%M')}) — 진입 차단"
+                )
+            else:
+                if cooldown_until and now >= cooldown_until:
+                    logger.info(f"  쿨다운 해제 ({cooldown_until.strftime('%H:%M')})")
+                    cooldown_until = None
+
+                picked = pick_surge_stock(
+                    client, now, today,
+                    exclude_codes=traded_today_codes,
+                    rate_min=rate_min,
+                    volume_ratio_min=vol_min,
+                    volume_ratio_fallback=vol_fallback,
+                )
+                if not picked:
+                    logger.info(f"  [스캔 {now.strftime('%H:%M')}] 후보 없음")
+                if picked:
+                    bought = execute_buy(
+                        client, picked["code"], picked.get("name", ""),
+                        today_str, dry_run=dry_run,
                     )
-                    if not dry_run:
-                        refresh_daily_report(today_str)
+                    if bought:
+                        ticker, name, exec_price, shares = bought
+                        buy_dt = datetime.now()
+                        hold_close_dt = buy_dt + timedelta(minutes=HOLD_DURATION_MIN)
+                        holding = {
+                            "ticker": ticker,
+                            "name": name,
+                            "code": picked["code"],
+                            "avg_price": exec_price,
+                            "buy_dt": buy_dt,
+                            "hold_close_dt": hold_close_dt,
+                            "peak_pct": 0.0,
+                            "trailing_active": False,
+                        }
+                        traded_today_codes.add(picked["code"])
+                        buy_count += 1
+                        state = "HOLDING"
+                        notify_monitor(
+                            f"⚡ *[정채원 Q] {buy_dt.strftime('%H:%M')} 매수* {name} "
+                            f"({buy_count}/{DAILY_TRADE_LIMIT})\n"
+                            f"{shares}주 × {exec_price:,}원 = {shares * exec_price:,}원 "
+                            f"(코드 {picked['code']}, 청산 ~{hold_close_dt.strftime('%H:%M')})"
+                        )
+                        if not dry_run:
+                            refresh_daily_report(today_str)
 
         # 다음 분까지 대기 (HOLDING이면서 hold_close가 다음 분 이내면 그 시각까지만 대기)
         next_min = (datetime.now() + timedelta(minutes=SCAN_INTERVAL_MIN)).replace(second=0, microsecond=0)
@@ -615,16 +796,21 @@ def run_monitor(dry_run=False):
                 f"{holding['buy_dt'].strftime('%H:%M')} {holding['name']} "
                 f"{final_pct:+.2f}% (종료 청산)"
             )
+        cycle_results.append(final_pct)
         if not dry_run:
             refresh_daily_report(today_str)
 
     # 종료 요약
     portfolio = load_portfolio(INVESTOR_ID)
     cash = portfolio["cash"]
+    wins = sum(1 for r in cycle_results if r > 0)
+    losses = sum(1 for r in cycle_results if r <= 0)
+    win_rate = (wins / len(cycle_results) * 100) if cycle_results else 0.0
     final = (
         f"⚡ *[정채원 Q] 모니터링 종료* ({today_str})\n"
         f"현금: {cash:,}원\n"
-        f"매매 횟수: {len(summary)}회\n"
+        f"매매 횟수: {len(summary)}회 (한도 {DAILY_TRADE_LIMIT}회)\n"
+        f"승/패: {wins}/{losses} (승률 {win_rate:.1f}%)\n"
         + ("\n".join(f"• {s}" for s in summary) if summary else "• 매매 없음")
     )
     notify(final)

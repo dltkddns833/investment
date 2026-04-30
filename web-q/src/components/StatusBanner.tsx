@@ -41,10 +41,10 @@ export default function StatusBanner({ status, holdingName, fetchedAt }: Props) 
     bg = "from-slate-900/60 to-slate-950/60";
     border = "border-slate-800/60";
     label = "장 마감";
-    sub = "다음 영업일 09:00 스캔 시작";
+    sub = "다음 영업일 10:00 스캔 시작";
   } else {
     label = "대기중";
-    sub = "거래량 ≥3배 + 등락률 ≥+5% 조건 스캔 중";
+    sub = "거래량 ≥4배 + 등락률 ≥+7% 조건 스캔 중 (약세 레짐 시 ×1.5)";
   }
 
   return (

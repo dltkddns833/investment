@@ -72,7 +72,7 @@ export async function GET() {
 
       const pnl_pct = ((tx.price - buy.price) / buy.price) * 100;
       let exit_reason: "win" | "loss" | "forced";
-      if (pnl_pct >= 4.5) exit_reason = "win";
+      if (pnl_pct >= 4.0) exit_reason = "win";
       else if (pnl_pct <= -2.5) exit_reason = "loss";
       else exit_reason = "forced";
 
