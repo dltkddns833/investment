@@ -1,15 +1,22 @@
-import { getQTradeCycles, getQDailyStats, computeQSummaryStats } from "@/lib/q-data";
+import {
+  getQTradeCycles,
+  getQDailyStats,
+  computeQSummaryStats,
+  getQDiaryHistory,
+} from "@/lib/q-data";
 import { krw, pct, signColor } from "@/lib/format";
 import DailyPnLChart from "@/components/DailyPnLChart";
 import AssetCurveChart from "@/components/AssetCurveChart";
 import QTradeTimeline from "@/components/QTradeTimeline";
+import QDiaryTimeline from "@/components/QDiaryTimeline";
 
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
-  const [cycles, daily] = await Promise.all([
+  const [cycles, daily, diaries] = await Promise.all([
     getQTradeCycles(),
     getQDailyStats(),
+    getQDiaryHistory(30),
   ]);
   const stats = computeQSummaryStats(cycles);
 
@@ -54,6 +61,11 @@ export default async function HistoryPage() {
         />
         <Stat label="거래일" value={`${stats.trading_days}일`} />
       </div>
+
+      <section className="glass-card p-5 md:p-6">
+        <h2 className="text-base font-bold mb-3">정채원의 일기</h2>
+        <QDiaryTimeline entries={diaries} />
+      </section>
 
       <section className="glass-card p-5 md:p-6">
         <h2 className="text-base font-bold mb-3">일별 손익</h2>

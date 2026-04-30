@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { krw, pct, signColor } from "@/lib/format";
+import HoldingPriceChart from "./HoldingPriceChart";
 
 interface Holding {
   ticker: string;
@@ -43,13 +44,16 @@ export default function HoldingCard({ holding }: Props) {
       }).format(new Date(holding.buy_at_kst))
     : "-";
 
-  // PnL 게이지 (-3% ~ +4% 범위로 매핑)
+  // PnL 게이지 (본전을 시각 중앙 50%에 고정 — 손절 -3% → 0%, 익절 +4% → 100%)
   const pnlPct = holding.pnl_pct ?? 0;
   const minPct = -3;
   const maxPct = 4;
   const clamped = Math.max(minPct, Math.min(maxPct, pnlPct));
-  const gaugePct = ((clamped - minPct) / (maxPct - minPct)) * 100;
-  const breakEvenPct = ((0 - minPct) / (maxPct - minPct)) * 100;
+  const breakEvenPct = 50;
+  const gaugePct =
+    clamped >= 0
+      ? 50 + (clamped / maxPct) * 50
+      : 50 - (clamped / minPct) * 50;
 
   return (
     <div className="glass-card p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
@@ -112,7 +116,7 @@ export default function HoldingCard({ holding }: Props) {
         </div>
         <div className="relative h-2 rounded-full bg-slate-800 overflow-hidden">
           <div
-            className="absolute top-0 left-0 h-full w-px bg-slate-600"
+            className="absolute top-0 h-full w-px bg-slate-600"
             style={{ left: `${breakEvenPct}%` }}
           />
           <div
@@ -128,6 +132,19 @@ export default function HoldingCard({ holding }: Props) {
           />
         </div>
       </div>
+
+      {holding.buy_at_kst && (
+        <div>
+          <div className="text-[11px] sm:text-xs text-gray-500 mb-1">
+            진입 후 분봉 추이
+          </div>
+          <HoldingPriceChart
+            ticker={holding.ticker}
+            buyAtKst={holding.buy_at_kst}
+            buyPrice={holding.buy_price}
+          />
+        </div>
+      )}
     </div>
   );
 }

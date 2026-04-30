@@ -62,6 +62,27 @@ export interface QPortfolio {
   holdings: Record<string, { name: string; shares: number; avg_price: number }>;
 }
 
+export interface QDiaryEntry {
+  date: string;
+  diary: string;
+}
+
+export async function getQDiaryHistory(limit = 30): Promise<QDiaryEntry[]> {
+  const { data } = await supabase
+    .from("daily_stories")
+    .select("date, diaries")
+    .order("date", { ascending: false })
+    .limit(limit);
+  if (!data) return [];
+  return data
+    .map((row) => ({
+      date: row.date as string,
+      diary:
+        (row.diaries as Record<string, string> | null)?.["정채원"] ?? "",
+    }))
+    .filter((entry) => entry.diary.length > 0);
+}
+
 export async function getStockNames(): Promise<Map<string, string>> {
   const { data } = await supabase.from("stock_names").select("ticker, name");
   const map = new Map<string, string>();

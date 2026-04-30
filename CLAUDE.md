@@ -461,9 +461,9 @@ cd web-q && pnpm build
 
 ### web-q/ 운영 콘솔 (Q 정채원 전용)
 
-- **라우트**: `/` 메인(오늘 현황 — HOLDING/IDLE/장마감 배너 + 카운트다운 + 오늘 매매), `/history` 누적 기록, `/strategy` 전략 설명
-- **API**: `GET /api/status`(상태+오늘 매매+요약), `GET /api/kis-price?ticker=XXXXXX`(현재가 프록시)
-- **폴링**: 장중 TTL 3분 / 장마감 후 TTL 10분 (`live-prices.tsx` 패턴 복제). HOLDING 카드의 강제청산 카운트다운만 1초 간격 클라이언트 차감 (네트워크 호출 없음)
+- **라우트**: `/` 메인(오늘 현황 — HOLDING/IDLE/장마감 배너 + 카운트다운 + 진입 후 분봉 차트 + 오늘 매매), `/history` 누적 기록(정채원 일기 타임라인 포함 — `daily_stories.diaries["정채원"]`), `/strategy` 전략 설명
+- **API**: `GET /api/status`(상태+오늘 매매+요약), `GET /api/kis-price?ticker=XXXXXX`(현재가 프록시), `GET /api/kis-minute?ticker=XXXXXX&from=ISO`(매수 시각부터 현재까지의 1분봉, 1분 TTL 메모리 캐시, FHKST03010230)
+- **폴링**: 장중 TTL 3분 / 장마감 후 TTL 10분 (`live-prices.tsx` 패턴 복제). HOLDING 카드의 강제청산 카운트다운만 1초 간격 클라이언트 차감 (네트워크 호출 없음). HOLDING 분봉 차트는 60초 간격 자체 폴링 + Y축에 -3% 손절선 / +4% 익절선 / 매수가 점선 항상 표시
 - **인증**: 없음 (공개)
 - **KIS 토큰**: Supabase `config.kis_token`에서 **읽기만**. 토큰 발급은 `broker_client.py`만 담당 (1일 1회 원칙)
 - **환경변수** (`web-q/.env.local` + Vercel): `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KIS_APP_KEY`, `KIS_APP_SECRET_KEY`, `KIS_ACCOUNT_NO` (web/와 동일 값)
