@@ -372,29 +372,6 @@ const methodologies: Record<string, Methodology> = {
       },
     ],
   },
-  Q: {
-    method: "장중 1분 상시 스캔 스캘핑 (Intraday 1-min Scan Scalping)",
-    representative:
-      'Linda Bradford Raschke — 단기 스윙·스캘핑의 대가, "Street Smarts" 저자',
-    core: "09:00~14:50 동안 1분 간격으로 KIS API 등락률 순위를 상시 스캔하여 전체 KOSPI/KOSDAQ에서 거래량 폭증 종목(직전 15분 거래량 vs 전일 동시간대 ≥3배, 후보 없으면 ≥2배 fallback) 중 등락률 ≥+5% & 전일 종가 ≥ 2,000원 1순위를 발견 즉시 시장가 매수, 매수 후 30분 동안 1분 간격으로 +4% 익절·-3% 손절을 체크하다 미달성 시 강제 청산. 9시대(09:00~09:59)는 분봉 비교 불가로 당일 누적 거래량 1위 fallback. 동시 보유 1종목, 당일 재매수 금지, stock_universe 무관, 매매당 max 1,000만원 캡, 복리, 일일 매매 횟수 무제한.",
-    evidence:
-      "Linda Raschke의 단기 모멘텀 트레이딩 — 짧은 시간 프레임에서 진입/청산을 명확히 정의하면 큰 추세 예측 없이도 일관된 수익 가능. 거래량 폭증을 세력 매집 신호로 해석하여 동반 진입하는 'Volume-led Breakout' 접근. 'Holy Grail Pattern', '80-20 Strategy' 등이 대표 셋업.",
-    similar: "Day Trader / HFT 단기 모멘텀, 급등주 단타, Opening Range Breakout",
-    links: [
-      {
-        label: "Linda Bradford Raschke — Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Linda_Bradford_Raschke",
-      },
-      {
-        label: "Street Smarts — Raschke & Connors (Book)",
-        url: "https://www.amazon.com/Street-Smarts-High-Probability-Short-Term-Strategies/dp/0965046109",
-      },
-      {
-        label: "Scalping (Trading Strategy) — Investopedia",
-        url: "https://www.investopedia.com/terms/s/scalping.asp",
-      },
-    ],
-  },
 };
 
 export type { Methodology, Link };

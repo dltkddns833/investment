@@ -32,7 +32,7 @@ export default async function StockDetailPage({ params }: Props) {
     getStockNames(),
   ]);
 
-  // stock_universe 외 종목(Q 스캘핑 등)은 Yahoo Finance로 현재가 직접 조회
+  // stock_universe 외 종목은 Yahoo Finance로 현재가 직접 조회
   async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_pct: number } | null> {
     try {
       const res = await fetch(
@@ -116,14 +116,10 @@ export default async function StockDetailPage({ params }: Props) {
       <div className="animate-in rounded-2xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent p-4 md:p-6 lg:p-8 border border-white/5">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl md:text-3xl font-bold">{stockInfo.name}</h1>
-          {stockInfo.sector ? (
+          {stockInfo.sector && (
             <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
               <SectorIcon sector={stockInfo.sector} className="w-3 h-3" />
               {stockInfo.sector}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">
-              ⚡ Q 스캘핑 종목
             </span>
           )}
         </div>

@@ -209,6 +209,18 @@ export interface DailyStories {
 
 // --- Data Loading (Supabase) ---
 
+// Q 정채원은 web-q/ 별도 앱에서 표시. 여기서는 전 데이터에서 자동 제외.
+const EXCLUDED_INVESTOR_IDS = new Set(["Q"]);
+const EXCLUDED_INVESTOR_NAMES = new Set(["정채원"]);
+
+function stripExcludedFromMap<T>(record: Record<string, T>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [name, value] of Object.entries(record)) {
+    if (!EXCLUDED_INVESTOR_NAMES.has(name)) out[name] = value;
+  }
+  return out;
+}
+
 export async function getConfig(): Promise<Config> {
   const { data } = await supabase
     .from("config")
@@ -218,7 +230,9 @@ export async function getConfig(): Promise<Config> {
   const mm = data?.risk_limits?.meta_manager ?? {};
   return {
     simulation: data!.simulation,
-    investors: data!.investors,
+    investors: (data!.investors as { id: string; name: string }[]).filter(
+      (inv) => !EXCLUDED_INVESTOR_IDS.has(inv.id)
+    ),
     stock_universe: data!.stock_universe,
     follow: {
       follow_investor_id: mm.follow_investor_id ?? null,
@@ -364,12 +378,16 @@ export async function getDailyReport(
     .eq("date", date)
     .single();
   if (!data) return null;
+  const rankings = (data.rankings as RankingEntry[])
+    .filter((r) => !EXCLUDED_INVESTOR_NAMES.has(r.investor))
+    .sort((a, b) => a.rank - b.rank)
+    .map((r, idx) => ({ ...r, rank: idx + 1 }));
   return {
     date: data.date,
     generated_at: data.generated_at,
     market_prices: data.market_prices,
-    rankings: data.rankings,
-    investor_details: data.investor_details,
+    rankings,
+    investor_details: stripExcludedFromMap(data.investor_details),
   };
 }
 
@@ -384,10 +402,13 @@ export async function getPrevRankMap(
     .limit(1)
     .single();
   if (!data?.rankings) return null;
+  const filtered = (data.rankings as { rank: number; investor: string }[])
+    .filter((r) => !EXCLUDED_INVESTOR_NAMES.has(r.investor))
+    .sort((a, b) => a.rank - b.rank);
   const map: Record<string, number> = {};
-  for (const r of data.rankings as { rank: number; investor: string }[]) {
-    map[r.investor] = r.rank;
-  }
+  filtered.forEach((r, idx) => {
+    map[r.investor] = idx + 1;
+  });
   return map;
 }
 
@@ -404,6 +425,7 @@ export async function getPrevAssetMap(
   if (!data?.rankings) return null;
   const map: Record<string, number> = {};
   for (const r of data.rankings as { investor: string; total_asset: number }[]) {
+    if (EXCLUDED_INVESTOR_NAMES.has(r.investor)) continue;
     map[r.investor] = r.total_asset;
   }
   return map;
@@ -437,7 +459,7 @@ export async function getDailyStories(
     date: data.date,
     generated_at: data.generated_at,
     commentary: data.commentary,
-    diaries: data.diaries,
+    diaries: stripExcludedFromMap(data.diaries),
   };
 }
 
@@ -784,7 +806,22 @@ export async function getAllDailyReports(): Promise<DailyReportRow[]> {
     .from("daily_reports")
     .select("date, rankings, investor_details")
     .order("date", { ascending: true });
-  return (data ?? []) as DailyReportRow[];
+  if (!data) return [];
+  return (data as DailyReportRow[]).map((row) => {
+    const rankings = (row.rankings ?? []).filter(
+      (r) => !EXCLUDED_INVESTOR_NAMES.has(r.investor)
+    );
+    const reranked = [...rankings]
+      .sort((a, b) => a.rank - b.rank)
+      .map((r, idx) => ({ ...r, rank: idx + 1 }));
+    return {
+      ...row,
+      rankings: reranked,
+      investor_details: row.investor_details
+        ? stripExcludedFromMap(row.investor_details)
+        : row.investor_details,
+    };
+  });
 }
 
 export async function getReturnCorrelationMatrix(
@@ -1569,48 +1606,6 @@ export async function getAllocationByInvestorName(
   };
 }
 
-// --- Q 정채원 전용 ---
-
-export interface QTradeCycle {
-  date: string;
-  ticker: string;
-  name: string;
-  buy_price: number;
-  sell_price: number;
-  shares: number;
-  pnl: number;
-  pnl_pct: number;
-  exit_reason: "win" | "loss" | "forced";
-  total_fee: number;
-  buy_at: string | null;
-  sell_at: string | null;
-}
-
-export interface QDailyStats {
-  date: string;
-  total_asset: number;
-  trade_count: number;
-  win_count: number;
-  loss_count: number;
-  forced_count: number;
-}
-
-export interface QSummaryStats {
-  total_trades: number;
-  win_count: number;
-  loss_count: number;
-  forced_count: number;
-  win_rate: number;
-  avg_pnl_pct: number;
-  total_pnl: number;
-  total_fee: number;       // 누적 수수료·세금
-  trading_days: number;
-  avg_trades_per_day: number;
-  top_stocks: { ticker: string; name: string; count: number }[];
-  kospi_count: number;
-  kosdaq_count: number;
-}
-
 export async function getStockNames(): Promise<Map<string, string>> {
   const { data } = await supabase.from("stock_names").select("ticker, name");
   const map = new Map<string, string>();
@@ -1618,134 +1613,3 @@ export async function getStockNames(): Promise<Map<string, string>> {
   return map;
 }
 
-export async function getQTradeCycles(): Promise<QTradeCycle[]> {
-  const [txResult, nameCache] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select("date, type, ticker, name, shares, price, amount, profit, fee, executed_at, id")
-      .eq("investor_id", "Q")
-      .order("id", { ascending: true }),
-    getStockNames(),
-  ]);
-
-  if (!txResult.data) return [];
-
-  const cycles: QTradeCycle[] = [];
-  const pendingBuys: Record<string, { date: string; price: number; shares: number; fee: number; name: string; executed_at: string | null }[]> = {};
-
-  for (const tx of txResult.data) {
-    // tx.name이 6자리 숫자 코드(저장 시 종목명 조회 실패)면 무시하고 stock_names → ticker prefix 순으로 폴백
-    const isCodeName = typeof tx.name === "string" && /^\d{6}$/.test(tx.name);
-    const resolvedName =
-      (!isCodeName && tx.name) || nameCache.get(tx.ticker) || tx.ticker.split(".")[0];
-    if (tx.type === "buy") {
-      if (!pendingBuys[tx.ticker]) pendingBuys[tx.ticker] = [];
-      pendingBuys[tx.ticker].push({ date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee ?? 0, name: resolvedName, executed_at: tx.executed_at ?? null });
-    } else if (tx.type === "sell") {
-      const buys = pendingBuys[tx.ticker];
-      const buy = buys?.shift();
-      if (!buy) continue;
-
-      const pnl_pct = ((tx.price - buy.price) / buy.price) * 100;
-      let exit_reason: "win" | "loss" | "forced";
-      if (pnl_pct >= 4.5) exit_reason = "win";
-      else if (pnl_pct <= -2.5) exit_reason = "loss";
-      else exit_reason = "forced";
-
-      cycles.push({
-        date: tx.date,
-        ticker: tx.ticker,
-        name: buy.name,
-        buy_price: buy.price,
-        sell_price: tx.price,
-        shares: tx.shares,
-        pnl: tx.profit ?? (tx.price - buy.price) * tx.shares,
-        pnl_pct,
-        exit_reason,
-        total_fee: buy.fee + (tx.fee ?? 0),
-        buy_at: buy.executed_at,
-        sell_at: tx.executed_at ?? null,
-      });
-    }
-  }
-
-  return cycles;
-}
-
-export async function getQDailyStats(): Promise<QDailyStats[]> {
-  const [cyclesData, snapshotsResult] = await Promise.all([
-    getQTradeCycles(),
-    supabase
-      .from("portfolio_snapshots")
-      .select("date, total_asset")
-      .eq("investor_id", "Q")
-      .order("date", { ascending: true }),
-  ]);
-  const snapshotsData = snapshotsResult.data ?? [];
-
-  const assetMap = new Map(snapshotsData.map((s: { date: string; total_asset: number }) => [s.date, s.total_asset]));
-
-  const byDate = new Map<string, { win: number; loss: number; forced: number }>();
-  for (const cycle of cyclesData) {
-    if (!byDate.has(cycle.date)) byDate.set(cycle.date, { win: 0, loss: 0, forced: 0 });
-    const d = byDate.get(cycle.date)!;
-    d[cycle.exit_reason]++;
-  }
-
-  const allDates = new Set([...byDate.keys(), ...assetMap.keys()]);
-  return Array.from(allDates)
-    .sort()
-    .map((date) => {
-      const d = byDate.get(date) ?? { win: 0, loss: 0, forced: 0 };
-      return {
-        date,
-        total_asset: assetMap.get(date) ?? 0,
-        trade_count: d.win + d.loss + d.forced,
-        win_count: d.win,
-        loss_count: d.loss,
-        forced_count: d.forced,
-      };
-    });
-}
-
-export function computeQSummaryStats(cycles: QTradeCycle[]): QSummaryStats {
-  const win = cycles.filter((c) => c.exit_reason === "win").length;
-  const loss = cycles.filter((c) => c.exit_reason === "loss").length;
-  const forced = cycles.filter((c) => c.exit_reason === "forced").length;
-  const total = cycles.length;
-
-  const tradingDays = new Set(cycles.map((c) => c.date)).size;
-  const totalPnl = cycles.reduce((s, c) => s + c.pnl, 0);
-  const totalFee = cycles.reduce((s, c) => s + c.total_fee, 0);
-  const avgPnlPct = total > 0 ? cycles.reduce((s, c) => s + c.pnl_pct, 0) / total : 0;
-
-  const stockCount = new Map<string, { name: string; count: number }>();
-  for (const c of cycles) {
-    const code = c.ticker.split(".")[0];
-    if (!stockCount.has(code)) stockCount.set(code, { name: c.name, count: 0 });
-    stockCount.get(code)!.count++;
-  }
-  const top_stocks = Array.from(stockCount.entries())
-    .map(([ticker, { name, count }]) => ({ ticker, name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-
-  const kospi_count = cycles.filter((c) => c.ticker.endsWith(".KS")).length;
-  const kosdaq_count = cycles.filter((c) => c.ticker.endsWith(".KQ")).length;
-
-  return {
-    total_trades: total,
-    win_count: win,
-    loss_count: loss,
-    forced_count: forced,
-    win_rate: total > 0 ? (win / total) * 100 : 0,
-    avg_pnl_pct: avgPnlPct,
-    total_pnl: totalPnl,
-    total_fee: totalFee,
-    trading_days: tradingDays,
-    avg_trades_per_day: tradingDays > 0 ? total / tradingDays : 0,
-    top_stocks,
-    kospi_count,
-    kosdaq_count,
-  };
-}

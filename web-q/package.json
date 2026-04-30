@@ -1,0 +1,32 @@
+{
+  "name": "web-q",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4001 --turbopack",
+    "build": "next build",
+    "start": "next start -p 4001",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.0",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "lucide-react": "^0.577.0",
+    "next": "15.5.12",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "^3.8.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/oxide-darwin-arm64": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^20.19.37",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.12",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3"
+  }
+}
