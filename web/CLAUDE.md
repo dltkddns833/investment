@@ -4,8 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-모의 투자 시뮬레이션 대시보드. Next.js 15 + TypeScript + Tailwind CSS + Recharts.
+모의 투자 시뮬레이션 대시보드 (A~P 16명). Next.js 15 + TypeScript + Tailwind CSS + Recharts.
 Supabase(PostgreSQL)에서 데이터를 읽어 서버 컴포넌트에서 렌더링한다.
+
+**Q 정채원은 이 앱에서 표시되지 않는다.** Q는 KIS 실전 매매 스캘퍼로 본질이 시뮬과 달라 별도 앱(`../web-q/`)에서 운영 콘솔로 노출된다. 단일 진실 공급원: `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS = {"Q"}`, `EXCLUDED_INVESTOR_NAMES = {"정채원"}`. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 Q를 자동 제거하고 rankings를 1..n으로 재부여한다. DB와 Python 파이프라인은 17명 모두 포함하므로 web-q/와 q_monitor.py는 그대로 동작한다.
 
 ## Commands
 

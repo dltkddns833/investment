@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 17명의 투자자(A~Q)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. (Q 정채원은 universe 무관, 전체 KOSPI/KOSDAQ 대상 스캘핑)
+한국 주식 모의 투자 시뮬레이션. A~P 16명의 투자자가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS API 실전 매매 스캘퍼로 본질이 시뮬과 달라, **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 16명만 표시). DB와 Python 백엔드는 17명 모두 포함.
 
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. 현재는 전략 검증(R&D) 단계이며, 충분한 데이터 축적과 백테스트를 거친 후 증권사 API 연동을 통한 완전 자동 매매를 목표로 한다.
 
@@ -429,7 +429,13 @@ print(result)
 
 ## Web Dashboard
 
-**배포 URL**: https://investment-phi-six.vercel.app/
+**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 16명) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
+
+레포는 두 개의 Next.js 앱을 포함한다.
+- `web/` — 시뮬 16명(A~P) 대시보드. **Q 정채원은 표시되지 않는다.**
+- `web-q/` — Q 정채원 KIS 실전 매매 운영 콘솔 (별도 앱·별도 Vercel 프로젝트, 포트 4001).
+
+`web/`에서 Q 제외는 `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES` 상수가 단일 진실 공급원이다. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 Q를 자동 제거하고 rankings를 1..n으로 재부여한다. 명시 분기(투자자 상세 Q 페이지, versus validIds, 종목 상세 스캘핑 뱃지 등)는 모두 제거됨.
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위(일일 수익률/수익금, 누적 수익률, 전일 대비 순위 변동), 오늘의 매매(매수/매도 테이블, 정렬), 주간 MVP/연승, 시장 현황(종목 검색+정렬), 뉴스
@@ -447,9 +453,20 @@ print(result)
 - Node 20+ 필요, 상세 내용은 `web/CLAUDE.md` 참조
 
 ```bash
-cd web && pnpm dev    # 개발 서버 (localhost:4000)
-cd web && pnpm build  # 빌드
+cd web && pnpm dev      # 시뮬 대시보드 (localhost:4000)
+cd web && pnpm build
+cd web-q && pnpm dev    # Q 운영 콘솔 (localhost:4001)
+cd web-q && pnpm build
 ```
+
+### web-q/ 운영 콘솔 (Q 정채원 전용)
+
+- **라우트**: `/` 메인(오늘 현황 — HOLDING/IDLE/장마감 배너 + 카운트다운 + 오늘 매매), `/history` 누적 기록, `/strategy` 전략 설명
+- **API**: `GET /api/status`(상태+오늘 매매+요약), `GET /api/kis-price?ticker=XXXXXX`(현재가 프록시)
+- **폴링**: 장중 TTL 3분 / 장마감 후 TTL 10분 (`live-prices.tsx` 패턴 복제). HOLDING 카드의 강제청산 카운트다운만 1초 간격 클라이언트 차감 (네트워크 호출 없음)
+- **인증**: 없음 (공개)
+- **KIS 토큰**: Supabase `config.kis_token`에서 **읽기만**. 토큰 발급은 `broker_client.py`만 담당 (1일 1회 원칙)
+- **환경변수** (`web-q/.env.local` + Vercel): `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KIS_APP_KEY`, `KIS_APP_SECRET_KEY`, `KIS_ACCOUNT_NO` (web/와 동일 값)
 
 ## Key Preferences
 
