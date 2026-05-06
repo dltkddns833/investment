@@ -8,7 +8,7 @@
       2) 전일 종가 ≥ 2,000원
       3) 직전 15분 거래량 / 전일 동시간대 15분 거래량 ≥ 4배
          (4배 후보 없으면 ≥ 3배로 fallback. 둘 다 없으면 진입 안 함)
-  - 매수 후 30분 모니터링: 1분 간격 가격 체크
+  - 매수 후 30분 모니터링: 30초 간격 가격 체크 (HOLDING 한정, IDLE 스캔은 1분)
   - 손절: 매수가 대비 -3% (즉시 청산)
   - 익절: 트레일링 — 매수가 대비 +5% 도달 시 활성화 → 고점 대비 -1% 되돌림 시 청산
   - 강제 청산: 매수+30분 (익절/손절 미발동 시)
@@ -61,7 +61,8 @@ SCAN_START_MM = 0
 SCAN_END_HH = 14                # 14:50 스캔 종료 (매수 후 30분 강제 청산 윈도우 보장)
 SCAN_END_MM = 50
 HOLD_DURATION_MIN = 30          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 30분)
-SCAN_INTERVAL_MIN = 1           # 스캔 / 가격 체크 주기
+SCAN_INTERVAL_MIN = 1           # IDLE 스캔 주기 (분봉 거래량 비교 기반이라 1분 유지)
+HOLD_INTERVAL_SEC = 30          # HOLDING 가격 체크 주기 (손절/트레일링 반응 속도, 05-06 v2.1)
 
 # 거래량 폭증 매집 추종 파라미터 (04-30 v2 — 3→4배, 2→3배 상향)
 VOLUME_RATIO_MIN = 4.0          # 직전 15분 거래량 / 전일 동시간대 ≥ 4배 (1차)
@@ -772,12 +773,18 @@ def run_monitor(dry_run=False):
                         if not dry_run:
                             refresh_daily_report(today_str)
 
-        # 다음 분까지 대기 (HOLDING이면서 hold_close가 다음 분 이내면 그 시각까지만 대기)
-        next_min = (datetime.now() + timedelta(minutes=SCAN_INTERVAL_MIN)).replace(second=0, microsecond=0)
-        if state == "HOLDING" and holding and holding["hold_close_dt"] < next_min:
-            target = holding["hold_close_dt"]
+        # HOLDING은 HOLD_INTERVAL_SEC 단위, IDLE은 다음 분 단위로 대기
+        # (HOLDING 중 hold_close가 다음 tick 이내면 그 시각까지만 대기)
+        if state == "HOLDING":
+            next_tick = datetime.now() + timedelta(seconds=HOLD_INTERVAL_SEC)
+            if holding and holding["hold_close_dt"] < next_tick:
+                target = holding["hold_close_dt"]
+            else:
+                target = next_tick
         else:
-            target = next_min
+            target = (datetime.now() + timedelta(minutes=SCAN_INTERVAL_MIN)).replace(
+                second=0, microsecond=0
+            )
         if not wait_until(target, label="next tick"):
             break
 
