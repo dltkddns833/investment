@@ -1,6 +1,6 @@
 """Q 정채원 장중 1분 상시 스캔 스캘핑 모니터링
 
-이슈 #57 Q 정채원 전략 (2026-04-30 v2 — 04-30 운영 데이터 반영):
+이슈 #57 Q 정채원 전략 (2026-05-06 v3 — 5/4·5/6 백테스트 반영):
   - 10:00 ~ 14:50 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
     (9시대 fallback 폐기 — 분봉 비교 불가 + 0승 2패 데이터)
   - 종목 선정 (3단계 필터):
@@ -10,14 +10,18 @@
          (4배 후보 없으면 ≥ 3배로 fallback. 둘 다 없으면 진입 안 함)
   - 매수 후 30분 모니터링: 30초 간격 가격 체크 (HOLDING 한정, IDLE 스캔은 1분)
   - 손절: 매수가 대비 -3% (즉시 청산)
-  - 익절: 트레일링 — 매수가 대비 +5% 도달 시 활성화 → 고점 대비 -1% 되돌림 시 청산
+  - 익절: 트레일링 — 매수가 대비 +3% 도달 시 활성화 → 고점 대비 -1% 되돌림 시 청산
+    (v3: 활성선 +5→+3, 14건 표본 peak 평균 +2.6%로 +5%는 사실상 사문화 → 시뮬 +124k 개선)
   - 강제 청산: 매수+30분 (익절/손절 미발동 시)
   - 동시 보유 1종목 (HOLDING 중에는 신규 스캔 스킵)
   - 당일 재매수 금지 (매도 후 같은 종목 재진입 차단)
   - **일일 매매 한도 8회** (8회째 BUY 이후 추가 진입 차단)
   - **연패 쿨다운**: 직전 3사이클 모두 손실(<0%)이면 1시간 진입 차단
-  - **레짐 게이트**: market_regimes의 오늘 레짐이 bear 또는 bull_score ≤ 2이면
-    임계값 모두 1.5배 적용 (등락률 +10.5%, 거래량 6배/4.5배)
+  - **레짐 게이트** (v3 강화):
+      · bear 레짐 → 신규 진입 자체 차단 (HOLDING 중이면 청산 후 종료)
+      · bull_score ≤ 2 (neutral/bull) → 임계값 모두 ×2 (등락률 +14%, 거래량 8배/6배)
+      · 정상 (score ≥ 3) → 기본 임계
+    (v3: 5/6 약세 휩쏘일 4/6 손실 → 청산 룰로 못 막아 진입 단계 강화)
   - 자본: 복리 + 1,000만원 캡 (캡 초과분은 현금으로 보유)
   - 종목 범위: KOSPI + KOSDAQ 전체 (stock_universe 무관)
 
@@ -47,7 +51,7 @@ logger = get_logger("q_monitor")
 
 INVESTOR_ID = "Q"
 STOP_LOSS_PCT = -3.0            # 매수가 대비 -3% 손절
-TRAILING_ACTIVATE_PCT = 5.0     # +5% 도달 시 트레일링 활성화
+TRAILING_ACTIVATE_PCT = 3.0     # +3% 도달 시 트레일링 활성화 (05-06 backtest: 5→3, peak 분포 평균 +2.6%)
 TRAILING_PULLBACK_PCT = 1.0     # 활성화 후 고점 대비 -1% 되돌림 시 청산
 MAX_CAPITAL_PER_TRADE = 10_000_000  # 매수당 자본 캡
 MIN_PREV_CLOSE = 2000           # 전일 종가 2,000원 미만 제외
@@ -73,8 +77,9 @@ SEARCH_WINDOW_MIN = 15          # 거래량 비교 서치 윈도우 (분)
 DAILY_TRADE_LIMIT = 8           # 일일 BUY 횟수 한도 (8회 도달 시 추가 진입 차단)
 LOSS_STREAK_THRESHOLD = 3       # 직전 N사이클 모두 손실이면 쿨다운 발동
 COOLDOWN_MINUTES = 60           # 연패 쿨다운 시간 (분)
-WEAK_REGIME_MULTIPLIER = 1.5    # 약세 레짐(bear or bull_score≤2) 시 임계값 배수
+WEAK_REGIME_MULTIPLIER = 2.0    # 약세(score≤2) 시 임계값 배수 (05-06 backtest: 1.5→2.0)
 WEAK_REGIME_BULL_SCORE = 2      # bull_score 이 값 이하면 약세로 판정
+BEAR_BLOCK_ENTRY = True         # bear 레짐 시 신규 진입 차단 (05-06 backtest: 5/6 약세 휩쏘 손실 대응)
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -152,11 +157,13 @@ def fetch_market_name(client, code):
 # --- 레짐 게이트 ---
 
 def get_regime_thresholds(today):
-    """오늘(또는 직전 영업일) 마켓 레짐을 조회해 임계값 multiplier를 결정.
+    """오늘(또는 직전 영업일) 마켓 레짐을 조회해 임계값과 진입 차단 여부를 결정.
 
-    Returns: (rate_min, volume_ratio_min, volume_ratio_fallback, regime_label)
-      - 레짐이 bear 또는 bull_score ≤ WEAK_REGIME_BULL_SCORE 이면 1.5배 적용
-      - 그 외(혹은 조회 실패)는 기본 임계값
+    Returns: (rate_min, volume_ratio_min, volume_ratio_fallback, regime_label, block_entry)
+      - bear 레짐 → block_entry=True (신규 진입 차단). 임계값은 표시용으로만 의미.
+      - bull_score ≤ WEAK_REGIME_BULL_SCORE (neutral/bull) → 임계값 ×WEAK_REGIME_MULTIPLIER
+      - 그 외(혹은 조회 실패) → 기본 임계값
+    (v3 2026-05-06: bear 분리 + multiplier 1.5→2.0)
     """
     try:
         rows = supabase.table("market_regimes").select("regime,bull_score").eq(
@@ -169,27 +176,38 @@ def get_regime_thresholds(today):
                 "date", yday.isoformat()
             ).execute().data
         if not rows:
-            return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "unknown"
+            return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "unknown", False
         r = rows[0]
         regime = r.get("regime") or ""
         score = r.get("bull_score") or 0
-        weak = (regime == "bear") or (score <= WEAK_REGIME_BULL_SCORE)
-        if weak:
+
+        # bear 레짐 → 진입 차단
+        if BEAR_BLOCK_ENTRY and regime == "bear":
+            label = f"{regime} (bull_score={score}) → 신규 진입 차단"
+            return (
+                SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK,
+                label, True,
+            )
+
+        # bull_score ≤ 2 (neutral/bull) → 임계 ×2
+        if score <= WEAK_REGIME_BULL_SCORE:
             m = WEAK_REGIME_MULTIPLIER
             label = f"{regime} (bull_score={score}) 약세 → 임계 {m}x"
             return (
                 SURGE_RATE_MIN * m,
                 VOLUME_RATIO_MIN * m,
                 VOLUME_RATIO_FALLBACK * m,
-                label,
+                label, False,
             )
+
+        # 정상
         return (
             SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK,
-            f"{regime} (bull_score={score}) 정상",
+            f"{regime} (bull_score={score}) 정상", False,
         )
     except Exception as e:
         logger.warning(f"레짐 조회 실패 — 기본 임계값 사용: {e}")
-        return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "error"
+        return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "error", False
 
 
 # --- 종목 선정 ---
@@ -216,7 +234,8 @@ def pick_surge_stock(client, now_dt, today, exclude_codes=None,
          volume_ratio_min 후보 없으면 ≥ volume_ratio_fallback 으로 완화. 둘 다 없으면 None.
 
     9시대(now_dt.hour < 10)는 분봉 비교 불가하여 None 반환 (04-30 v2 폐기).
-    레짐 게이트가 약세이면 호출자가 임계값을 1.5배로 넘김.
+    레짐 게이트가 약세(score≤2)이면 호출자가 임계값을 2배로 넘김 (v3).
+    bear 레짐이면 호출자가 아예 호출하지 않음 (block_entry=True).
     """
     exclude_codes = exclude_codes or set()
 
@@ -519,23 +538,34 @@ def run_monitor(dry_run=False):
 
     client = KISClient()
 
-    # 레짐 게이트 — 시작 시 임계값 결정 (장중 변경 안 함)
-    rate_min, vol_min, vol_fallback, regime_label = get_regime_thresholds(today)
+    # 레짐 게이트 — 시작 시 임계값 + 진입 차단 여부 결정 (장중 변경 안 함)
+    rate_min, vol_min, vol_fallback, regime_label, block_entry = get_regime_thresholds(today)
     logger.info(f"레짐: {regime_label}")
-    logger.info(
-        f"임계값: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
-        f"(fallback {vol_fallback:.1f}배)"
-    )
+    if block_entry:
+        logger.warning("bear 레짐 — 신규 진입 차단 (HOLDING이 없으면 즉시 종료)")
+    else:
+        logger.info(
+            f"임계값: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
+            f"(fallback {vol_fallback:.1f}배)"
+        )
 
-    notify_monitor(
-        f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
-        f"레짐: {regime_label}\n"
-        f"임계: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
-        f"(fallback {vol_fallback:.1f}배)\n"
-        f"한도: 일일 {DAILY_TRADE_LIMIT}회, 연패 {LOSS_STREAK_THRESHOLD}회 → "
-        f"{COOLDOWN_MINUTES}분 쿨다운\n"
-        f"(dry_run={dry_run})"
-    )
+    if block_entry:
+        notify_monitor(
+            f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
+            f"레짐: {regime_label}\n"
+            f"🛑 신규 진입 차단 — bear 레짐 휩쏘 회피 (v3)\n"
+            f"(dry_run={dry_run})"
+        )
+    else:
+        notify_monitor(
+            f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
+            f"레짐: {regime_label}\n"
+            f"임계: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
+            f"(fallback {vol_fallback:.1f}배)\n"
+            f"한도: 일일 {DAILY_TRADE_LIMIT}회, 연패 {LOSS_STREAK_THRESHOLD}회 → "
+            f"{COOLDOWN_MINUTES}분 쿨다운\n"
+            f"(dry_run={dry_run})"
+        )
     logger.info(f"Q 정채원 모니터링 시작 ({today_str}, dry_run={dry_run})")
 
     base_dt = datetime.combine(today, datetime.min.time())
@@ -711,6 +741,13 @@ def run_monitor(dry_run=False):
         else:  # IDLE
             # 스캔 윈도우 종료 시각이 지났으면 더 이상 매수 안 함
             if now >= scan_end:
+                break
+
+            # bear 레짐 진입 차단 (v3)
+            if block_entry:
+                logger.info(
+                    f"  [스캔 {now.strftime('%H:%M')}] bear 레짐 — 신규 진입 차단, 종료"
+                )
                 break
 
             # 일일 매매 한도 체크

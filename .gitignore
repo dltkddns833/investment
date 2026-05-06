@@ -8,3 +8,5 @@ __pycache__/
 .kis_token.json
 logs/
 data/*.pkl
+scripts/backtest/.q_bars_cache.json
+.claude/scheduled_tasks.lock

@@ -11,7 +11,7 @@ export default function StrategyPage() {
       </div>
 
       <section className="glass-card p-5 md:p-6 space-y-4">
-        <h2 className="text-base font-bold">운영 규칙 (v2 — 2026-04-30~)</h2>
+        <h2 className="text-base font-bold">운영 규칙 (v3 — 2026-05-06~)</h2>
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <Rule label="스캔 시간" value="10:00 ~ 14:50 (1분 간격)" />
           <Rule label="동시 보유" value="1종목" />
@@ -22,12 +22,12 @@ export default function StrategyPage() {
             value="직전 15분 거래량 ≥ 전일 동시간대 ×4 (없으면 ×3 fallback)"
           />
           <Rule
-            label="레짐 게이트"
-            value="bear 또는 bull_score ≤ 2 → 모든 임계 ×1.5 자동 상향"
+            label="레짐 게이트 (v3)"
+            value="bear → 신규 진입 차단 / bull_score ≤ 2 → 임계 ×2 (등락률 +14%, 거래량 8배/6배)"
           />
           <Rule
-            label="익절"
-            value="트레일링 +5% 활성화 → 고점 대비 -1%p 되돌림 시 청산"
+            label="익절 (v3)"
+            value="트레일링 +3% 활성화 → 고점 대비 -1%p 되돌림 시 청산"
           />
           <Rule label="손절" value="-3% (즉시 청산)" />
           <Rule label="강제 청산" value="매수 + 30분 (익절/손절 미발동 시)" />
@@ -50,8 +50,9 @@ export default function StrategyPage() {
         <ol className="list-decimal list-inside text-sm space-y-2 text-gray-300">
           <li>
             <span className="text-gray-400 font-medium">①</span> 시작 시
-            <code className="text-xs"> market_regimes</code> 레짐 조회 → 약세
-            (bear 또는 bull_score ≤ 2)이면 모든 임계 1.5배 자동 적용
+            <code className="text-xs"> market_regimes</code> 레짐 조회 →{" "}
+            <strong>bear → 신규 진입 차단</strong> /{" "}
+            <strong>bull_score ≤ 2 → 임계 ×2</strong> 자동 적용 (v3)
           </li>
           <li>
             <span className="text-gray-400 font-medium">②</span> 등락률 순위 조회
@@ -68,8 +69,8 @@ export default function StrategyPage() {
           </li>
           <li>
             <span className="text-gray-400 font-medium">⑤</span> 1순위 종목 시장가 즉시
-            매수 → 매수+30분 1분 간격 가격 모니터링 → -3% 손절 / 트레일링(+5% 활성화 후
-            고점 대비 -1%p 되돌림) 익절 / 30분 강제청산
+            매수 → 매수+30분 30초 간격 가격 모니터링 → -3% 손절 / 트레일링(+3% 활성화 후
+            고점 대비 -1%p 되돌림, v3) 익절 / 30분 강제청산
           </li>
           <li>
             <span className="text-gray-400 font-medium">⑥</span> 청산 후 사이클 결과 기록
@@ -81,6 +82,11 @@ export default function StrategyPage() {
       <section className="glass-card p-5 md:p-6 space-y-3">
         <h2 className="text-base font-bold">변경 이력</h2>
         <div className="space-y-3 text-sm">
+          <Change
+            date="2026-05-06~"
+            title="v3 — 트레일링 +3% / bear 진입 차단"
+            desc="5/4·5/6 14건 백테스트(KIS 1분봉 + 540 grid search) 반영. 트레일링 활성선 +5%→+3% (peak 분포 평균 +2.6%로 +5%는 사실상 사문화, 시뮬 +124k 개선). 약세 게이트 분기 — bear 레짐은 신규 진입 자체 차단(5/6 약세 휩쏘 4/6 손실 회피), bull_score ≤ 2 (neutral/bull)는 임계 ×1.5→×2로 강화 (등락률 +14%, 거래량 8배/6배)."
+          />
           <Change
             date="2026-04-30~"
             title="v2 — 임계 강화 + 안전장치 추가"

@@ -44,7 +44,7 @@ export default function StatusBanner({ status, holdingName, fetchedAt }: Props) 
     sub = "다음 영업일 10:00 스캔 시작";
   } else {
     label = "대기중";
-    sub = "거래량 ≥4배 + 등락률 ≥+7% 조건 스캔 중 (약세 레짐 시 ×1.5)";
+    sub = "거래량 ≥4배 + 등락률 ≥+7% 조건 스캔 중 (bear 진입 차단 / score≤2 임계 ×2, v3)";
   }
 
   return (
