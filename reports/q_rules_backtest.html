@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Q 정채원 청산 룰 백테스트 리포트</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f5f6f8;
+      --border: #d8dde6;
+      --border-strong: #b8c0cd;
+      --text: #1a1d24;
+      --text-2: #353a45;
+      --muted: #6b7280;
+      --accent: #1f6feb;
+      --green: #16803d;
+      --green-bg: #e6f4ea;
+      --red: #b42318;
+      --red-bg: #fbeaea;
+      --yellow: #8a6d00;
+      --yellow-bg: #fdf2c4;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Pretendard",
+                   "Apple SD Gothic Neo", system-ui, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* 화면에서 페이지 경계를 시각적으로 보여줌 (인쇄 시 숨김) */
+    .page {
+      max-width: 186mm;
+      min-height: 269mm;
+      margin: 12px auto;
+      padding: 12mm 10mm;
+      background: var(--panel);
+      box-shadow: 0 0 0 1px var(--border), 0 4px 12px rgba(0,0,0,0.04);
+      page-break-after: always;
+      break-after: page;
+      display: flex;
+      flex-direction: column;
+    }
+    .page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    h1 {
+      font-size: 20pt;
+      margin: 0 0 4px;
+      letter-spacing: -0.5px;
+      font-weight: 700;
+    }
+    h2 {
+      font-size: 13pt;
+      margin: 14px 0 8px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--text);
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+    h2:first-child { margin-top: 0; }
+    h3 {
+      font-size: 11pt;
+      margin: 10px 0 5px;
+      color: var(--text-2);
+      font-weight: 600;
+      page-break-after: avoid;
+    }
+
+    .sub { color: var(--muted); font-size: 9pt; }
+    .header-meta {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 9pt;
+      margin-top: 4px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-meta strong { color: var(--text); font-weight: 600; }
+
+    .grid {
+      display: grid; gap: 6px;
+      grid-template-columns: repeat(4, 1fr);
+      margin-top: 8px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .kpi-label {
+      color: var(--muted);
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 600;
+    }
+    .kpi-value { font-size: 14.5pt; font-weight: 700; margin-top: 1px; line-height: 1.15; }
+    .kpi-sub { font-size: 8.5pt; color: var(--muted); margin-top: 2px; }
+
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .yellow { color: var(--yellow); }
+    .muted { color: var(--muted); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4px 0 4px;
+      font-size: 9pt;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    th, td {
+      padding: 4px 7px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--panel-2);
+      color: var(--text-2);
+      font-weight: 600;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    th.left, td.left { text-align: left; }
+    tr:last-child td { border-bottom: none; }
+    tr.highlight td { background: var(--green-bg); font-weight: 600; }
+    tr.bad td { background: var(--red-bg); }
+
+    .chart-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .insight {
+      background: #f0f5ff;
+      border: 1px solid #c7d7f7;
+      border-left: 3px solid var(--accent);
+      padding: 7px 11px;
+      border-radius: 0 5px 5px 0;
+      margin: 8px 0;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .insight strong { color: var(--accent); }
+
+    .recommendation {
+      background: var(--green-bg);
+      border: 1px solid #b6dec5;
+      padding: 10px 13px;
+      border-radius: 7px;
+      margin: 8px 0;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .recommendation h3 { color: var(--green); margin-top: 0; margin-bottom: 4px; }
+    .recommendation p { margin: 4px 0; }
+    .recommendation.review {
+      background: #fff8e6;
+      border-color: #f0d57c;
+    }
+    .recommendation.review h3 { color: var(--yellow); }
+    .recommendation.keep {
+      background: var(--panel-2);
+      border-color: var(--border-strong);
+    }
+    .recommendation.keep h3 { color: var(--text-2); }
+
+    code {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 9pt;
+      color: var(--red);
+    }
+    pre {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 9px;
+      overflow-x: auto;
+      font-size: 8.5pt;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text);
+      margin: 4px 0;
+      line-height: 1.35;
+    }
+    pre code { background: transparent; border: none; padding: 0; color: inherit; }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .badge-green { background: #c8ebd5; color: #0e5a2a; }
+    .badge-red { background: #f5cfcf; color: #8a1010; }
+    .badge-yellow { background: #f5e0a0; color: #5e4900; }
+    .badge-blue { background: #cde0fb; color: #0d4a99; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    ul { margin: 4px 0 0 16px; padding: 0; font-size: 9.5pt; }
+    ul li { margin-bottom: 3px; }
+
+    .footer {
+      color: var(--muted);
+      font-size: 8pt;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .page-num {
+      position: absolute;
+      top: 6mm;
+      right: 12mm;
+      color: var(--muted);
+      font-size: 8pt;
+      letter-spacing: 0.4px;
+    }
+
+    @page {
+      size: A4;
+      margin: 14mm 12mm;
+    }
+
+    @media print {
+      html, body { background: #fff; color: #000; font-size: 10pt; }
+      .page {
+        max-width: 100%;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+        display: block;
+      }
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .page-num { top: 0; right: 0; }
+      a { color: inherit; text-decoration: none; }
+    }
+
+    @media screen and (max-width: 700px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+      .page { padding: 16px; min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════ PAGE 1 ════════════════════ -->
+<div class="page">
+  <span class="page-num">1 / 4</span>
+  <header>
+    <h1>Q 정채원 청산 룰 백테스트 리포트</h1>
+    <div class="header-meta">
+      <span>대상 일자 <strong>2026-05-04 / 2026-05-06</strong></span>
+      <span>매매 사이클 <strong>14건</strong></span>
+      <span>레짐 <strong>bull / bull_score=2 (게이트 ×1.5 active)</strong></span>
+      <span>방법 <strong>KIS 1분봉 + 540개 룰 grid search</strong></span>
+    </div>
+  </header>
+
+  <h2>1. 실거래 요약</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="kpi-label">5/4 실손익</div>
+      <div class="kpi-value green">+447,772원</div>
+      <div class="kpi-sub">8건 풀 매매 · +7.87%</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">5/6 실손익</div>
+      <div class="kpi-value red">-289,173원</div>
+      <div class="kpi-sub">6건 (3연패 쿨다운) · -7.01%</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">합계 실손익</div>
+      <div class="kpi-value green">+158,599원</div>
+      <div class="kpi-sub">2일 합산</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">트레일링 활성화</div>
+      <div class="kpi-value yellow">2 / 14</div>
+      <div class="kpi-sub">peak +6.0% / +7.2%</div>
+    </div>
+  </div>
+
+  <h3>14건 매매 사이클</h3>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">#</th>
+        <th class="left">날짜</th>
+        <th class="left">시각</th>
+        <th class="left">종목</th>
+        <th>매수가</th>
+        <th>매도가</th>
+        <th>손익률</th>
+        <th>peak</th>
+        <th class="left">청산 사유</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="left">1</td><td class="left">5/4</td><td class="left">10:00</td><td class="left">한온시스템</td><td>4,842</td><td>4,777</td><td class="red">-1.34%</td><td>+2.99%</td><td class="left">강제청산</td></tr>
+      <tr class="highlight"><td class="left">2</td><td class="left">5/4</td><td class="left">10:31</td><td class="left">태웅</td><td>57,528</td><td>60,169</td><td class="green">+4.59%</td><td>+6.04%</td><td class="left">트레일링</td></tr>
+      <tr class="highlight"><td class="left">3</td><td class="left">5/4</td><td class="left">11:02</td><td class="left">삼성증권</td><td>124,462</td><td>131,434</td><td class="green">+5.60%</td><td>+7.22%</td><td class="left">트레일링</td></tr>
+      <tr><td class="left">4</td><td class="left">5/4</td><td class="left">11:22</td><td class="left">유안타증권</td><td>6,203</td><td>6,206</td><td>+0.05%</td><td>+3.18%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">5</td><td class="left">5/4</td><td class="left">11:53</td><td class="left">교보증권</td><td>14,857</td><td>14,942</td><td class="green">+0.57%</td><td>+2.78%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">6</td><td class="left">5/4</td><td class="left">12:24</td><td class="left">일진홀딩스</td><td>13,226</td><td>13,103</td><td class="red">-0.93%</td><td>+0.71%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">7</td><td class="left">5/4</td><td class="left">12:55</td><td class="left">F&amp;F</td><td>75,537</td><td>76,261</td><td class="green">+0.96%</td><td>+1.94%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">8</td><td class="left">5/4</td><td class="left">13:26</td><td class="left">SK스퀘어</td><td>984,492</td><td>985,507</td><td>+0.10%</td><td>+1.17%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">9</td><td class="left">5/6</td><td class="left">10:00</td><td class="left">유안타증권</td><td>6,923</td><td>6,986</td><td class="green">+0.91%</td><td>+1.83%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">10</td><td class="left">5/6</td><td class="left">10:31</td><td class="left">삼성물산</td><td>372,686</td><td>383,308</td><td class="green">+2.85%</td><td>+3.57%</td><td class="left">강제청산</td></tr>
+      <tr><td class="left">11</td><td class="left">5/6</td><td class="left">11:02</td><td class="left">대한전선</td><td>70,135</td><td>69,865</td><td class="red">-0.38%</td><td>+0.38%</td><td class="left">강제청산</td></tr>
+      <tr class="bad"><td class="left">12</td><td class="left">5/6</td><td class="left">11:33</td><td class="left">SK</td><td>569,284</td><td>551,724</td><td class="red">-3.08%</td><td>+3.64%</td><td class="left">손절</td></tr>
+      <tr class="bad"><td class="left">13</td><td class="left">5/6</td><td class="left">12:03</td><td class="left">솔루엠</td><td>23,811</td><td>22,888</td><td class="red">-3.88%</td><td>+1.21%</td><td class="left">손절</td></tr>
+      <tr><td class="left">14</td><td class="left">5/6</td><td class="left">13:36</td><td class="left">삼지전자</td><td>38,469</td><td>37,631</td><td class="red">-2.18%</td><td>+0.60%</td><td class="left">강제청산</td></tr>
+    </tbody>
+  </table>
+
+  <div class="insight">
+    <strong>핵심 패턴.</strong> 14건 중 트레일링 활성화는 단 2건(현행 임계 +5%). peak 분포 평균은 약 +2.6%로 베이스 임계에 한참 못 미친다. 13개 사이클이 강제청산/손절로 끝나며 작은 변동만 누적.
+  </div>
+
+  <div class="footer">
+    리포트 생성 2026-05-06 · 페이지 1 / 4 · 실거래 요약
+  </div>
+</div>
+
+<!-- ════════════════════ PAGE 2 ════════════════════ -->
+<div class="page">
+  <span class="page-num">2 / 4</span>
+
+  <h2>2. Grid Search — 단일 변수 변화</h2>
+  <p class="sub">베이스 룰 <code>SL=-3.0</code> <code>TA=+5.0</code> <code>PB=1.0</code> <code>HOLD=30</code> → 시뮬 합계 <strong>+58,297원</strong> (1분봉 grain 노이즈 보수적 보정 적용)</p>
+
+  <div class="two-col">
+    <div class="chart-box">
+      <h3 style="margin:1px 0 3px">A. 트레일링 활성선 (TA)</h3>
+      <div style="height:155px"><canvas id="chartTA"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h3 style="margin:1px 0 3px">B. 손절선 (SL)</h3>
+      <div style="height:155px"><canvas id="chartSL"></canvas></div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="chart-box">
+      <h3 style="margin:1px 0 3px">C. 트레일링 풀백 (PB)</h3>
+      <div style="height:155px"><canvas id="chartPB"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h3 style="margin:1px 0 3px">D. 보유시간 (HOLD)</h3>
+      <div style="height:155px"><canvas id="chartHOLD"></canvas></div>
+    </div>
+  </div>
+
+  <h3>E. 조기 청산 (모멘텀 검증)</h3>
+  <table>
+    <thead>
+      <tr><th class="left">룰</th><th>시뮬 손익</th><th>vs 베이스</th></tr>
+    </thead>
+    <tbody>
+      <tr class="bad"><td class="left">5분 후 +0.0% 미달 청산</td><td class="red">-66,508원</td><td class="red">-124,805원</td></tr>
+      <tr class="bad"><td class="left">5분 후 +0.5% 미달 청산</td><td class="red">-262,297원</td><td class="red">-320,594원</td></tr>
+      <tr class="bad"><td class="left">7분 후 +0.0% 미달 청산</td><td class="red">-499원</td><td class="red">-58,796원</td></tr>
+      <tr class="bad"><td class="left">10분 후 +0.0% 미달 청산</td><td class="green">+22,832원</td><td class="red">-35,465원</td></tr>
+      <tr><td class="left">15분 후 +0.0% 미달 청산</td><td class="green">+66,794원</td><td class="green">+8,497원</td></tr>
+      <tr class="bad"><td class="left">15분 후 +0.5% 미달 청산</td><td class="red">-84,417원</td><td class="red">-142,714원</td></tr>
+    </tbody>
+  </table>
+  <div class="insight">
+    매수 후 추세가 즉시 안 올라온다고 자르면 평균 회귀 종목까지 손실 확정. <strong>조기 청산은 본 표본에서 명백히 손해.</strong>
+  </div>
+
+  <div class="footer">
+    페이지 2 / 4 · Grid Search 단일 변수 분석
+  </div>
+</div>
+
+<!-- ════════════════════ PAGE 3 ════════════════════ -->
+<div class="page">
+  <span class="page-num">3 / 4</span>
+
+  <h2>3. 풀 Grid — Top 5 룰 (540개 조합 중)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">순위</th>
+        <th>합계 시뮬 손익</th>
+        <th>승/패</th>
+        <th>SL</th>
+        <th>TA</th>
+        <th>PB</th>
+        <th>HOLD</th>
+        <th class="left">조기청산</th>
+        <th>vs 베이스</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="highlight">
+        <td class="left">#1</td><td class="green">+280,150원</td><td>9/5</td>
+        <td>-3.0</td><td>+2.5</td><td>1.50</td><td>30</td><td class="left">—</td>
+        <td class="green">+221,853원</td>
+      </tr>
+      <tr>
+        <td class="left">#2</td><td class="green">+260,619원</td><td>9/5</td>
+        <td>-3.0</td><td>+2.5</td><td>0.50</td><td>30</td><td class="left">—</td>
+        <td class="green">+202,322원</td>
+      </tr>
+      <tr>
+        <td class="left">#3</td><td class="green">+222,393원</td><td>9/5</td>
+        <td>-3.0</td><td>+2.5</td><td>1.00</td><td>30</td><td class="left">—</td>
+        <td class="green">+164,096원</td>
+      </tr>
+      <tr>
+        <td class="left">#4</td><td class="green">+197,413원</td><td>7/7</td>
+        <td>-3.0</td><td>+2.5</td><td>1.50</td><td>30</td><td class="left">15m@+0.0%</td>
+        <td class="green">+139,116원</td>
+      </tr>
+      <tr>
+        <td class="left">#5</td><td class="green">+182,450원</td><td>8/6</td>
+        <td>-3.0</td><td>+3.0</td><td>1.00</td><td>30</td><td class="left">—</td>
+        <td class="green">+124,153원</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Top 5 룰의 5/4 vs 5/6 분리 손익</h3>
+  <div class="chart-box">
+    <div style="height:230px"><canvas id="chartTop5Split"></canvas></div>
+  </div>
+
+  <div class="insight">
+    <strong>편향 주의.</strong> Top 룰의 개선분은 <strong>전부 5/4(강세 추세일)</strong>에서 발생. 5/6(약세 휩쏘일)은 어떤 룰을 써도 -290k~-373k로 비슷. 청산 룰만으로는 5/6 같은 날을 못 막는다 — <strong>진입 게이트가 본질적 레버리지.</strong>
+  </div>
+
+  <div class="footer">
+    페이지 3 / 4 · 풀 Grid Top 5 룰 비교
+  </div>
+</div>
+
+<!-- ════════════════════ PAGE 4 ════════════════════ -->
+<div class="page">
+  <span class="page-num">4 / 4</span>
+
+  <h2>4. 권장 변경안</h2>
+
+  <div class="recommendation">
+    <h3>변경 ① <span class="badge badge-green">강력 권장</span> — 트레일링 활성선 +5% → +3%</h3>
+    <p>현행 +5% 임계는 14건 중 단 2건만 활성화. 표본 peak 평균이 +2.6%인데 임계가 +5%면 사실상 룰이 사문화. <strong>+3%로 낮추면 활성화 빈도가 의미 있게 늘면서</strong> (+4건 추가) 풀백 트리거선은 그대로(peak-1%p)라 큰 추세 종목 윗꼬리 자르기 효과는 미미.</p>
+<pre><code><span class="muted"># scripts/core/q_monitor.py:50</span>
+TRAILING_ACTIVATE_PCT = <span class="red">5.0</span>  →  <span class="green">3.0</span></code></pre>
+    <p class="sub">시뮬 효과 베이스 +58k → +182k (<span class="green">+124k 개선, 사이클당 평균 +9k</span>). 표본 14건이라 일주일 dry-run 후 적용 권장.</p>
+  </div>
+
+  <div class="recommendation review">
+    <h3>변경 ② <span class="badge badge-blue">검토</span> — 약세 게이트 강화 (진입 차단)</h3>
+    <p>5/6은 bull_score=2로 약세 게이트 발동(임계 ×1.5) 상태였음에도 6건 중 4건 손실. <strong>5/4·5/6 손실의 본질은 청산이 아니라 진입.</strong> 약세 레짐이거나 score≤2일 때는 임계만 올리는 게 아니라 <strong>진입 자체를 차단</strong>하는 옵션 검토.</p>
+    <p class="sub">현행 bear/score≤2 → 임계 ×1.5. 제안 bear → 진입 차단, score≤2 → 임계 ×2. 한 달치 누적 데이터로 별도 검증 필요.</p>
+  </div>
+
+  <div class="recommendation keep">
+    <h3>변경 ③ <span class="badge badge-yellow">유지</span> — 손절 -3%, 보유시간 30분, 풀백 1%p</h3>
+    <p>각 변수 단일 변경 시 모두 베이스보다 같거나 악화. 특히 SL=-2~-2.5로 빡세게 잡으면 <strong>-200k 악화</strong> (노이즈에서 너무 자주 잘림). 보유시간 15분이 표면상 +67k 좋아 보이지만 표본 편향 가능성 — 30분 유지가 robust.</p>
+  </div>
+
+  <h2>5. 한계와 다음 액션</h2>
+  <ul>
+    <li><strong>표본 14건</strong> — 통계적 신뢰도 낮음. 한 달 누적(예상 80~120사이클)로 재검증 필요.</li>
+    <li><strong>1분봉 grain 노이즈</strong> — q_monitor 실제 폴링 30초. SK 사이클(실제 -3.08%, 시뮬 +2.06%)처럼 차이 발생. 보수적 보정으로 영향 일부 제거.</li>
+    <li><strong>peak 분포 편향</strong> — 14건 peak 분포가 +2.5~3.5% 구간에 4건 몰려 있어 TA=+2.5/+3.0이 유리해 보일 수 있음.</li>
+    <li><strong>5/6 약세 휩쏘</strong>는 청산 룰로 해결 불가 — 진입 단계에서 거르는 게 정공법.</li>
+    <li>다음 액션 — <code>q_monitor.py</code>에 <code>TRAILING_ACTIVATE_PCT</code> 환경변수화 → 일주일 dry-run → 실거래 적용 여부 결정.</li>
+  </ul>
+
+  <div class="footer">
+    페이지 4 / 4 · 권장 변경안 + 한계 ·
+    <code>scripts/backtest/q_trailing_what_if.py</code>,
+    <code>scripts/backtest/q_rules_grid.py</code>
+  </div>
+</div>
+
+<script>
+const baseTotal = 58297;
+const colorGreen = "rgba(22, 128, 61, 0.78)";
+const borderGreen = "#16803d";
+const colorRed = "rgba(180, 35, 24, 0.78)";
+const borderRed = "#b42318";
+
+const bg = (data, baseline) => data.map(v => v >= baseline ? colorGreen : colorRed);
+const border = (data, baseline) => data.map(v => v >= baseline ? borderGreen : borderRed);
+
+const commonOpts = (yLabel="손익(원)") => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  devicePixelRatio: 2,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: "#fff",
+      borderColor: "#d8dde6",
+      borderWidth: 1,
+      titleColor: "#1a1d24",
+      bodyColor: "#1a1d24",
+      callbacks: {
+        label: (ctx) => `${ctx.dataset.label || ""}: ${ctx.parsed.y.toLocaleString()}원`
+      }
+    }
+  },
+  scales: {
+    x: { ticks: { color: "#353a45", font: { size: 9 } }, grid: { color: "#e8ecf2" } },
+    y: {
+      ticks: { color: "#353a45", font: { size: 9 }, callback: v => (v/1000).toFixed(0) + "k" },
+      grid: { color: "#e8ecf2" },
+      title: { display: true, text: yLabel, color: "#6b7280", font: { size: 9 } }
+    }
+  }
+});
+
+// A. TA
+{
+  const data = [36779, 222393, 182450, 69468, 58297, 58297, 58297];
+  new Chart(document.getElementById("chartTA"), {
+    type: "bar",
+    data: {
+      labels: ["+2.0", "+2.5", "+3.0", "+3.5", "+4.0", "+4.5", "+5.0★"],
+      datasets: [{ label: "시뮬 손익", data,
+        backgroundColor: bg(data, baseTotal),
+        borderColor: border(data, baseTotal), borderWidth: 1 }]
+    },
+    options: commonOpts()
+  });
+}
+
+// B. SL
+{
+  const data = [-1303, -145117, -142047, 58297, 67678, 42986];
+  new Chart(document.getElementById("chartSL"), {
+    type: "bar",
+    data: {
+      labels: ["-1.5", "-2.0", "-2.5", "-3.0★", "-3.5", "-4.0"],
+      datasets: [{ label: "시뮬 손익", data,
+        backgroundColor: bg(data, baseTotal),
+        borderColor: border(data, baseTotal), borderWidth: 1 }]
+    },
+    options: commonOpts()
+  });
+}
+
+// C. PB
+{
+  const data = [58297, 58297, 58297, 31762, 31762];
+  new Chart(document.getElementById("chartPB"), {
+    type: "bar",
+    data: {
+      labels: ["0.50", "0.75", "1.00★", "1.25", "1.50"],
+      datasets: [{ label: "시뮬 손익", data,
+        backgroundColor: bg(data, baseTotal),
+        borderColor: border(data, baseTotal), borderWidth: 1 }]
+    },
+    options: commonOpts()
+  });
+}
+
+// D. HOLD
+{
+  const data = [46524, 124909, -55047, -43664, 58297];
+  new Chart(document.getElementById("chartHOLD"), {
+    type: "bar",
+    data: {
+      labels: ["10분", "15분", "20분", "25분", "30분★"],
+      datasets: [{ label: "시뮬 손익", data,
+        backgroundColor: bg(data, baseTotal),
+        borderColor: border(data, baseTotal), borderWidth: 1 }]
+    },
+    options: commonOpts()
+  });
+}
+
+// Top5 split
+{
+  new Chart(document.getElementById("chartTop5Split"), {
+    type: "bar",
+    data: {
+      labels: [
+        "베이스 (TA=+5.0)",
+        "#1 TA=+2.5 PB=1.5",
+        "#2 TA=+2.5 PB=0.5",
+        "#3 TA=+2.5 PB=1.0",
+        "#4 TA=+2.5 +stuck",
+        "#5 TA=+3.0 PB=1.0"
+      ],
+      datasets: [
+        {
+          label: "5/4",
+          data: [358226, 568908, 633669, 595443, 521555, 471208],
+          backgroundColor: colorGreen, borderColor: borderGreen, borderWidth: 1
+        },
+        {
+          label: "5/6",
+          data: [-299929, -288758, -373050, -373050, -324142, -288758],
+          backgroundColor: colorRed, borderColor: borderRed, borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      ...commonOpts(),
+      plugins: {
+        ...commonOpts().plugins,
+        legend: { display: true, position: "top", labels: { color: "#1a1d24", font: { size: 9 }, boxWidth: 10 } }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
