@@ -11,22 +11,37 @@ export default function StrategyPage() {
       </div>
 
       <section className="glass-card p-5 md:p-6 space-y-4">
-        <h2 className="text-base font-bold">운영 규칙 (v3 — 2026-05-06~)</h2>
+        <h2 className="text-base font-bold">운영 규칙 (v4 — 2026-05-08~)</h2>
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <Rule label="스캔 시간" value="10:00 ~ 14:50 (1분 간격)" />
           <Rule label="동시 보유" value="1종목" />
-          <Rule label="진입 조건" value="등락률 ≥ +7%" />
+          <Rule
+            label="1차 narrow"
+            value="직전 분 대비 등락률 점프 ≥ +2%p (cold start: 등락률 ≥ +2% 전 종목)"
+          />
           <Rule label="가격 필터" value="전일 종가 ≥ 2,000원" />
           <Rule
-            label="거래량 필터"
-            value="직전 15분 거래량 ≥ 전일 동시간대 ×4 (없으면 ×3 fallback)"
+            label="등락률 상한"
+            value="현재 등락률 ≤ +15% (고속 락 종목 회피)"
           />
           <Rule
-            label="레짐 게이트 (v3)"
-            value="bear → 신규 진입 차단 / bull_score ≤ 2 → 임계 ×2 (등락률 +14%, 거래량 8배/6배)"
+            label="2차 confirm — 거래량"
+            value="직전 1분 거래량 / 직전 5분 평균 ≥ 3배"
           />
           <Rule
-            label="익절 (v3)"
+            label="2차 confirm — 가격"
+            value="직전 1분 등락 ≥ +2%"
+          />
+          <Rule
+            label="휴면 차단"
+            value="직전 5분 평균 거래량 < 1,000주 무시"
+          />
+          <Rule
+            label="레짐 게이트"
+            value="bear → 신규 진입 차단 (v3 약세 ×2 multiplier 폐기)"
+          />
+          <Rule
+            label="익절"
             value="트레일링 +3% 활성화 → 고점 대비 -1%p 되돌림 시 청산"
           />
           <Rule label="손절" value="-3% (즉시 청산)" />
@@ -51,26 +66,29 @@ export default function StrategyPage() {
           <li>
             <span className="text-gray-400 font-medium">①</span> 시작 시
             <code className="text-xs"> market_regimes</code> 레짐 조회 →{" "}
-            <strong>bear → 신규 진입 차단</strong> /{" "}
-            <strong>bull_score ≤ 2 → 임계 ×2</strong> 자동 적용 (v3)
+            <strong>bear → 신규 진입 차단</strong>
           </li>
           <li>
-            <span className="text-gray-400 font-medium">②</span> 등락률 순위 조회
-            (KIS <code className="text-xs">FHPST01700000</code>)에서 ≥ +7% 종목 선별
+            <span className="text-gray-400 font-medium">②</span> 매분 KIS 등락률 순위
+            (<code className="text-xs">FHPST01700000</code>) 호출 → 직전 분 캐시와 비교해
+            <strong> 등락률 점프 ≥ +2%p</strong> 종목만 후보로 추림 (보통 0~3개,
+            cold start는 등락률 ≥ +2% 전 종목 폴백)
           </li>
           <li>
-            <span className="text-gray-400 font-medium">③</span> 전일 종가 ≥ 2,000원
-            가격 필터 통과
+            <span className="text-gray-400 font-medium">③</span> 가드: 현재 등락률 ≤ +15%,
+            전일 종가 ≥ 2,000원
           </li>
           <li>
-            <span className="text-gray-400 font-medium">④</span> 직전 15분 거래량 / 전일
-            동시간대 비율 (KIS <code className="text-xs">FHKST03010230</code>) ≥ 4배
-            우선, 후보 없으면 ≥ 3배까지 확장 (9시대는 분봉 비교 불가하여 진입 안 함)
+            <span className="text-gray-400 font-medium">④</span> 후보 종목만 1분봉 6개
+            (<code className="text-xs">FHKST03010230</code>) 호출 →{" "}
+            <strong>직전 1분 vol / 직전 5분 평균 ≥ 3배</strong> AND{" "}
+            <strong>직전 1분 등락 ≥ +2%</strong> 동시 충족 (직전 5분 평균 vol &lt; 1,000주는
+            휴면 종목으로 무시)
           </li>
           <li>
-            <span className="text-gray-400 font-medium">⑤</span> 1순위 종목 시장가 즉시
-            매수 → 매수+30분 30초 간격 가격 모니터링 → -3% 손절 / 트레일링(+3% 활성화 후
-            고점 대비 -1%p 되돌림, v3) 익절 / 30분 강제청산
+            <span className="text-gray-400 font-medium">⑤</span> 시그널 강도(vol_ratio)
+            1순위 종목 시장가 즉시 매수 → 매수+30분 30초 간격 가격 모니터링 → -3% 손절 /
+            트레일링(+3% 활성화 후 고점 대비 -1%p 되돌림) 익절 / 30분 강제청산
           </li>
           <li>
             <span className="text-gray-400 font-medium">⑥</span> 청산 후 사이클 결과 기록
@@ -82,6 +100,11 @@ export default function StrategyPage() {
       <section className="glass-card p-5 md:p-6 space-y-3">
         <h2 className="text-base font-bold">변경 이력</h2>
         <div className="space-y-3 text-sm">
+          <Change
+            date="2026-05-08~"
+            title="v4 — 초단기 시그널 전환 (점프 감지 + 1분봉)"
+            desc="5/8 4종목(진원생명과학·계양전기우·현대오토에버 등) 급등 직전 1분봉 분석에서 결정적 진입점이 모두 '직전 1분 vol/5MA ≥3배 + 1분 등락 ≥+2%' 패턴이었음을 확인. v3의 15분/전일 비교는 폭발 직전 5MA가 부풀려져 둔감해지는 한계 발견. v3 게이트(등락률 ≥+7% + 15분/전일 ≥4배) 폐기, 매분 등락률 순위 점프 감지(직전 분 대비 ≥+2%p)로 후보 0~3개 추린 뒤 1분봉 시그널로 confirm. 가드: 등락률 ≤+15% (고속 락 회피), 5MA vol ≥1,000주 (휴면 차단). 약세 ×2 multiplier 폐기 — 단기 시그널 자체가 강한 필터."
+          />
           <Change
             date="2026-05-06~"
             title="v3 — 트레일링 +3% / bear 진입 차단"

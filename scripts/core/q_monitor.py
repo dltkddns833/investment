@@ -1,27 +1,26 @@
 """Q 정채원 장중 1분 상시 스캔 스캘핑 모니터링
 
-이슈 #57 Q 정채원 전략 (2026-05-06 v3 — 5/4·5/6 백테스트 반영):
+이슈 #57 Q 정채원 전략 (2026-05-08 v4 — 5/8 4종목 분석 반영, 초단기 시그널 전환):
   - 10:00 ~ 14:50 동안 1분 간격으로 KIS 등락률 순위 상시 스캔
     (9시대 fallback 폐기 — 분봉 비교 불가 + 0승 2패 데이터)
-  - 종목 선정 (3단계 필터):
-      1) 등락률 ≥ +7% (상한 없음, 음전 자동 제외)
-      2) 전일 종가 ≥ 2,000원
-      3) 직전 15분 거래량 / 전일 동시간대 15분 거래량 ≥ 4배
-         (4배 후보 없으면 ≥ 3배로 fallback. 둘 다 없으면 진입 안 함)
+  - 종목 선정 (점프 감지 + 1분봉 단기 시그널, v3 게이트 폐기):
+      1) 매분 등락률 순위 호출 → 직전 분 대비 등락률 점프 ≥ +2%p 후보만 추림 (보통 0~3개)
+         · cold start (장 시작/재기동 직후 1회): 등락률 ≥ +2% 전 종목 폴백
+      2) 전일 종가 ≥ 2,000원, 현재 등락률 ≤ +15% (고속 락 종목 회피)
+      3) 1분봉 6개 호출 → 직전 1분 거래량 / 직전 5분 평균 ≥ 3배 AND
+         직전 1분 등락 ≥ +2% 동시 충족
+      4) 5분 평균 거래량 < 1,000주는 휴면 종목으로 판정 → 무시
   - 매수 후 30분 모니터링: 30초 간격 가격 체크 (HOLDING 한정, IDLE 스캔은 1분)
   - 손절: 매수가 대비 -3% (즉시 청산)
   - 익절: 트레일링 — 매수가 대비 +3% 도달 시 활성화 → 고점 대비 -1% 되돌림 시 청산
-    (v3: 활성선 +5→+3, 14건 표본 peak 평균 +2.6%로 +5%는 사실상 사문화 → 시뮬 +124k 개선)
   - 강제 청산: 매수+30분 (익절/손절 미발동 시)
   - 동시 보유 1종목 (HOLDING 중에는 신규 스캔 스킵)
   - 당일 재매수 금지 (매도 후 같은 종목 재진입 차단)
   - **일일 매매 한도 8회** (8회째 BUY 이후 추가 진입 차단)
   - **연패 쿨다운**: 직전 3사이클 모두 손실(<0%)이면 1시간 진입 차단
-  - **레짐 게이트** (v3 강화):
+  - **레짐 게이트**:
       · bear 레짐 → 신규 진입 자체 차단 (HOLDING 중이면 청산 후 종료)
-      · bull_score ≤ 2 (neutral/bull) → 임계값 모두 ×2 (등락률 +14%, 거래량 8배/6배)
-      · 정상 (score ≥ 3) → 기본 임계
-    (v3: 5/6 약세 휩쏘일 4/6 손실 → 청산 룰로 못 막아 진입 단계 강화)
+      · 그 외 → 단기 시그널 그대로 적용 (v3 약세 ×2 multiplier 폐기 — v4는 단기 자체가 강한 필터)
   - 자본: 복리 + 1,000만원 캡 (캡 초과분은 현금으로 보유)
   - 종목 범위: KOSPI + KOSDAQ 전체 (stock_universe 무관)
 
@@ -55,31 +54,36 @@ TRAILING_ACTIVATE_PCT = 3.0     # +3% 도달 시 트레일링 활성화 (05-06 b
 TRAILING_PULLBACK_PCT = 1.0     # 활성화 후 고점 대비 -1% 되돌림 시 청산
 MAX_CAPITAL_PER_TRADE = 10_000_000  # 매수당 자본 캡
 MIN_PREV_CLOSE = 2000           # 전일 종가 2,000원 미만 제외
-SURGE_RATE_MIN = 7.0            # 등락률 하한 (≥ +7%, 04-30 v2 5→7 상향)
-SURGE_RATE_MAX = 30.0           # 등락률 상한 (사실상 일일 등락제한 ±30%까지 허용)
 
 # 1분 상시 스캔 윈도우
 # 09:00~09:59는 분봉 비교 불가하여 진입 불가, 10:00부터 시도 (09시 fallback 폐기)
-SCAN_START_HH = 10              # 10:00 스캔 시작 (9시대 fallback 폐기, 04-30 v2)
+SCAN_START_HH = 10              # 10:00 스캔 시작
 SCAN_START_MM = 0
 SCAN_END_HH = 14                # 14:50 스캔 종료 (매수 후 30분 강제 청산 윈도우 보장)
 SCAN_END_MM = 50
 HOLD_DURATION_MIN = 30          # 매수 후 보유 시간 (강제 청산 시각 = buy_dt + 30분)
-SCAN_INTERVAL_MIN = 1           # IDLE 스캔 주기 (분봉 거래량 비교 기반이라 1분 유지)
-HOLD_INTERVAL_SEC = 30          # HOLDING 가격 체크 주기 (손절/트레일링 반응 속도, 05-06 v2.1)
+SCAN_INTERVAL_MIN = 1           # IDLE 스캔 주기
+HOLD_INTERVAL_SEC = 30          # HOLDING 가격 체크 주기
 
-# 거래량 폭증 매집 추종 파라미터 (04-30 v2 — 3→4배, 2→3배 상향)
-VOLUME_RATIO_MIN = 4.0          # 직전 15분 거래량 / 전일 동시간대 ≥ 4배 (1차)
-VOLUME_RATIO_FALLBACK = 3.0     # 4배 후보 없으면 3배로 완화 (2차)
-SEARCH_WINDOW_MIN = 15          # 거래량 비교 서치 윈도우 (분)
+# 초단기 시그널 파라미터 (v4 — 5/8 4종목 분석 반영)
+# 1차 narrow: 매분 등락률 순위에서 직전 분 대비 점프 종목 추림
+JUMP_DETECT_PCT = 2.0           # 직전 분 대비 등락률 점프 ≥ +2%p (점프 감지)
+COLD_START_RATE_MIN = 2.0       # cold start 시 등락률 ≥ +2% 전 종목 폴백
+RATE_MAX_FOR_ENTRY = 15.0       # 현재 등락률 > 15%면 진입 차단 (고속 락 회피)
+# 2차 confirm: 1분봉 6개로 단기 시그널 검증
+MIN_5MA_VOLUME = 1000           # 직전 5분 평균 거래량 < 1,000주는 휴면 종목으로 무시
+VOL_5MA_RATIO_MIN = 3.0         # 직전 1분 거래량 / 직전 5분 평균 ≥ 3배
+RATE_1M_MIN = 2.0               # 직전 1분 등락 ≥ +2%
 
-# 일일 매매 한도 + 연패 쿨다운 + 약세 레짐 게이트 (04-30 v2 추가)
+# 일일 매매 한도 + 연패 쿨다운 + 레짐 게이트
 DAILY_TRADE_LIMIT = 8           # 일일 BUY 횟수 한도 (8회 도달 시 추가 진입 차단)
 LOSS_STREAK_THRESHOLD = 3       # 직전 N사이클 모두 손실이면 쿨다운 발동
 COOLDOWN_MINUTES = 60           # 연패 쿨다운 시간 (분)
-WEAK_REGIME_MULTIPLIER = 2.0    # 약세(score≤2) 시 임계값 배수 (05-06 backtest: 1.5→2.0)
-WEAK_REGIME_BULL_SCORE = 2      # bull_score 이 값 이하면 약세로 판정
 BEAR_BLOCK_ENTRY = True         # bear 레짐 시 신규 진입 차단 (05-06 backtest: 5/6 약세 휩쏘 손실 대응)
+# v3의 WEAK_REGIME_MULTIPLIER는 v4에서 폐기 — 단기 시그널 자체가 강한 필터라 추가 게이트 불필요
+
+# 등락률 순위 호출 시 1차 후보 풀 사이즈 (점프 감지용 base universe)
+SURGE_RANKING_POOL_SIZE = 50
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -156,167 +160,207 @@ def fetch_market_name(client, code):
 
 # --- 레짐 게이트 ---
 
-def get_regime_thresholds(today):
-    """오늘(또는 직전 영업일) 마켓 레짐을 조회해 임계값과 진입 차단 여부를 결정.
+def get_regime_block(today):
+    """오늘(또는 직전 영업일) 마켓 레짐을 조회해 진입 차단 여부 판정.
 
-    Returns: (rate_min, volume_ratio_min, volume_ratio_fallback, regime_label, block_entry)
-      - bear 레짐 → block_entry=True (신규 진입 차단). 임계값은 표시용으로만 의미.
-      - bull_score ≤ WEAK_REGIME_BULL_SCORE (neutral/bull) → 임계값 ×WEAK_REGIME_MULTIPLIER
-      - 그 외(혹은 조회 실패) → 기본 임계값
-    (v3 2026-05-06: bear 분리 + multiplier 1.5→2.0)
+    Returns: (regime_label, block_entry)
+      - bear 레짐 → block_entry=True (신규 진입 차단)
+      - 그 외(혹은 조회 실패) → 차단 없음
+    (v4: WEAK_REGIME_MULTIPLIER 폐기. 단기 시그널 자체가 강한 필터.)
     """
     try:
         rows = supabase.table("market_regimes").select("regime,bull_score").eq(
             "date", today.isoformat()
         ).execute().data
         if not rows:
-            # 오늘 레코드 없으면 직전 영업일
             yday = prev_business_day(today)
             rows = supabase.table("market_regimes").select("regime,bull_score").eq(
                 "date", yday.isoformat()
             ).execute().data
         if not rows:
-            return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "unknown", False
+            return "unknown", False
         r = rows[0]
         regime = r.get("regime") or ""
         score = r.get("bull_score") or 0
-
-        # bear 레짐 → 진입 차단
         if BEAR_BLOCK_ENTRY and regime == "bear":
-            label = f"{regime} (bull_score={score}) → 신규 진입 차단"
-            return (
-                SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK,
-                label, True,
-            )
-
-        # bull_score ≤ 2 (neutral/bull) → 임계 ×2
-        if score <= WEAK_REGIME_BULL_SCORE:
-            m = WEAK_REGIME_MULTIPLIER
-            label = f"{regime} (bull_score={score}) 약세 → 임계 {m}x"
-            return (
-                SURGE_RATE_MIN * m,
-                VOLUME_RATIO_MIN * m,
-                VOLUME_RATIO_FALLBACK * m,
-                label, False,
-            )
-
-        # 정상
-        return (
-            SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK,
-            f"{regime} (bull_score={score}) 정상", False,
-        )
+            return f"{regime} (bull_score={score}) → 신규 진입 차단", True
+        return f"{regime} (bull_score={score})", False
     except Exception as e:
-        logger.warning(f"레짐 조회 실패 — 기본 임계값 사용: {e}")
-        return SURGE_RATE_MIN, VOLUME_RATIO_MIN, VOLUME_RATIO_FALLBACK, "error", False
+        logger.warning(f"레짐 조회 실패 — 차단 없음: {e}")
+        return "error", False
 
 
-# --- 종목 선정 ---
+# --- 종목 선정 (v4 — 점프 감지 + 1분봉 단기 시그널) ---
 
-def search_window_hhmm(now_dt, window_min=SEARCH_WINDOW_MIN):
-    """직전 window_min분 윈도우의 (start_hhmm, end_hhmm) 4자리 문자열.
+def fetch_surge_ranking(client):
+    """현재 KIS 등락률 순위 풀을 dict({code: change_pct, price, name}) 로 반환.
 
-    예) now_dt=11:23 → ("1108", "1123")
+    음전(<0%)은 자동 제외되며, 9시대 운영 시작 시점에는 cold start universe로 활용.
+    실패 시 빈 dict.
     """
-    end = now_dt.replace(second=0, microsecond=0)
-    start = end - timedelta(minutes=window_min)
-    return start.strftime("%H%M"), end.strftime("%H%M")
-
-
-def pick_surge_stock(client, now_dt, today, exclude_codes=None,
-                     rate_min=SURGE_RATE_MIN,
-                     volume_ratio_min=VOLUME_RATIO_MIN,
-                     volume_ratio_fallback=VOLUME_RATIO_FALLBACK):
-    """1분 스캔 — 거래량 폭증 매집 추종 종목 선정 (3단계 필터).
-
-    1차: 등락률 ≥ rate_min (음전 자동 제외, 상한 없음)
-    2차: 전일 종가 ≥ 2,000원
-    3차: 직전 SEARCH_WINDOW_MIN분 거래량 / 전일 동시간대 ≥ volume_ratio_min
-         volume_ratio_min 후보 없으면 ≥ volume_ratio_fallback 으로 완화. 둘 다 없으면 None.
-
-    9시대(now_dt.hour < 10)는 분봉 비교 불가하여 None 반환 (04-30 v2 폐기).
-    레짐 게이트가 약세(score≤2)이면 호출자가 임계값을 2배로 넘김 (v3).
-    bear 레짐이면 호출자가 아예 호출하지 않음 (block_entry=True).
-    """
-    exclude_codes = exclude_codes or set()
-
-    # 9시대는 분봉 비교 불가 — 진입 안 함
-    if now_dt.hour < 10:
-        return None
-
-    # 1차 필터: 등락률 ≥ rate_min
     try:
-        candidates = client.get_surge_stocks(
-            rate_min=rate_min, rate_max=SURGE_RATE_MAX,
-            min_volume=100000, max_count=30, exclude_special=True,
+        rows = client.get_surge_stocks(
+            rate_min=COLD_START_RATE_MIN, rate_max=RATE_MAX_FOR_ENTRY,
+            min_volume=100000, max_count=SURGE_RANKING_POOL_SIZE, exclude_special=True,
         )
     except Exception as e:
         logger.warning(f"  등락률 순위 조회 실패: {e}")
+        return {}
+    return {r["code"]: r for r in rows if r.get("code")}
+
+
+def detect_jump_candidates(prev_ranking, curr_ranking, jump_pct=JUMP_DETECT_PCT):
+    """직전 분 ranking 대비 등락률 점프 ≥ jump_pct%p 종목만 추림.
+
+    prev_ranking이 비어있으면 cold start로 간주, curr_ranking 전체를 후보로 반환.
+    Returns: list of candidate dicts (각 dict에 'jump_pct' 키 추가)
+    """
+    if not prev_ranking:
+        # cold start: 첫 스캔(또는 ranking 조회 실패 후 복귀) → 등락률 ≥ COLD_START_RATE_MIN 전 종목
+        return [
+            {**c, "jump_pct": None, "is_cold_start": True}
+            for c in curr_ranking.values()
+        ]
+
+    jumpers = []
+    for code, c in curr_ranking.items():
+        prev = prev_ranking.get(code)
+        prev_rate = prev.get("change_pct", 0) if prev else 0
+        # 직전에 ranking에 없던 신규 등장은 prev_rate=0으로 비교 (점프로 처리)
+        curr_rate = c.get("change_pct", 0)
+        delta = curr_rate - prev_rate
+        if delta >= jump_pct:
+            jumpers.append({**c, "jump_pct": delta, "is_cold_start": False})
+    return jumpers
+
+
+def confirm_short_term_signal(client, code, today_str):
+    """1분봉 6개를 받아 단기 시그널 확인.
+
+    조건 (모두 충족):
+      - 직전 5분 평균 거래량 ≥ MIN_5MA_VOLUME (휴면 종목 차단)
+      - 직전 1분 거래량 / 직전 5분 평균 ≥ VOL_5MA_RATIO_MIN
+      - 직전 1분 등락률 ≥ RATE_1M_MIN
+
+    Returns: dict({"ok": bool, "vol_ratio": float, "rate_1m": float, "avg5_vol": int}) 또는 실패 시 None
+    """
+    try:
+        # 한 호출당 120 봉. 현재 시각 기준 include_past='Y'로 가장 최근 분봉 조회
+        # hour_str은 현재 시각으로 설정해서 가장 최근 데이터 받음
+        now_hhmm = datetime.now().strftime("%H%M00")
+        bars = client.get_minute_chart(code, today_str.replace("-", ""), hour_str=now_hhmm, include_past="Y")
+    except Exception as e:
+        logger.debug(f"    1분봉 조회 실패 ({code}): {e}")
         return None
 
-    if not candidates:
+    if not bars or len(bars) < 6:
         return None
 
-    # 2차 필터: 전일 종가 추정 (현재가 / (1 + change_pct/100)) ≥ 2,000원
-    pre_filtered = []
-    for c in candidates:
+    bars.sort(key=lambda b: b.get("time", ""))
+    recent6 = bars[-6:]  # 직전 5분 + 현재(직전) 1분
+    prev5 = recent6[:5]
+    last = recent6[5]
+    avg5_vol = sum(b.get("volume", 0) for b in prev5) / 5 if prev5 else 0
+    last_vol = last.get("volume", 0)
+
+    if avg5_vol < MIN_5MA_VOLUME:
+        return {"ok": False, "reason": "휴면(5MA<1k)", "avg5_vol": int(avg5_vol)}
+
+    vol_ratio = last_vol / avg5_vol if avg5_vol > 0 else 0
+    prev_close = recent6[-2].get("close", 0)
+    last_close = last.get("close", 0)
+    rate_1m = (last_close / prev_close - 1) * 100 if prev_close else 0
+
+    ok = vol_ratio >= VOL_5MA_RATIO_MIN and rate_1m >= RATE_1M_MIN
+    return {
+        "ok": ok,
+        "vol_ratio": vol_ratio,
+        "rate_1m": rate_1m,
+        "avg5_vol": int(avg5_vol),
+        "last_vol": int(last_vol),
+    }
+
+
+def pick_short_term_signal(client, now_dt, today, prev_ranking, exclude_codes=None):
+    """v4 종목 선정 — 점프 감지 + 1분봉 단기 시그널.
+
+    Returns: (best_candidate_dict, curr_ranking)
+      - best_candidate_dict: 매수 후보 (실패 시 None)
+      - curr_ranking: 다음 분에서 점프 비교용으로 호출자가 보관할 ranking
+    """
+    exclude_codes = exclude_codes or set()
+
+    # 9시대는 분봉 부족 — 진입 안 함
+    if now_dt.hour < 10:
+        return None, prev_ranking
+
+    curr_ranking = fetch_surge_ranking(client)
+    if not curr_ranking:
+        return None, prev_ranking
+
+    # 1차: 점프 감지로 후보 추림
+    jumpers = detect_jump_candidates(prev_ranking, curr_ranking)
+    cold_start = bool(jumpers and jumpers[0].get("is_cold_start"))
+    # 제외 종목 + 가격 필터 + 등락률 상한
+    filtered = []
+    for c in jumpers:
         if c["code"] in exclude_codes:
             continue
         rate = c.get("change_pct", 0)
+        if rate > RATE_MAX_FOR_ENTRY:
+            continue
         cur_price = c.get("price", 0)
         prev_close = cur_price / (1 + rate / 100) if rate > -100 else 0
-        if prev_close >= MIN_PREV_CLOSE:
-            c["prev_close_est"] = int(prev_close)
-            pre_filtered.append(c)
-
-    if not pre_filtered:
-        return None
-
-    # 3차: 직전 SEARCH_WINDOW_MIN분 거래량 폭증 비율
-    start_hhmm, end_hhmm = search_window_hhmm(now_dt)
-    today_str = today.strftime("%Y%m%d")
-    yday_str = prev_business_day(today).strftime("%Y%m%d")
-
-    measured = []  # (ratio, candidate) — 거래량 비교 성공한 후보들
-    for c in pre_filtered:
-        try:
-            today_v = client.get_volume_in_window(c["code"], today_str, start_hhmm, end_hhmm)
-            yday_v = client.get_volume_in_window(c["code"], yday_str, start_hhmm, end_hhmm)
-        except Exception as e:
-            logger.warning(f"  분봉 조회 실패 ({c['code']}): {e}")
+        if prev_close < MIN_PREV_CLOSE:
             continue
-        if yday_v <= 0:
-            continue
-        ratio = today_v / yday_v
-        c["volume_ratio"] = ratio
-        c["today_window_vol"] = today_v
-        c["yday_window_vol"] = yday_v
-        measured.append((ratio, c))
+        c["prev_close_est"] = int(prev_close)
+        filtered.append(c)
 
-    if not measured:
-        logger.info(f"  거래량 비교 후보 없음 (윈도우 {start_hhmm}~{end_hhmm})")
-        return None
+    if not filtered:
+        if cold_start:
+            logger.info(f"  [스캔 {now_dt.strftime('%H:%M')}] cold start 후보 0개")
+        else:
+            logger.info(f"  [스캔 {now_dt.strftime('%H:%M')}] 점프 종목 0개")
+        return None, curr_ranking
 
-    qualified = [(r, c) for r, c in measured if r >= volume_ratio_min]
-    label = f"≥{volume_ratio_min:.1f}배"
-    if not qualified:
-        qualified = [(r, c) for r, c in measured if r >= volume_ratio_fallback]
-        label = f"≥{volume_ratio_fallback:.1f}배 fallback"
-        if not qualified:
-            logger.info(
-                f"  거래량 폭증 후보 없음 (최대 비율 {max(r for r, _ in measured):.2f}x, "
-                f"윈도우 {start_hhmm}~{end_hhmm})"
-            )
-            return None
-
-    qualified.sort(key=lambda x: x[0], reverse=True)
-    best_ratio, best = qualified[0]
+    label = "cold start" if cold_start else f"점프 {len(filtered)}개"
     logger.info(
-        f"  선정({label}): {best['name']}({best['code']}) "
-        f"{best.get('change_pct', 0):+.1f}%, "
-        f"거래량 {best.get('today_window_vol', 0):,}/{best.get('yday_window_vol', 0):,} "
-        f"= {best_ratio:.2f}x ({start_hhmm}~{end_hhmm})"
+        f"  [스캔 {now_dt.strftime('%H:%M')}] {label} → 1분봉 시그널 검증"
     )
-    return best
+
+    # 2차: 1분봉 시그널 검증
+    today_str = today.strftime("%Y%m%d")
+    qualified = []
+    for c in filtered:
+        sig = confirm_short_term_signal(client, c["code"], today_str)
+        if not sig:
+            continue
+        if not sig["ok"]:
+            reason = sig.get("reason") or (
+                f"vol {sig['vol_ratio']:.2f}x, 1m {sig['rate_1m']:+.2f}%"
+            )
+            logger.info(f"    {c.get('name','?')}({c['code']}) 통과 실패 — {reason}")
+            continue
+        c.update(sig)
+        qualified.append(c)
+        logger.info(
+            f"    ★ {c['name']}({c['code']}) {c.get('change_pct',0):+.1f}% "
+            f"jump {c.get('jump_pct'):+.2f}p · 1m {sig['rate_1m']:+.2f}% · "
+            f"vol {sig['vol_ratio']:.2f}x (last {sig['last_vol']:,}/avg5 {sig['avg5_vol']:,})"
+        )
+
+    if not qualified:
+        return None, curr_ranking
+
+    # 시그널 강도(vol_ratio)로 정렬 → 1순위 선정
+    qualified.sort(key=lambda c: c["vol_ratio"], reverse=True)
+    best = qualified[0]
+    logger.info(
+        f"  선정: {best['name']}({best['code']}) "
+        f"{best.get('change_pct', 0):+.1f}%, 1m {best['rate_1m']:+.2f}%, "
+        f"vol {best['vol_ratio']:.2f}x"
+    )
+    return best, curr_ranking
 
 
 # --- 매매 실행 ---
@@ -538,30 +582,26 @@ def run_monitor(dry_run=False):
 
     client = KISClient()
 
-    # 레짐 게이트 — 시작 시 임계값 + 진입 차단 여부 결정 (장중 변경 안 함)
-    rate_min, vol_min, vol_fallback, regime_label, block_entry = get_regime_thresholds(today)
+    # 레짐 게이트 — 시작 시 진입 차단 여부 결정 (장중 변경 안 함)
+    regime_label, block_entry = get_regime_block(today)
     logger.info(f"레짐: {regime_label}")
     if block_entry:
         logger.warning("bear 레짐 — 신규 진입 차단 (HOLDING이 없으면 즉시 종료)")
-    else:
-        logger.info(
-            f"임계값: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
-            f"(fallback {vol_fallback:.1f}배)"
-        )
 
     if block_entry:
         notify_monitor(
-            f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
+            f"⚡ *[정채원 Q v4] 모니터링 시작* ({today_str})\n"
             f"레짐: {regime_label}\n"
-            f"🛑 신규 진입 차단 — bear 레짐 휩쏘 회피 (v3)\n"
+            f"🛑 신규 진입 차단 — bear 레짐 휩쏘 회피\n"
             f"(dry_run={dry_run})"
         )
     else:
         notify_monitor(
-            f"⚡ *[정채원 Q] 모니터링 시작* ({today_str})\n"
+            f"⚡ *[정채원 Q v4] 모니터링 시작* ({today_str})\n"
             f"레짐: {regime_label}\n"
-            f"임계: 등락률 ≥ {rate_min:.1f}%, 거래량 ≥ {vol_min:.1f}배 "
-            f"(fallback {vol_fallback:.1f}배)\n"
+            f"시그널: 등락률 점프 ≥ +{JUMP_DETECT_PCT:.1f}%p → "
+            f"1분봉 vol ≥ {VOL_5MA_RATIO_MIN:.1f}x AND 1m ≥ +{RATE_1M_MIN:.1f}%\n"
+            f"가드: 등락 ≤ +{RATE_MAX_FOR_ENTRY:.0f}%, 5MA vol ≥ {MIN_5MA_VOLUME:,}\n"
             f"한도: 일일 {DAILY_TRADE_LIMIT}회, 연패 {LOSS_STREAK_THRESHOLD}회 → "
             f"{COOLDOWN_MINUTES}분 쿨다운\n"
             f"(dry_run={dry_run})"
@@ -648,6 +688,7 @@ def run_monitor(dry_run=False):
         logger.info(f"기존 보유 인계: {h['name']}({ticker}) avg={h['avg_price']:,}원")
 
     summary = []            # 종료 요약용 매매 결과
+    prev_ranking = {}       # v4 점프 감지용 — 직전 분 등락률 순위 캐시
 
     while datetime.now() < scan_end or state == "HOLDING":
         if check_kill_switch():
@@ -770,15 +811,13 @@ def run_monitor(dry_run=False):
                     logger.info(f"  쿨다운 해제 ({cooldown_until.strftime('%H:%M')})")
                     cooldown_until = None
 
-                picked = pick_surge_stock(
+                picked, prev_ranking = pick_short_term_signal(
                     client, now, today,
+                    prev_ranking=prev_ranking,
                     exclude_codes=traded_today_codes,
-                    rate_min=rate_min,
-                    volume_ratio_min=vol_min,
-                    volume_ratio_fallback=vol_fallback,
                 )
                 if not picked:
-                    logger.info(f"  [스캔 {now.strftime('%H:%M')}] 후보 없음")
+                    pass  # pick_short_term_signal 내부에서 자체 로깅
                 if picked:
                     bought = execute_buy(
                         client, picked["code"], picked.get("name", ""),
