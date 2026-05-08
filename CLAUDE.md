@@ -4,14 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. A~P 16명의 투자자가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS API 실전 매매 스캘퍼로 본질이 시뮬과 달라, **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 16명만 표시). DB와 Python 백엔드는 17명 모두 포함.
+한국 주식 모의 투자 시뮬레이션. 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS API 실전 매매 스캘퍼로 본질이 시뮬과 달라, **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 11명만 표시). DB는 과거 데이터(B·L·N·O·P 포함) 보존.
+
+**2026-05-08 정리**: B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절 5명을 시뮬·대시보드에서 제외(소프트 제외). 코드/DB/과거 거래내역은 보존하며, `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`와 `web/src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES`가 단일 진실 공급원.
 
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. 현재는 전략 검증(R&D) 단계이며, 충분한 데이터 축적과 백테스트를 거친 후 증권사 API 연동을 통한 완전 자동 매매를 목표로 한다.
 
 - 시드머니: 각 500만원 (KRW)
 - 시장: KOSPI + KOSDAQ (yfinance 기반 실시간 시세)
 - A 강돌진: 공격적 모멘텀 / 매일 리밸런싱 / 5~8종목 집중
-- B 김균형: 균형 분산 / 매주 리밸런싱 / 10~15종목 분산
 - C 이든든: 보수적 우량주 / 매월 리밸런싱 / 5~10종목
 - D 장반대: 역발상 투자 / 3일마다 리밸런싱 / 5~8종목 (A와 정반대)
 - E 정기준: 동일 가중 벤치마크 / 격주 리밸런싱 / 전 종목 균등 (기준선)
@@ -21,12 +22,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - I 최배당: 배당 투자 / 분기별 리밸런싱 / 5~10종목 (배당수익률 중심)
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
 - K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
-- L 신장모: 분할매도 전략 / 매일 체크 / 3~8종목 코스닥 성장주 (레짐별 동적 분할매도: bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%, 손절 -7%)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
-- N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (모멘텀+펀더멘털+수급 3중 필터)
-- O 정익절: 단기 스윙 수익실현 / 장중 10분 간격 모니터링 / 5~8종목 (총자산 +5% 전 종목 익절, 종목별 -3% 손절, 30분마다 모멘텀 이탈→급등 종목 교체, 일일 최대 3회)
-- P 정삼절: 고정 시드 스윙 / 장중 10분 간격 모니터링 / 5~8종목 (O와 동일 매매 규칙, 단 매일 500만원 baseline 리셋 + cashflow_account 별도 정산, 복리 제거 실험)
 - Q 정채원: 장중 1분 상시 스캔 스캘핑 v4 / 10:00~14:50 1분 간격 **점프 감지 + 1분봉 단기 시그널** 종목 발견 즉시 매수 → 매수+30분 안에 청산 / 1종목 집중 (직전 분 대비 등락률 점프 ≥+2%p AND 1분봉 vol/5MA ≥3배 AND 1분 등락 ≥+2% AND 현재 등락률 ≤+15% AND 5MA vol ≥1,000주 AND 전일 종가 ≥2,000원, 9시대 진입 차단, **트레일링 익절(+3% 활성→고점 -1%p 되돌림)** / -3% 손절 / 매수+30분 강제 청산, 동시 보유 1종목, 당일 재매수 금지, 일일 매매 한도 8회, 직전 3사이클 연속 손실 시 60분 쿨다운, **bear 레짐 신규 진입 차단** (v3의 약세 ×2 multiplier는 v4에서 폐기 — 단기 시그널 자체가 강한 필터), 매매당 max 1,000만원 캡, **stock_universe 무관, 전체 KOSPI/KOSDAQ 대상 매매**)
+
+**아카이브 (2026-05-08 정리, 시뮬에서 제외)**:
+- B 김균형: 균형 분산 / 매주 리밸런싱 / 10~15종목 분산 (E 정기준 동일가중과 컨셉 중복으로 정리)
+- L 신장모: 분할매도 전략 / 매일 체크 / 3~8종목 코스닥 성장주 (성과 부진으로 정리)
+- N 전몰빵: 집중투자 / 매주 리밸런싱 / 2~3종목 올인 (성과 부진으로 정리)
+- O 정익절: 단기 스윙 수익실현 / 장중 10분 모니터링 / 5~8종목 (성과 부진, launchd unload)
+- P 정삼절: 고정 시드 스윙 / 장중 10분 모니터링 / 5~8종목 (O와 매매 규칙 동일, 자본 운용 실험 종료, launchd unload)
 
 ## Session Start Check
 
@@ -79,14 +83,6 @@ python3 scripts/core/safety.py --status                  # 킬스위치 상태
 python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화
 python3 scripts/core/safety.py --kill-switch off         # 킬스위치 해제
 
-# O 정익절 장중 모니터링
-python3 scripts/core/o_monitor.py              # 실행 (09:10~15:20)
-python3 scripts/core/o_monitor.py --dry-run     # 매도 없이 로그만
-
-# P 정삼절 장중 모니터링 (O와 동일 규칙, baseline 500만원 고정)
-python3 scripts/core/p_monitor.py              # 실행 (09:10~15:20)
-python3 scripts/core/p_monitor.py --dry-run     # 매도 없이 로그만
-
 # Q 정채원 1분 상시 스캔 모니터링 v4 (10:00~14:50, 등락률 점프 ≥+2%p + 1분봉 vol/5MA ≥3배 + 1분 등락 ≥+2% 발견 즉시 매수 → 매수+30분 청산, bear 진입 차단)
 python3 scripts/core/q_monitor.py              # 실행 (08:45 시작, 10:00 스캔 개시)
 python3 scripts/core/q_monitor.py --dry-run     # 매매 없이 로그만
@@ -105,28 +101,17 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 ### 오전 9:05 — 시뮬레이션 (시가 체결)
 - plist: `~/Library/LaunchAgents/com.investment.pipeline.plist`
 - `scripts/cron/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행
-  - 뉴스 수집 → 16명 배분 결정 (A~P, Q는 q_monitor가 직접 매매) → 시뮬레이션(시가 체결) → 텔레그램 발송
+  - 뉴스 수집 → 11명 배분 결정 (A·C·D·E·F·G·H·I·J·K·M, Q는 q_monitor가 직접 매매) → 시뮬레이션(시가 체결) → 텔레그램 발송
 - `scripts/reports/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - `scripts/reports/monthly_report.py` — 월 첫 영업일이면 지난달 성과 텔레그램 발송 + Supabase 저장
 - `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
 - 로그: `logs/pipeline/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
 
-### 오전 9:10 — O 정익절 장중 모니터링
-- plist: `~/Library/LaunchAgents/com.investment.o-monitor.plist`
-- `scripts/cron/o_monitor_cron.sh` → `scripts/core/o_monitor.py`
-  - 10분 간격 체크: 총자산 +5% 전 종목 익절 / 종목별 -3% 해당 종목 손절
-  - 30분 간격 능동 트레이딩(09:40~14:50): 모멘텀 이탈 종목 매도 → 급등 종목 편입 (일일 최대 3회)
-  - 매매 발생 시 `daily_reports` + `portfolio_snapshots` 즉시 갱신 (대시보드 실시간 반영)
-  - 장마감(15:20) 자동 종료
-- 로그: `logs/o_monitor/o_monitor_YYYY-MM-DD.log`
-
-### 오전 9:10 — P 정삼절 장중 모니터링
-- plist: `~/Library/LaunchAgents/com.investment.p-monitor.plist`
-- `scripts/cron/p_monitor_cron.sh` → `scripts/core/p_monitor.py`
-  - O와 동일 매매 규칙 (익절/손절/능동 트레이딩), 단 baseline 500만원 고정
-  - 장마감 후 종가 반영 시 강제 청산 + cashflow_account 정산 + baseline 리셋
-- 로그: `logs/p_monitor/p_monitor_YYYY-MM-DD.log`
+### O 정익절 / P 정삼절 장중 모니터링 (2026-05-08~ 정리, unload 상태)
+- plist 파일은 보존하되 launchd에서 unload 처리 (`com.investment.o-monitor`, `com.investment.p-monitor`)
+- `scripts/core/o_monitor.py`, `scripts/core/p_monitor.py`, `scripts/cron/o_monitor_cron.sh`, `scripts/cron/p_monitor_cron.sh` 코드도 보존
+- 향후 재개 시 `launchctl load` + `EXCLUDED_INVESTOR_IDS`에서 O/P 제거 + `web/data.ts`의 EXCLUDED 갱신 필요
 
 ### 오전 8:45 — Q 정채원 1분 상시 스캔 스캘핑 v4 (2026-05-08~ 5/8 4종목 분석 반영, 초단기 시그널 전환)
 - plist: `~/Library/LaunchAgents/com.investment.q-monitor.plist`
@@ -170,17 +155,13 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 
 ### launchd 관리 명령
 ```bash
-# 전체 등록 (meta는 pipeline에서 체이닝되므로 별도 등록 불필요)
+# 전체 등록 (meta는 pipeline에서 체이닝, o/p-monitor는 2026-05-08 정리로 unload 유지)
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
-launchctl load ~/Library/LaunchAgents/com.investment.o-monitor.plist
-launchctl load ~/Library/LaunchAgents/com.investment.p-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 전체 해제
 launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
-launchctl unload ~/Library/LaunchAgents/com.investment.o-monitor.plist
-launchctl unload ~/Library/LaunchAgents/com.investment.p-monitor.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
 
@@ -238,7 +219,7 @@ scripts/
   core/              # 시뮬레이션 핵심 엔진
     supabase_client.py   Supabase 클라이언트 초기화
     market.py            yfinance 시세 조회 (open/close)
-    portfolio.py         매수/매도/평가/리밸런싱/분할매도(L전용)
+    portfolio.py         매수/매도/평가/리밸런싱/분할매도(L전용, 2026-05-08 정리로 비활성)
     simulate.py          일일 시뮬레이션 오케스트레이터 + 종가 업데이트
     daily_pipeline.py    뉴스/배분/스토리 저장 헬퍼
     event_detector.py    이벤트 감지 & 텔레그램 알림 (시뮬레이션 후 자동 호출)
@@ -246,11 +227,11 @@ scripts/
     run_backtest.py      백테스트 CLI 진입점
     backfill_regimes.py  과거 마켓 레짐 소급 계산
     broker_client.py     한국투자증권 KIS API 클라이언트 (인증/잔고/주문)
-    meta_manager.py      메타 매니저 — 16명 데이터 종합 → 실전 배분 결정
+    meta_manager.py      메타 매니저 — A 강돌진 추종(2026-04-23~), 시뮬 데이터 기반 실전 배분
     scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
     safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
-    o_monitor.py         O 정익절 장중 실시간 모니터링 (총자산 +5%익절/-3%손절, 능동 트레이딩(모멘텀 이탈→급등 교체), 매매 시 daily_reports 즉시 갱신)
-    p_monitor.py         P 정삼절 장중 실시간 모니터링 (O와 동일 규칙, baseline 500만원 고정, 장마감 시 강제 청산+cashflow 정산)
+    o_monitor.py         O 정익절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
+    p_monitor.py         P 정삼절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
     q_monitor.py         Q 정채원 1분 상시 스캔 스캘핑 v4 (10:00~14:50 등락률 점프 ≥+2%p + 1분봉 vol/5MA ≥3배 + 1분 등락 ≥+2% 발견 즉시 매수 → 매수+30분 트레일링(+3%활성→-1%p)/-3% 청산, 등락률 ≤+15%/5MA vol ≥1,000주 가드, 일일 8회 한도/3연패 60분 쿨다운, bear 진입 차단, universe 외부 종목)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프 (L 분할매도 + O 능동 트레이딩 근사 포함)
@@ -260,7 +241,7 @@ scripts/
     historical_indicators.py  캐시된 DataFrame에서 모멘텀/RSI/MACD 등 계산
   modules/           # 투자자별 데이터 분석 모듈
     momentum_data.py       모멘텀/수익률 (A, D용)
-    sector_analysis.py     섹터별 성과 (B, F용)
+    sector_analysis.py     섹터별 성과 (F용)
     quality_metrics.py     안정성/품질 지표 (C용)
     technical_indicators.py  RSI/MACD/볼린저 밴드 (H용)
     dividend_data.py       배당수익률 (I, C용)
@@ -439,10 +420,10 @@ print(result)
 
 ## Web Dashboard
 
-**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 16명) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
+**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 11명) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
 
 레포는 두 개의 Next.js 앱을 포함한다.
-- `web/` — 시뮬 16명(A~P) 대시보드. **Q 정채원은 표시되지 않는다.**
+- `web/` — 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 대시보드. **Q 정채원과 B/L/N/O/P(2026-05-08 정리)는 표시되지 않는다.**
 - `web-q/` — Q 정채원 KIS 실전 매매 운영 콘솔 (별도 앱·별도 Vercel 프로젝트, 포트 4001).
 
 `web/`에서 Q 제외는 `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES` 상수가 단일 진실 공급원이다. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 Q를 자동 제거하고 rankings를 1..n으로 재부여한다. 명시 분기(투자자 상세 Q 페이지, versus validIds, 종목 상세 스캘핑 뱃지 등)는 모두 제거됨.
@@ -450,7 +431,7 @@ print(result)
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위(일일 수익률/수익금, 누적 수익률, 전일 대비 순위 변동), 오늘의 매매(매수/매도 테이블, 정렬), 주간 MVP/연승, 시장 현황(종목 검색+정렬), 뉴스
 - 실전 투자(`/live`): 실전 포트폴리오 현황(총자산/일일수익률/KOSPI누적/알파), 보유종목(KIS 실시간 현재가), 운용 전략 요약(목표/리밸런싱/손절·익절/레짐별 투자 비중), 운용 현황(알파 달성 상태/운용 기간/시장 국면/MDD/승률), 자산 추이 차트(follow 구간 리베이스), 포트폴리오 현황, 메타 매니저 매매 히스토리(레짐/전략/주문 상세)
-- 투자자 목록(`/investors`): 전체 17명 카드 그리드, 순위/수익률 표시
+- 투자자 목록(`/investors`): 시뮬 11명 + 메타 매니저 카드 그리드, 순위/수익률 표시 (Q는 web-q/, B/L/N/O/P는 2026-05-08 정리로 제외)
 - 투자자 상세(`/investors/[id]`): 카툰 아바타, 뱃지, 포트폴리오 차트, 자산 구성 변화(stacked area), 성과 기여도(종목별 바차트+섹터별 Treemap), 국면별 수익률(강세/중립/약세, 20일 미만 경고), 보유종목, 거래내역, 투자 방법론(대표인물/참고링크), G는 감성 점수 추이
 - 리포트(`/reports`): 좌우 분할 마스터-디테일 레이아웃 (데스크탑: 왼쪽 달력+날짜목록 sticky | 오른쪽 코멘터리+투자자 현황(일일 수익률/수익금/총자산/누적)+일기+매매내역+뉴스, 모바일: 접기/펼치기 캘린더), 전일 대비 순위 변동 표시
 - 종목 분석(`/stocks`): 섹터 히트맵, 섹터 비중, 국내주식(85개)/ETF(15개) 분리 목록, 종목 검색(debounce), 현재가/등락률/보유 정렬
@@ -505,13 +486,12 @@ cd web-q && pnpm build
 - 각 기사에 `url` 필드 포함: `{"title": ..., "summary": ..., "category": ..., "source": ..., "url": "https://..."}`
 - `notify("✅ Step 1 완료: 뉴스 {N}건 수집")`
 
-#### Step 2: 투자자별 배분 결정 (16개 독립 AI 에이전트 병렬 실행, Q 제외)
-- `notify("🧠 Step 2: 투자자별 배분 결정 시작 (16명 병렬)")`
-**반드시 16개의 서브에이전트(Agent tool)를 동시에 병렬 실행** (A~P, Q 제외)하여 각 투자자의 배분을 독립적으로 결정한다.
+#### Step 2: 투자자별 배분 결정 (11개 독립 AI 에이전트 병렬 실행, B/L/N/O/P/Q 제외)
+- `notify("🧠 Step 2: 투자자별 배분 결정 시작 (11명 병렬)")`
+**반드시 11개의 서브에이전트(Agent tool)를 동시에 병렬 실행** (A·C·D·E·F·G·H·I·J·K·M; B/L/N/O/P는 2026-05-08 정리, Q는 q_monitor 직접 매매)하여 각 투자자의 배분을 독립적으로 결정한다.
 - 각 에이전트는 자기 투자자의 프로필 + 뉴스만 전달받고, 다른 투자자의 판단을 알 수 없음
 - 에이전트에게 전달할 정보: 투자자 프로필 JSON 내용, 뉴스 내용, stock_universe 목록, 현재 포트폴리오 상태
 - A 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (모멘텀 상위 종목 집중)
-- B 에이전트에는 추가로 `scripts/modules/sector_analysis.py`의 `get_sector_analysis()` 결과를 전달 (섹터 균형 참고)
 - C 에이전트에는 추가로 `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/dividend_data.py`의 `get_dividend_data()` 결과를 전달 (안정성 + 배당)
 - D 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` 결과를 전달 (낙폭 과대 종목 집중)
 - F 에이전트에는 추가로 `scripts/modules/sector_analysis.py`의 `get_sector_analysis()` 결과를 전달 (상위 섹터 집중)
@@ -519,16 +499,11 @@ cd web-q && pnpm build
 - I 에이전트에는 추가로 `scripts/modules/dividend_data.py`의 `get_dividend_data()` 결과를 전달
 - J 에이전트에는 뉴스 중 외국인/기관 수급 관련 내용을 강조하여 전달
 - K 에이전트에는 추가로 `scripts/modules/asset_allocation.py`의 `get_asset_allocation_data()` 결과를 전달 (ETF 카테고리별 수익률/변동성/추세 데이터)
-- L 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (코스닥 성장주 발굴 + 기술적 필터). RSI > 70 과매수 종목 진입 금지, MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. 분할매도 규칙(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. allocation은 **신규 진입 종목만** 포함 (기존 보유종목은 simulate.py가 자동 병합하여 보호, 목표가 매도는 `check_target_prices()`가 자동 처리)
 - M 에이전트에는 추가로 `scripts/modules/market_regime.py`의 `get_market_regime()` 결과를 전달. 레짐에 따라 allocation 합계를 조절: bull→0.9, neutral→0.5, bear→0.3 (나머지는 현금)
-- N 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/quality_metrics.py`의 `get_quality_metrics()` + `scripts/modules/institutional_flow.py`의 `get_institutional_flow()` 결과를 전달 (3중 필터로 최고 확신 2~3종목 선별). **호출 시 ticker는 반드시 list로 전달**: `get_institutional_flow(['005930.KS', '000660.KS'])`. 잘못된 형식은 ValueError raise됨
-- O 에이전트에는 추가로 `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과를 전달 (모멘텀+기술적 진입점 판단)
-- P 에이전트에는 O와 동일한 데이터 전달: `scripts/modules/momentum_data.py`의 `get_momentum_data()` + `scripts/modules/technical_indicators.py`의 `get_technical_signals()` 결과 (동일 매매 규칙, 자본 운용만 다름)
 - 에이전트는 분석 후 `save_allocation()`으로 Supabase에 저장
 - rationale(배분 근거) 텍스트는 논점별로 줄바꿈(`\n`) 삽입하여 가독성 확보
 - allocation 합계 ≤ 1.0 (M 오판단은 현금비중만큼 합계 < 1.0), stock_universe 종목만 사용
 - A (공격적 모멘텀): 모멘텀/테마주 집중, 5~8종목
-- B (균형 분산): 섹터별 골고루, 10~15종목
 - C (보수적 우량주): 대형주/배당주 위주, 5~10종목
 - D (역발상 투자): 최근 하락 종목 매수, 과열 종목 매도, 5~8종목
 - E (동일 가중 벤치마크): 전 종목 동일 비중(1/N), AI 판단 없이 기계적 균등 분배
@@ -538,14 +513,11 @@ cd web-q && pnpm build
 - I (배당 투자): 배당수익률 상위 종목 집중, 재무 안정성 고려, 5~10종목
 - J (스마트머니 추종): 뉴스에서 외국인/기관 순매수 동향 파악, 수급 양호 종목, 5~8종목
 - K (글로벌 자산배분): **ETF 종목만 사용**, 지수/섹터/해외/채권/배당 ETF 카테고리별 비중 조절, 4~8종목. 주식ETF↔채권ETF 시소 원리 적용 (변동성 높을 때 채권 비중 확대)
-- L (분할매도 전략): 코스닥 성장주 위주 3~8종목 (BEAR시 3~4종목). RSI>70 과매수/MACD 데드크로스 종목 진입 금지. 레짐별 allocation 합계: bull 0.9, neutral 0.7, bear 0.4~0.5. **신규 진입 종목만 allocation에 포함** (기존 보유종목은 simulate.py가 자동 병합하여 보호). 분할매도(레짐별 동적): bull +15%/+30%/+50%, neutral +10%/+20%/+35%, bear +7%/+12%/+20%. 손절 -7%. `check_target_prices()`가 자동 처리
 - M (마켓 타이밍): 레짐에 따라 현금비중 조절. **allocation 합계 = 1.0 - 현금비중** (bull: 0.9, neutral: 0.5, bear: 0.3). 3~10종목
-- N (집중투자): **최대 2~3종목만** (4종목 초과 금지). 모멘텀+펀더멘털+수급 모두 양호한 최고 확신 종목에 올인. allocation 합계 = 1.0
-- O (단기 스윙 수익실현): 모멘텀+기술적 분석으로 단기 반등 종목 선별, 5~8종목. RSI>70 과매수/MACD 데드크로스 종목 진입 금지. **신규 진입 종목만 allocation에 포함**. 익절: 전일 대비 총자산 +5% 달성 시 전 종목 매도. 손절: 개별 종목 매수가 대비 -3% 시 해당 종목만 매도. 능동 트레이딩: 30분마다 모멘텀 이탈 종목(3중 필터 중 2개 충족) → 급등 종목 교체(일일 최대 3회, 유동성 체크 포함). 장중 o_monitor.py(실시간) 또는 simulate.py(과거 날짜)가 자동 처리
-- P (고정 시드 스윙): O와 동일 매매 규칙. **신규 진입 종목만 allocation에 포함**. 차이점: 매일 500만원 baseline 리셋 + cashflow_account 별도 정산. 장중 p_monitor.py(실시간) 또는 simulate.py(과거 날짜)가 자동 처리. 장마감 시 강제 청산 → cashflow 정산 → baseline 리셋
+- **B/L/N/O/P (2026-05-08 정리): allocation 결정 단계 제외**. 서브에이전트 만들지 않음. `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`가 단일 진실 공급원이며, `get_all_investors()`가 자동으로 제외한다.
 - **Q (1분 상시 스캔 스캘핑 v4): allocation 결정 단계 제외**. Claude 에이전트 만들지 않음 (Q는 q_monitor.py가 KIS 등락률 순위 점프 감지 + 1분봉 단기 시그널로 1분 간격 직접 매매). simulate.py도 Q allocation이 None이면 자동 스킵.
 
-- `notify("✅ Step 2 완료: 16명 배분 결정 저장 (Q는 q_monitor가 별도 실행)")`
+- `notify("✅ Step 2 완료: 11명 배분 결정 저장 (Q는 q_monitor가 별도 실행, B/L/N/O/P 정리)")`
 
 #### Step 3: 시뮬레이션 실행 (시가 체결)
 - `notify("⚙️ Step 3: 시뮬레이션 실행")`
@@ -578,8 +550,8 @@ cd web-q && pnpm build
 - 문단 구분이 필요한 곳에 줄바꿈(`\n`) 삽입하여 가독성 확보
 
 **투자자 일기** (캐릭터별 어투, 각 2~3문장, 문장 간 줄바꿈 삽입)
+※ B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절은 2026-05-08 정리로 일기 작성 대상에서 제외
 - A 강돌진: 자신감 넘치는 공격적 ("확신한다", "올인했다")
-- B 김균형: 차분하고 분석적 ("분산 효과가 나타나고 있다")
 - C 이든든: 보수적이고 신중한 ("급할 것 없다", "안정적으로 유지")
 - D 장반대: 역발상적 ("모두가 팔 때 샀다", "시장이 틀렸다")
 - E 정기준: 기계적, 무감정 ("규칙대로 균등 분배", "감정 개입 없음")
@@ -589,15 +561,11 @@ cd web-q && pnpm build
 - I 최배당: 배당 투자자 ("배당이 핵심이다", "꾸준한 현금흐름이 중요하다")
 - J 한따라: 수급 추종자 ("외국인이 사는 이유가 있다", "기관 자금이 몰리고 있다")
 - K 로로캅: 알고리즘식, 무감정 ("데이터가 말해준다", "최적 비중으로 재조정", "모델이 지시한 대로 실행")
-- L 신장모: 실현주의자, 확고한 ("수익은 실현해야 내 돈이다", "욕심부리면 다 날린다", "15% 찍고 1/3 정리했다")
 - M 오판단: 냉정한 타이머 ("지금은 쉴 때다", "시장이 부를 때만 들어간다", "이평선이 말해주고 있다")
-- N 전몰빵: 확신의 투자자, 당당한 ("확신이 없으면 안 한다", "분산은 무지에 대한 방어일 뿐이다", "이 종목 하나면 충분하다")
-- O 정익절: 냉철한 트레이더, 기계적 ("5% 찍고 바로 정리했다", "손절은 보험료다", "작은 수익이 모여 큰 돈이 된다")
-- P 정삼절: 담백한 실험자, 일관적 ("오늘도 500으로 시작이다", "복리 욕심 안 부린다", "수익은 통장으로, 베팅은 일정하게")
 - Q 정채원: 빠르고 단호한 스캘퍼, 결단력 있는 톤 ("점프 떠서 바로 잡았다", "1분봉 vol 5MA 4배라 들어갔다", "트레일링 걸리고 -1% 이탈에서 던졌다", "오늘은 점프 종목 자체가 없어서 관망", "30분 안에 결판낸다", "3연패 떠서 1시간 쉰다")
 - 메타: 실전 운용자 톤, 담백·수치 중심·1인칭 ("오늘은 A 강돌진 배분을 그대로 추종했다", "체결가 평균 슬리피지 0.04%", "KOSPI 대비 알파 +1.0%p로 확대됐다"). 자금/체결/알파 관점으로만 작성하고 시뮬 투자자 톤(확신·역발상·차트 운운)은 차용 금지
 
-**Q 정채원 일기 작성 규칙** (별도 절차, 17명 일기 중 하나)
+**Q 정채원 일기 작성 규칙** (별도 절차, 12명 일기 중 하나)
 - 데이터 소스: `transactions` 오늘 레코드(investor_id="Q") + 종가 정산 후 `daily_reports.investor_details["정채원"]`
 - 반드시 반영해야 할 사실:
   - 오늘 매매 횟수(매수~청산 사이클 수) / 익절·손절·강제청산(매수+30분) 결과
@@ -605,7 +573,7 @@ cd web-q && pnpm build
   - 일일 수익률(전일 대비) + 누적 수익률
 - 분량: 2~3문장, 줄바꿈(`\n`) 포함
 
-**메타 매니저 일기 작성 규칙** (별도 절차, 17명 일기와 함께 생성)
+**메타 매니저 일기 작성 규칙** (별도 절차, 12명 일기와 함께 생성)
 - 데이터 소스:
   - `meta_decisions` 오늘 레코드 (regime, decision_type, target_allocation, orders, rationale, executed)
   - `real_portfolio` 오늘 레코드 (total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct, net_deposit, cumulative_deposits)
@@ -618,10 +586,10 @@ cd web-q && pnpm build
 - 분량: 2~3문장, 줄바꿈(`\n`) 포함
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
-- `diaries`는 `{"강돌진": "일기 내용...", "김균형": "...", ..., "정익절": "...", "정삼절": "...", "정채원": "...", "메타": "..."}` 형태 (투자자 이름 17명 + "메타" 키)
+- `diaries`는 `{"강돌진": "일기 내용...", "이든든": "...", ..., "정채원": "...", "메타": "..."}` 형태 (시뮬 11명 이름 + "정채원" + "메타" 키 = 총 13개 키)
 - `notify("✅ *Part B 완료* ({date}) — 코멘터리 & 투자자 일기가 저장되었습니다.")`
 
 ### 주의사항
 - 리밸런싱 due가 아닌 투자자는 allocation이 있어도 매매 스킵
-- A/G/H/L/M/O/P은 매일, D는 3영업일마다, B/J/N은 7영업일마다, E/F는 14영업일마다, C/K는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외). Q는 allocation 단계 제외 (q_monitor가 직접 매매)
+- A/G/H/M은 매일, D는 3영업일마다, J는 7영업일마다, E/F는 14영업일마다, C/K는 30영업일마다, I는 90영업일마다만 실행 (holidays.KR 기반 휴장일 제외). Q는 allocation 단계 제외 (q_monitor가 직접 매매). B/L/N/O/P는 2026-05-08 정리로 제외
 - 첫날은 `last_rebalanced: null`이므로 모두 실행

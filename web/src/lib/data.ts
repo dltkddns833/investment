@@ -209,9 +209,17 @@ export interface DailyStories {
 
 // --- Data Loading (Supabase) ---
 
-// Q 정채원은 web-q/ 별도 앱에서 표시. 여기서는 전 데이터에서 자동 제외.
-const EXCLUDED_INVESTOR_IDS = new Set(["Q"]);
-const EXCLUDED_INVESTOR_NAMES = new Set(["정채원"]);
+// Q 정채원은 web-q/ 별도 앱에서 표시.
+// B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절은 2026-05-08 정리 (시뮬·대시보드 제외, DB 보존).
+const EXCLUDED_INVESTOR_IDS = new Set(["Q", "B", "L", "N", "O", "P"]);
+const EXCLUDED_INVESTOR_NAMES = new Set([
+  "정채원",
+  "김균형",
+  "신장모",
+  "전몰빵",
+  "정익절",
+  "정삼절",
+]);
 
 function stripExcludedFromMap<T>(record: Record<string, T>): Record<string, T> {
   const out: Record<string, T> = {};

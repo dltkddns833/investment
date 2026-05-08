@@ -3,6 +3,8 @@ from datetime import datetime, date, timedelta
 import holidays
 from supabase_client import supabase
 
+EXCLUDED_INVESTOR_IDS = {"B", "L", "N", "O", "P"}
+
 _trading_costs_cache = None
 
 
@@ -274,9 +276,9 @@ def print_portfolio(investor_id, current_prices):
 
 
 def get_all_investors():
-    """모든 투자자 ID 목록"""
+    """모든 투자자 ID 목록 (EXCLUDED_INVESTOR_IDS 자동 제외)"""
     rows = supabase.table("profiles").select("id").execute().data
-    return [r["id"] for r in rows]
+    return [r["id"] for r in rows if r["id"] not in EXCLUDED_INVESTOR_IDS]
 
 
 def count_business_days(start_date, end_date):
