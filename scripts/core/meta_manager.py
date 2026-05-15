@@ -501,13 +501,15 @@ class MetaManager:
     # ─── Step 4: 주문 생성 + 실행 ─────────────────
 
     def compute_orders(self, target_allocation, current_holdings, total_asset,
-                       meta_config=None, prev_holdings=None):
+                       meta_config=None, prev_holdings=None, cash=0):
         """현재 vs 목표 비교하여 매매 주문 생성 (매도 먼저)
 
         보호 장치 적용:
         - 안정화 기간이면 대형주 외 종목 제거 (#47)
         - 보유기간 3영업일 미충족 종목은 매도 스킵 (#45)
         - 회전율 40% 초과 시 주문 비례 축소 (#46)
+        - 자본 작을 때 신규 종목 1주 매수 허용 (가드 B: target × 1.5 한도)
+        - 가용 현금 한도 내에서 매수 우선순위 컷 (가드 C)
 
         Args:
             target_allocation: {"005930.KS": 0.15, ...}
@@ -515,6 +517,7 @@ class MetaManager:
             total_asset: 총자산 (현금 + 평가액)
             meta_config: get_meta_config() 결과 (없으면 자동 로드)
             prev_holdings: real_portfolio.holdings (acquired_date 포함)
+            cash: 현재 예수금 (가드 C 가용 현금 산정용)
 
         Returns:
             [{"ticker": str, "code": str, "side": str, "qty": int, "price": int}, ...]
@@ -588,7 +591,8 @@ class MetaManager:
                     "liquidation": is_liquidation,
                 })
 
-        # 매수 주문 (목표에 있지만 미보유 또는 확대할 종목)
+        # 매수 후보 수집 (가드 B 적용)
+        buy_candidates = []
         for ticker, weight in target_allocation.items():
             if weight <= 0:
                 continue
@@ -597,9 +601,7 @@ class MetaManager:
             current_value = holding["shares"] * holding["current_price"] if holding else 0
 
             if target_value > current_value * 1.1:
-                # 10% 이상 확대 시 매수
                 buy_value = target_value - current_value
-                # 현재가 조회
                 name = holding["name"] if holding else ticker
                 try:
                     price_info = self.kis.get_current_price(ticker)
@@ -608,17 +610,61 @@ class MetaManager:
                 except Exception:
                     price = holding["current_price"] if holding else 0
 
-                if price > 0:
-                    buy_qty = buy_value // price
-                    if buy_qty > 0:
-                        orders.append({
-                            "ticker": ticker,
-                            "code": yf_to_kis(ticker),
-                            "name": name,
-                            "side": "buy",
-                            "qty": int(buy_qty),
-                            "price": price,
-                        })
+                if price <= 0:
+                    continue
+
+                buy_qty = buy_value // price
+                if buy_qty <= 0:
+                    # 가드 B: 신규 종목에 한해 1주 매수 시도 (target × 1.5 한도)
+                    if current_value == 0 and total_asset > 0:
+                        one_share_weight = price / total_asset
+                        if one_share_weight <= weight * 1.5:
+                            buy_qty = 1
+                            logger.info(
+                                f"신규 종목 1주 매수 시도(가드B): {ticker} "
+                                f"1주={one_share_weight*100:.1f}% ≤ target×1.5={weight*1.5*100:.1f}%"
+                            )
+                        else:
+                            logger.info(
+                                f"신규 종목 매수 스킵(가드B): {ticker} "
+                                f"1주={one_share_weight*100:.1f}% > target×1.5={weight*1.5*100:.1f}%"
+                            )
+                            continue
+                    else:
+                        continue
+
+                buy_candidates.append({
+                    "ticker": ticker,
+                    "code": yf_to_kis(ticker),
+                    "name": name,
+                    "side": "buy",
+                    "qty": int(buy_qty),
+                    "price": price,
+                    "_weight": weight,
+                })
+
+        # 가드 C: 가용 현금 한도 내에서 우선순위 컷 (target weight 큰 순)
+        sell_total = sum(o["qty"] * o["price"] for o in orders if o["side"] == "sell")
+        available_cash = cash + sell_total
+        buy_candidates.sort(key=lambda o: -o["_weight"])
+        used = 0
+        for cand in buy_candidates:
+            cost = cand["qty"] * cand["price"]
+            if used + cost > available_cash:
+                remaining = available_cash - used
+                new_qty = remaining // cand["price"]
+                if new_qty <= 0:
+                    logger.info(
+                        f"가용 현금 부족 — 매수 스킵(가드C): {cand['ticker']} "
+                        f"필요 {cost:,}, 잔여 {remaining:,}"
+                    )
+                    continue
+                cand["qty"] = int(new_qty)
+                cost = new_qty * cand["price"]
+                logger.info(f"가용 현금 한도 — 수량 축소(가드C): {cand['ticker']} {cand['qty']}주")
+            used += cost
+            cand.pop("_weight", None)
+            orders.append(cand)
 
         # 매도 먼저, 매수 나중
         orders.sort(key=lambda o: 0 if o["side"] == "sell" else 1)
@@ -1193,7 +1239,8 @@ class MetaManager:
         prev_holdings = prev.get("holdings", {}) if prev else {}
 
         orders = self.compute_orders(adjusted, current_holdings, total_asset,
-                                     meta_config=meta_config, prev_holdings=prev_holdings)
+                                     meta_config=meta_config, prev_holdings=prev_holdings,
+                                     cash=balance.get("cash", 0))
 
         if not orders:
             notify("\u2139\ufe0f 리밸런싱 불필요 — 현재 포지션이 목표와 유사합니다")
