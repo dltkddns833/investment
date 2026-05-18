@@ -539,7 +539,7 @@ class KISClient:
             })
         return results
 
-    @retry(max_retries=2, backoff_base=0.5)
+    @retry(max_retries=3, backoff_base=0.7)
     def get_minute_chart(self, stock_code, date_str, hour_str="153000", market="J", include_past="N"):
         """일자별 분봉 조회 (Q 정채원: N-1시간 거래량 vs 전일 동시간대 비교용)
 

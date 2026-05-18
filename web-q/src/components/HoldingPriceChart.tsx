@@ -75,8 +75,9 @@ export default function HoldingPriceChart({
     );
   }
 
-  const lossLine = buyPrice * 0.97;
-  const winLine = buyPrice * 1.03;
+  // v2.1: 익절 +2.5% / 손절 -1.5%
+  const lossLine = buyPrice * 0.985;
+  const winLine = buyPrice * 1.025;
   const prices = bars.map((b) => b.price);
   const minP = Math.min(...prices, lossLine);
   const maxP = Math.max(...prices, winLine);
@@ -122,7 +123,7 @@ export default function HoldingPriceChart({
             strokeDasharray="2 4"
             strokeWidth={1}
             label={{
-              value: "트레일링 활성화 +3%",
+              value: "익절 +2.5%",
               fill: "#f87171",
               fontSize: 10,
               position: "insideTopRight",
@@ -140,7 +141,7 @@ export default function HoldingPriceChart({
             strokeDasharray="2 4"
             strokeWidth={1}
             label={{
-              value: "손절 -3%",
+              value: "손절 -1.5%",
               fill: "#60a5fa",
               fontSize: 10,
               position: "insideBottomRight",

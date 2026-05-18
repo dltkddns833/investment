@@ -20,6 +20,10 @@ interface Props {
   holding: Holding;
 }
 
+// v2.1: 익절 +2.5% / 손절 -1.5% / 30분 시간청산
+const TP_PCT = 2.5;
+const SL_PCT = -1.5;
+
 export default function HoldingCard({ holding }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -44,16 +48,16 @@ export default function HoldingCard({ holding }: Props) {
       }).format(new Date(holding.buy_at_kst))
     : "-";
 
-  // PnL 게이지 (본전을 시각 중앙 50%에 고정 — 손절 -3% → 0%, 트레일링 +3% → 100%, v3)
+  // PnL 게이지 — 본전 중앙 50%, 손절 -1.5% → 0%, 익절 +2.5% → 100%
   const pnlPct = holding.pnl_pct ?? 0;
-  const minPct = -3;
-  const maxPct = 3;
+  const minPct = SL_PCT;   // -1.5
+  const maxPct = TP_PCT;   // +2.5
   const clamped = Math.max(minPct, Math.min(maxPct, pnlPct));
-  const breakEvenPct = 50;
+  const breakEvenPct = (Math.abs(minPct) / (maxPct + Math.abs(minPct))) * 100; // 본전 위치 ≈ 37.5%
   const gaugePct =
     clamped >= 0
-      ? 50 + (clamped / maxPct) * 50
-      : 50 - (clamped / minPct) * 50;
+      ? breakEvenPct + (clamped / maxPct) * (100 - breakEvenPct)
+      : breakEvenPct - (clamped / minPct) * breakEvenPct;
 
   return (
     <div className="glass-card p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5">
@@ -68,13 +72,18 @@ export default function HoldingCard({ holding }: Props) {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-xs text-gray-500">매수+30분 청산까지</div>
+          <div className="text-xs text-gray-500">시간청산까지</div>
           <div
             className={`font-mono text-2xl sm:text-3xl md:text-4xl tabular-nums mt-0.5 ${
-              remainSec !== null && remainSec < 300 ? "text-red-400" : "text-yellow-300"
+              remainSec !== null && remainSec < 300
+                ? "text-red-400"
+                : "text-yellow-300"
             }`}
           >
             {mm}:{ss}
+          </div>
+          <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
+            (+{TP_PCT}% / {SL_PCT}% 우선)
           </div>
           <div className="text-xs text-gray-500 mt-1">진입 {buyTimeKst}</div>
         </div>
@@ -110,9 +119,9 @@ export default function HoldingCard({ holding }: Props) {
 
       <div>
         <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-          <span>손절 -3%</span>
+          <span>손절 {SL_PCT}%</span>
           <span>본전</span>
-          <span>트레일링 +3%</span>
+          <span>익절 +{TP_PCT}%</span>
         </div>
         <div className="relative h-2 rounded-full bg-slate-800 overflow-hidden">
           <div
@@ -122,7 +131,7 @@ export default function HoldingCard({ holding }: Props) {
           <div
             className={`absolute top-0 h-full rounded-full transition-all ${
               pnlPct >= 0
-                ? "bg-gradient-to-r from-yellow-500 to-red-500"
+                ? "bg-gradient-to-r from-yellow-500 to-emerald-500"
                 : "bg-gradient-to-r from-blue-500 to-blue-700"
             }`}
             style={{

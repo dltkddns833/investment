@@ -27,6 +27,8 @@ interface TodayTrade {
   status: "open" | "closed";
 }
 
+// v2.1: 단순 30분 시간청산 — 매수 시각(transactions.executed_at) + 30분이 forced_exit_at.
+// portfolio.holdings.buy_at이 있으면 그 값을 우선 사용 (재기동 후 정확한 카운트).
 const FORCED_EXIT_MINUTES = 30;
 
 export async function GET() {
@@ -71,9 +73,10 @@ export async function GET() {
       pendingBuys.delete(tx.ticker);
 
       const pnl_pct = ((tx.price - buy.price) / buy.price) * 100;
+      // v2.1: 익절 +2.5% / 손절 -1.5% / 그 외(시간청산·장마감)는 forced
       let exit_reason: "win" | "loss" | "forced";
-      if (pnl_pct >= 4.0) exit_reason = "win";
-      else if (pnl_pct <= -2.5) exit_reason = "loss";
+      if (pnl_pct >= 2.5) exit_reason = "win";
+      else if (pnl_pct <= -1.5) exit_reason = "loss";
       else exit_reason = "forced";
 
       const openIdx = trades.findIndex(
@@ -130,9 +133,12 @@ export async function GET() {
         ? (currentPrice - holdingBuy.price) * holdingBuy.shares
         : null;
 
+    // v2.1: 단순 30분 시간청산. portfolio.holdings.buy_at 우선, 없으면 transactions.executed_at.
     let forcedExitAt: string | null = null;
-    if (holdingBuy.executed_at) {
-      const buyMs = new Date(holdingBuy.executed_at).getTime();
+    const savedBuyAt = portfolio.holdings[holdingBuy.ticker]?.buy_at;
+    const buyAtIso = savedBuyAt || holdingBuy.executed_at;
+    if (buyAtIso) {
+      const buyMs = new Date(buyAtIso).getTime();
       forcedExitAt = new Date(buyMs + FORCED_EXIT_MINUTES * 60_000).toISOString();
     }
 

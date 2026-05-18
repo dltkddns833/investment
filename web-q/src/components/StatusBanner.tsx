@@ -28,23 +28,23 @@ export default function StatusBanner({ status, holdingName, fetchedAt }: Props) 
   let bg = "from-slate-800/50 to-slate-900/50";
   let border = "border-slate-700/50";
   let label = "대기중";
-  let sub = "거래량 폭증 후보 스캔 중";
+  let sub = "급락 반등 시그널 스캔 중";
   let pulse = false;
 
   if (status === "HOLDING") {
     bg = "from-yellow-500/15 to-orange-500/10";
     border = "border-yellow-500/30";
     label = `보유중 — ${holdingName ?? ""}`;
-    sub = "매수+30분 강제 청산 카운트다운 진행";
+    sub = "30분 시간청산 카운트다운 (+2.5% 익절 / -1.5% 손절 우선)";
     pulse = true;
   } else if (status === "MARKET_CLOSED") {
     bg = "from-slate-900/60 to-slate-950/60";
     border = "border-slate-800/60";
     label = "장 마감";
-    sub = "다음 영업일 10:00 스캔 시작";
+    sub = "다음 영업일 09:30 스캔 시작";
   } else {
     label = "대기중";
-    sub = "등락률 점프 ≥+2%p + 1분봉 vol/5MA ≥3배 + 1m 등락 ≥+2% 스캔 중 (bear 진입 차단, v4)";
+    sub = "09:30~14:00 풀 199종목 1분봉 평가 (직전 5분 ≤ -2.5% + 양봉 ≥ +0.3%, bear 진입 차단, v2.1)";
   }
 
   return (

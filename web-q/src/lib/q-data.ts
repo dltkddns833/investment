@@ -59,7 +59,18 @@ export interface QSummaryStats {
 export interface QPortfolio {
   cash: number;
   initial_capital: number;
-  holdings: Record<string, { name: string; shares: number; avg_price: number }>;
+  holdings: Record<
+    string,
+    {
+      name: string;
+      shares: number;
+      avg_price: number;
+      buy_at?: string;             // v2.1 — 매수 시각 (시간청산 30분 카운트용)
+      // v5 잔재 (transactions에는 남지만 v2.1에선 사용 안 함):
+      hold_close_at?: string;
+      post5_checked?: boolean;
+    }
+  >;
 }
 
 export interface QDiaryEntry {
@@ -144,9 +155,10 @@ export async function getQTradeCycles(): Promise<QTradeCycle[]> {
       if (!buy) continue;
 
       const pnl_pct = ((tx.price - buy.price) / buy.price) * 100;
+      // v2.1: 익절 +2.5% / 손절 -1.5% / 그 외(시간청산·장마감)는 forced
       let exit_reason: "win" | "loss" | "forced";
-      if (pnl_pct >= 4.0) exit_reason = "win";
-      else if (pnl_pct <= -2.5) exit_reason = "loss";
+      if (pnl_pct >= 2.5) exit_reason = "win";
+      else if (pnl_pct <= -1.5) exit_reason = "loss";
       else exit_reason = "forced";
 
       cycles.push({

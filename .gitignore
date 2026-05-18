@@ -9,4 +9,6 @@ __pycache__/
 logs/
 data/*.pkl
 scripts/backtest/.q_bars_cache.json
+scripts/q_v2/cache/minute/
+scripts/q_v2/reports/
 .claude/scheduled_tasks.lock
