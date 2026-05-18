@@ -903,16 +903,37 @@ class MetaManager:
             except Exception:
                 current_total = prev.get("total_asset", INITIAL_CAPITAL)
 
-            if check_daily_loss(current_total, prev.get("total_asset", 0)):
+            # KOSPI 일일 변동률 조회 (알파 기준 손실 한도용)
+            kospi_change_pct = None
+            try:
+                import yfinance as yf
+                kospi_hist = yf.Ticker("^KS11").history(period="5d")
+                if len(kospi_hist) >= 2:
+                    kt = float(kospi_hist["Close"].iloc[-1])
+                    kp = float(kospi_hist["Close"].iloc[-2])
+                    if kp > 0:
+                        kospi_change_pct = (kt / kp - 1) * 100
+            except Exception as e:
+                logger.warning(f"KOSPI 변동률 조회 실패 — 절대 기준 fallback: {e}")
+
+            if check_daily_loss(current_total, prev.get("total_asset", 0), kospi_change_pct=kospi_change_pct):
                 prev_total = prev.get("total_asset", 0)
                 daily_pct = (current_total / prev_total - 1) * 100 if prev_total > 0 else 0
-                notify(
-                    f"🔴 일일 손실 한도 초과 — 자동 중단\n"
-                    f"전일 {prev_total:,}원 → 현재 {current_total:,}원 ({daily_pct:+.1f}%)\n"
-                    f"한도: -3%\n\n"
-                    f"하루 만에 {abs(daily_pct):.1f}% 하락하여 일일 손실 한도(-3%)를 초과했습니다. "
-                    f"추가 손실을 방지하기 위해 오늘 모든 거래를 중단합니다."
-                )
+                if kospi_change_pct is not None:
+                    alpha = daily_pct - kospi_change_pct
+                    notify(
+                        f"🔴 일일 손실 한도 초과 — 자동 중단\n"
+                        f"전일 {prev_total:,}원 → 현재 {current_total:,}원 ({daily_pct:+.1f}%)\n"
+                        f"KOSPI: {kospi_change_pct:+.1f}% / 알파: {alpha:+.1f}%p\n"
+                        f"한도: 알파 -3%p / 절대 -7%\n\n"
+                        f"메타가 KOSPI 대비 {abs(alpha):.1f}%p 더 빠지거나 절대 -7%를 넘어 거래를 중단합니다."
+                    )
+                else:
+                    notify(
+                        f"🔴 일일 손실 한도 초과 — 자동 중단\n"
+                        f"전일 {prev_total:,}원 → 현재 {current_total:,}원 ({daily_pct:+.1f}%)\n"
+                        f"한도: -3% (KOSPI 조회 실패 fallback)"
+                    )
                 return {"status": "daily_loss_halt"}
 
             if check_cumulative_loss(current_total, INITIAL_CAPITAL):

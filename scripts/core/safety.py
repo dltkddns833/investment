@@ -20,13 +20,23 @@ logger = get_logger(__name__)
 
 # --- 손실 한도 체크 ---
 
-DAILY_LOSS_LIMIT_PCT = -3.0
+DAILY_ALPHA_LIMIT_PCT = -3.0      # KOSPI 대비 일일 알파 한도
+DAILY_ABSOLUTE_LIMIT_PCT = -7.0   # 시장 폭락 동반 시 절대 손실 catastrophic 방어
 CUMULATIVE_LOSS_LIMIT_PCT = -10.0
 MAX_SINGLE_STOCK_PCT = 30.0
 
 
-def check_daily_loss(current_total, prev_total):
-    """일일 손실 -3% 초과 여부 체크
+def check_daily_loss(current_total, prev_total, kospi_change_pct=None):
+    """일일 손실 한도 체크 — KOSPI 대비 알파 기준
+
+    - 알파 ≤ -3%p → 차단 (메타 단독 책임의 큰 손실)
+    - 절대 손실 ≤ -7% → 차단 (시장 폭락 동반 catastrophic 방어)
+    - kospi_change_pct=None이면 절대 -3% fallback (구버전 호환)
+
+    Args:
+        current_total: 현재 총자산
+        prev_total: 전일 총자산
+        kospi_change_pct: KOSPI 일일 변동률(%). None이면 절대 기준 fallback
 
     Returns:
         True이면 거래 중단 필요
@@ -34,8 +44,26 @@ def check_daily_loss(current_total, prev_total):
     if prev_total <= 0:
         return False
     daily_pct = (current_total / prev_total - 1) * 100
-    if daily_pct <= DAILY_LOSS_LIMIT_PCT:
-        logger.warning(f"일일 손실 한도 초과: {daily_pct:.2f}% (한도: {DAILY_LOSS_LIMIT_PCT}%)")
+
+    # catastrophic 절대 손실 — KOSPI와 무관하게 차단
+    if daily_pct <= DAILY_ABSOLUTE_LIMIT_PCT:
+        logger.warning(f"일일 손실 한도 초과(catastrophic): {daily_pct:.2f}% (절대 한도 {DAILY_ABSOLUTE_LIMIT_PCT}%)")
+        return True
+
+    # 알파 기준 (KOSPI 대비 상대 손실)
+    if kospi_change_pct is not None:
+        alpha = daily_pct - kospi_change_pct
+        if alpha <= DAILY_ALPHA_LIMIT_PCT:
+            logger.warning(
+                f"일일 알파 손실 한도 초과: 알파 {alpha:+.2f}%p "
+                f"(메타 {daily_pct:+.2f}% / KOSPI {kospi_change_pct:+.2f}%, 한도 {DAILY_ALPHA_LIMIT_PCT}%p)"
+            )
+            return True
+        return False
+
+    # fallback: KOSPI 정보 없을 때 절대 -3%
+    if daily_pct <= -3.0:
+        logger.warning(f"일일 손실 한도 초과(fallback 절대): {daily_pct:.2f}% (한도 -3%)")
         return True
     return False
 
