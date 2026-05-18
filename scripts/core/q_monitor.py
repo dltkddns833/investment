@@ -83,7 +83,9 @@ COOLDOWN_MINUTES = 60
 BEAR_BLOCK_ENTRY = True
 
 # 시그널 평가 시 풀 1분봉 호출 동시성 (KIS 500 에러 감소 위해 보수적 worker 수)
-SIGNAL_SCAN_WORKERS = 6
+# 5/18 14:00 종료 시점 분석: worker 6에서도 매분 ~20건 500 에러 → worker 4 + jitter로 추가 완화
+SIGNAL_SCAN_WORKERS = 4
+SIGNAL_SCAN_JITTER_SEC = 0.05   # _evaluate_one 시작 시 0~50ms 분산 sleep (KIS 동시 호출 spike 완화)
 
 KR_HOLIDAYS = holidays.KR()
 
@@ -227,6 +229,10 @@ def _evaluate_one(client, code, today_str):
 
     Returns: dict {code, prev_5m, candle, close} 시그널 매치 시 / None
     """
+    # worker 동시 시작 시 KIS spike 회피 — 0~50ms jitter
+    import random
+    if SIGNAL_SCAN_JITTER_SEC > 0:
+        time.sleep(random.uniform(0, SIGNAL_SCAN_JITTER_SEC))
     try:
         now_hhmm = datetime.now().strftime("%H%M00")
         bars = client.get_minute_chart(
