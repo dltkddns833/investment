@@ -888,6 +888,22 @@ class MetaManager:
         meta_config = get_meta_config()
         notify(f"🤖 *메타 매니저 시작* ({self.date_str})")
 
+        # 0a. 산출물 가드 — follow 모드에서 추종 대상 allocation 없으면 즉시 중단
+        follow_id = meta_config.get("follow_investor_id")
+        if follow_id:
+            dr = supabase.table("daily_reports").select("date").eq("date", self.date_str).execute().data
+            a = supabase.table("allocations").select("investor_id").eq("date", self.date_str).eq("investor_id", follow_id).execute().data
+            if not dr or not a:
+                missing = []
+                if not dr:
+                    missing.append("daily_reports")
+                if not a:
+                    missing.append(f"{follow_id} allocation")
+                msg = f"🚨 *메타 매니저 중단* ({self.date_str}) — 산출물 부재\n누락: {', '.join(missing)}\n→ 시뮬레이션이 정상 종료되지 않은 것으로 보임. 수동 확인 필요."
+                notify(msg)
+                logger.error(f"산출물 부재로 중단: {missing}")
+                return {"status": "artifact_missing", "missing": missing}
+
         # 0. 안전 체크
         if check_kill_switch():
             notify("🛑 킬스위치 활성화 — 실행 중단\n수동 해제: safety.py --kill-switch off")

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS API 실전 매매 스캘퍼로 본질이 시뮬과 달라, **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 11명만 표시). DB는 과거 데이터(B·L·N·O·P 포함) 보존.
+한국 주식 모의 투자 시뮬레이션. 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS 1분봉을 직접 평가해 매분 매매하는 **실시간 분봉 기반 시뮬 스캘퍼**(일봉 기반 11명과 달리 분봉 정밀도)로, 본질이 다른 운영 사이클 때문에 **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 11명만 표시). 매매는 Supabase `transactions`/`portfolios`에만 기록되며 KIS 주문 API는 호출하지 않는다 (KIS는 시세·분봉 조회 전용). DB는 과거 데이터(B·L·N·O·P 포함) 보존.
 
 **2026-05-08 정리**: B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절 5명을 시뮬·대시보드에서 제외(소프트 제외). 코드/DB/과거 거래내역은 보존하며, `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`와 `web/src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES`가 단일 진실 공급원.
 
@@ -80,7 +80,7 @@ python3 scripts/core/broker_client.py --holdings          # 보유종목 조회
 
 # 안전 장치
 python3 scripts/core/safety.py --status                  # 킬스위치 상태
-python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화
+python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화 (메타 매니저 실전만 차단, Q 시뮬은 영향 없음)
 python3 scripts/core/safety.py --kill-switch off         # 킬스위치 해제
 
 # Q 정채원 급락 반등 스캘핑 v2.1 (09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산)
@@ -427,7 +427,7 @@ print(result)
 
 레포는 두 개의 Next.js 앱을 포함한다.
 - `web/` — 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 대시보드. **Q 정채원과 B/L/N/O/P(2026-05-08 정리)는 표시되지 않는다.**
-- `web-q/` — Q 정채원 KIS 실전 매매 운영 콘솔 (별도 앱·별도 Vercel 프로젝트, 포트 4001).
+- `web-q/` — Q 정채원 실시간 1분봉 시뮬 운영 콘솔 (KIS 시세·분봉 조회 전용, 별도 앱·별도 Vercel 프로젝트, 포트 4001).
 
 `web/`에서 Q 제외는 `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES` 상수가 단일 진실 공급원이다. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 Q를 자동 제거하고 rankings를 1..n으로 재부여한다. 명시 분기(투자자 상세 Q 페이지, versus validIds, 종목 상세 스캘핑 뱃지 등)는 모두 제거됨.
 

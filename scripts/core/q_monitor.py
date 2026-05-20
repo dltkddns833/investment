@@ -50,7 +50,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications")
 from supabase_client import supabase
 from portfolio import load_portfolio, load_profile, save_portfolio, evaluate, calc_fees
 from broker_client import KISClient
-from safety import check_kill_switch
 from daily_pipeline import notify_monitor
 from logger import get_logger
 from kospi200 import KOSPI200_CODES
@@ -104,13 +103,10 @@ def is_business_day(d):
 
 
 def wait_until(target_dt, label=""):
-    """목표 시각까지 sleep (60초마다 깨어나 킬스위치 체크)"""
+    """목표 시각까지 sleep"""
     if target_dt <= datetime.now():
         return True
     while datetime.now() < target_dt:
-        if check_kill_switch():
-            logger.warning(f"킬스위치 활성화 ({label}) — 대기 중단")
-            return False
         remaining = (target_dt - datetime.now()).total_seconds()
         time.sleep(min(60, max(1, remaining)))
     return True
@@ -622,9 +618,6 @@ def run_monitor(dry_run=False):
 
     # ========== 메인 루프 ==========
     while datetime.now() < hold_max_end:
-        if check_kill_switch():
-            logger.warning("킬스위치 활성화 — 루프 종료")
-            break
         now_dt = datetime.now()
 
         # ---------- HOLDING ----------

@@ -23,6 +23,33 @@ fi
 
 echo "=== 메타 매니저 시작: $(date) ===" >> "$LOG_FILE"
 
+# 산출물 검증 — daily_reports + A 강돌진 allocation 없으면 즉시 종료
+ARTIFACT_CHECK=$(cd "$PROJECT_DIR/scripts/core" && /usr/bin/python3 -c "
+try:
+    from supabase_client import supabase
+    dr = supabase.table('daily_reports').select('date').eq('date', '$DATE').execute().data
+    a = supabase.table('allocations').select('investor_id').eq('date', '$DATE').eq('investor_id', 'A').execute().data
+    if not dr:
+        print('FAIL: daily_reports 없음')
+    elif not a:
+        print('FAIL: A 강돌진 allocation 없음')
+    else:
+        print('OK')
+except Exception as e:
+    print(f'FAIL: 검증 예외 {e}')
+" 2>&1)
+echo "산출물 검증: $ARTIFACT_CHECK" >> "$LOG_FILE"
+
+if [[ "$ARTIFACT_CHECK" != "OK" ]]; then
+    cd "$PROJECT_DIR/scripts/notifications"
+    /usr/bin/python3 send_telegram.py "🚨 [메타매니저] $DATE 산출물 부재로 스킵
+$ARTIFACT_CHECK
+
+→ 시뮬레이션 결과가 없어 A 추종 불가. 수동 확인 필요."
+    echo "=== 메타 매니저 종료: $(date) (산출물 부재 스킵) ===" >> "$LOG_FILE"
+    exit 0
+fi
+
 # Claude CLI로 메타 매니저 실행 (A 강돌진 추종 모드)
 cd "$PROJECT_DIR"
 /Users/isang-un/.local/bin/claude -p "오늘($DATE) 메타 매니저를 **A 강돌진 추종 모드**로 실행해줘.
