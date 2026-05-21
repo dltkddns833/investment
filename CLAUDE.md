@@ -66,13 +66,6 @@ python3 scripts/core/risk_manager.py 2026-03-19   # 특정 날짜
 # 과거 마켓 레짐 소급 계산
 python3 scripts/core/backfill_regimes.py
 
-# 메타 매니저 (실전 투자)
-python3 scripts/core/meta_manager.py                    # 실행 (분석 → 배분 대기)
-python3 scripts/core/meta_manager.py --dry-run           # 드라이런 (분석만, 주문 스킵)
-python3 scripts/core/meta_manager.py --analyze-only      # 분석 결과만 출력
-python3 scripts/core/meta_manager.py --date 2026-03-28   # 특정 날짜
-python3 scripts/core/meta_manager.py --record-deposit 4600000   # 입금 기록 (출금은 음수)
-
 # KIS API 테스트
 python3 scripts/core/broker_client.py --test             # 삼성전자 현재가 조회
 python3 scripts/core/broker_client.py --balance           # 예수금 조회
@@ -80,7 +73,7 @@ python3 scripts/core/broker_client.py --holdings          # 보유종목 조회
 
 # 안전 장치
 python3 scripts/core/safety.py --status                  # 킬스위치 상태
-python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화 (메타 매니저 실전만 차단, Q 시뮬은 영향 없음)
+python3 scripts/core/safety.py --kill-switch on          # 킬스위치 활성화 (실전 매매 차단, Q 시뮬은 영향 없음)
 python3 scripts/core/safety.py --kill-switch off         # 킬스위치 해제
 
 # Q 정채원 급락 반등 스캘핑 v2.1 (09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산)
@@ -140,15 +133,6 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - **검증 (이슈 #60)**: 학습 12일 13건 승률 61.5% +9.02% / 검증 6일 14건 승률 57.1% +7.97% / 통합 27건 ≈+17% MDD -4.67%. 표본 작아 실전 1~2주 누적 검증 필요. 누적 손실 -5% 도달 시 즉시 중단 + 재검토.
 - 로그: `logs/q_monitor/q_monitor_YYYY-MM-DD.log`
 
-### 시뮬레이션 직후 — 메타 매니저 (실전 투자, 체이닝)
-- 트리거: `daily_pipeline_cron.sh` 끝부분에서 시뮬레이션 성공 시 `meta_cron.sh` 직접 호출
-  - 시가 근처 체결을 위해 시간 트리거(10:30) 대신 파이프라인 완료 시점에 즉시 실행
-  - 시뮬레이션 실패 시 메타 매니저 자동 스킵
-- `scripts/cron/meta_cron.sh` → Claude CLI로 메타 매니저 실행
-  - `meta_manager.py` 분석 → A 강돌진 allocation 복사 → `execute_allocation()` → 텔레그램 알림 → KIS 자동 체결 (승인 절차 생략)
-- plist `com.investment.meta.plist`는 unload 상태 (수동 백업용 보존)
-- 로그: `logs/meta/meta_YYYY-MM-DD.log`
-
 ### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
 - plist: `~/Library/LaunchAgents/com.investment.storytelling.plist`
 - `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행
@@ -157,7 +141,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 
 ### launchd 관리 명령
 ```bash
-# 전체 등록 (meta는 pipeline에서 체이닝, o/p-monitor는 2026-05-08 정리로 unload 유지)
+# 전체 등록 (o/p-monitor는 2026-05-08 정리, meta는 2026-05-21 정리로 unload 유지)
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
@@ -229,7 +213,7 @@ scripts/
     run_backtest.py      백테스트 CLI 진입점
     backfill_regimes.py  과거 마켓 레짐 소급 계산
     broker_client.py     한국투자증권 KIS API 클라이언트 (인증/잔고/주문)
-    meta_manager.py      메타 매니저 — A 강돌진 추종(2026-04-23~), 시뮬 데이터 기반 실전 배분
+    meta_manager.py      메타 매니저 (2026-05-21 운영 비활성, 코드·텔레그램 알림 무력화. 코드와 DB 데이터는 보존)
     scorecard.py         전략 스코어카드 엔진 (Python 포트, 6카테고리 가중평균)
     safety.py            실전 투자 안전 장치 (손실 한도/킬스위치/긴급청산)
     o_monitor.py         O 정익절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
@@ -310,116 +294,15 @@ scripts/
 - 리스크 제한 기본값: 단일종목 30%, 섹터 50%, 최소현금 5%, 일일손실 -3%, 누적손실 -10%, MDD -8%, 연속손실 5일, 종목급변 ±10%
 - 리스크 예외: N(종목/섹터/현금 무제한), M(현금 무제한), K(섹터 무제한) — config.risk_limits.exceptions에서 관리
 
-## Meta Manager (실전 투자)
+## Meta Manager (실전 투자) — 2026-05-21 운영 비활성
 
-**현재 모드: A 강돌진 추종** (`follow_investor_id: "A"`, 2026-04-23~)  
-매일 A 투자자의 당일 allocation을 그대로 실전 target으로 사용한다. Claude의 독립적 종합 판단은 하지 않는다.
+메타 매니저는 2026-05-21 사용자 결정으로 **전면 비활성**되었다.
+- launchd plist + `meta_cron.sh` 삭제 / `daily_pipeline_cron.sh` 체이닝 제거
+- `meta_manager.py` 내 `send_telegram`은 no-op 함수로 무력화 (텔레그램 알림 차단)
+- 코드 본체(`meta_manager.py`, `safety.py`)와 DB 테이블(`meta_decisions`, `real_portfolio`)은 보존 — 향후 재개 시 사용
+- web 대시보드 `/live` 페이지와 `/investors`의 메타 카드는 DB 데이터를 읽기만 하므로 그대로 표시됨 (과거 운영 흔적)
 
-**운영 방식**: 자동 — A allocation 복사→텔레그램 알림→KIS API 자동 체결 (승인 절차 생략)
-- 실행 시점: 매일 시뮬레이션 직후 (daily_pipeline_cron.sh에서 체이닝)
-- 리밸런싱: **매일** (A가 매일 리밸런싱) + **매일** 긴급 손절/급락방어 체크
-- 증권사: 한국투자증권 (KIS Developers REST API)
-- 초기 자금: 200만원 (A 시뮬 자본 500만원과 다르나 allocation은 비율이라 무관)
-- 입출금 추적: `--record-deposit` CLI로 기록 (TWR 기반 수익률 계산, 입금 점프 영향 제거)
-  - 입금 시: `python3 scripts/core/meta_manager.py --record-deposit 4600000`
-  - real_portfolio 테이블의 `net_deposit`, `cumulative_deposits` 컬럼에 누적 저장
-  - daily_return_pct는 입금 차감 후 계산, cumulative_return_pct는 시간가중수익률(TWR)
-
-**파이프라인 흐름:**
-```
-[10:30] MetaManager.run() — 매일 실행, 3단계 분기
-
-0. 안전 체크 (킬스위치, 일일/누적 손실 한도)
-1. 매일: 긴급 체크 (레짐별 차등 손절 + 급락 방어 트레일링)
-   ├─ 트리거 있으면 → execute_emergency_orders()
-   └─ 트리거 없으면 → 계속
-2. 매일 awaiting_decision 반환 → A allocation 복사 → execute_allocation()
-```
-
-**보호 장치 (config.risk_limits.meta_manager):**
-- `follow_investor_id: "A"` — A 추종 모드 플래그. `enforce_regime_limit()`이 이 값 있으면 레짐 비중 제한을 **스킵**(원본 전략 그대로 재현)
-- 리밸런싱 주기: 매일 (`rebalance_frequency: "daily"`)
-- 손절: 레짐별 차등 (bear -7%, neutral -8%, bull -10%), 보유기간 무시 — **유지**
-- 급락 방어: +20% 이상 도달 종목이 고점 대비 -15% 이탈 시 긴급 매도 — **유지**
-- 최소 보유기간: 1영업일 (`min_holding_days: 1`) — A 매일 교체 대응
-- 회전율 한도: 총자산 95% (`max_turnover_pct: 95`) — A 고회전 대응
-- 레짐별 최대 투자 비중: **follow 모드에서 해제** (A 원본 비중 그대로)
-- 안정화 기간: ~2026-04-10 종료 (더 이상 적용 안 됨)
-
-**안전 장치:**
-- 일일 손실 -3% → 자동 거래 중단
-- 누적 손실 -10% → 전량 청산
-- 킬스위치: `config.risk_limits.meta_manager.kill_switch`
-- 장 운영시간(09:00~15:20) 외 주문 차단
-- 텔레그램 알림 (자동 승인 모드 — 즉시 체결, 승인 대기 없음)
-
-### 메타 매니저 자동 실행 ("메타 매니저 실행해줘")
-
-> `meta_cron.sh`에서 Claude CLI로 호출됨. 아래 절차를 순서대로 수행한다.
-
-#### Step 1: 실행 + 상태 확인
-- `python3 scripts/core/meta_manager.py` 실행
-- status에 따라 분기:
-  - `awaiting_decision` → Step 2로 (A allocation 복사, 매일)
-  - `emergency_triggered` → Step 3b로 (긴급 손절/급락방어)
-  - `killed` / `daily_loss_halt` / `emergency_liquidated` → 해당 상태를 텔레그램으로 알리고 종료
-
-#### Step 2: A 강돌진 allocation 복사 (매일)
-Claude는 독립 판단하지 않는다. Supabase `allocations` 테이블에서 **오늘 날짜 + investor='강돌진'** 레코드를 조회해 그대로 사용.
-
-```python
-from scripts.core.supabase_client import supabase
-row = supabase.table('allocations').select('*').eq('investor', '강돌진').eq('date', date_str).execute().data[0]
-target_allocation = row['allocation']   # A의 배분 그대로
-a_rationale = row['rationale']
-```
-
-- `target_allocation` = A의 allocation 원본 (수정 금지)
-- `rationale` = `"[A 강돌진 추종] " + a_rationale`
-- `selected_strategies` = `{"A": 1.0}`
-
-**자동 보호 장치 (유지):**
-- **stock_universe 검증**: universe 외 종목은 `validate_meta_allocation()`에서 자동 제거
-- **레짐별 투자 비중**: `follow_investor_id` 있으면 `enforce_regime_limit()` **스킵** (A 원본 재현)
-- **손절/급락방어**: 긴급 매매 단계에서 그대로 적용
-- **회전율/보유기간**: 95% / 1영업일로 완화 (A 고회전 대응)
-
-#### Step 3a: execute_allocation() 호출 (정규 리밸런싱)
-배분 결정 후 아래 Python 코드를 Bash로 실행:
-```bash
-cd scripts/core && python3 -c "
-from meta_manager import MetaManager
-mm = MetaManager(date_str='YYYY-MM-DD')
-result = mm.execute_allocation(
-    target_allocation={...},      # Step 2에서 결정한 배분
-    rationale='...',              # Step 2에서 작성한 근거
-    selected_strategies={...},    # 참고한 전략 {'H': 0.4, 'O': 0.3, ...}
-    regime='neutral',             # 참고용 (DB 값으로 자동 교체됨)
-)
-print(result)
-"
-```
-- `execute_allocation()` 내부: **요일 가드** → **레짐 DB 강제** → 배분 검증(stock_universe 포함) → **레짐별 비중 한도 (follow 모드 스킵)** → 보유기간/회전율 필터 → 주문 생성 → 텔레그램 알림(자동 승인) → KIS API 체결 → meta_decisions + real_portfolio 저장
-- `save_real_portfolio()`: KOSPI 누적수익률을 **yfinance(^KS11) 직접 조회**로 계산 + 과거 real_portfolio 레코드의 kospi_cumulative_pct 자동 보정
-- 비리밸런싱일 호출 시 `{"status": "rejected"}` 반환 (`force=True`로 오버라이드 가능)
-
-#### Step 3b: execute_emergency_orders() 호출 (긴급 손절/급락방어)
-Step 1에서 `emergency_triggered` 반환 시:
-```bash
-cd scripts/core && python3 -c "
-from meta_manager import MetaManager
-mm = MetaManager(date_str='YYYY-MM-DD')
-result = mm.execute_emergency_orders(
-    orders=[...],               # Step 1에서 반환된 emergency_orders
-    decision_type='emergency_stop_loss',  # 또는 'emergency_trailing_protect'
-    regime='neutral',
-)
-print(result)
-"
-```
-- 긴급 매도만 실행 (신규 매수 없음)
-- 텔레그램 알림(자동 승인) → KIS API 매도 → 저장
-- 결과를 확인하고 최종 상태를 텔레그램으로 알린다
+재개 절차는 별도 결정 필요. 재개 시점에 이 섹션을 다시 채워야 한다.
 
 ## Web Dashboard
 
@@ -576,20 +459,10 @@ cd web-q && pnpm build
   - 일일 수익률(전일 대비) + 누적 수익률
 - 분량: 2~3문장, 줄바꿈(`\n`) 포함
 
-**메타 매니저 일기 작성 규칙** (별도 절차, 12명 일기와 함께 생성)
-- 데이터 소스:
-  - `meta_decisions` 오늘 레코드 (regime, decision_type, target_allocation, orders, rationale, executed)
-  - `real_portfolio` 오늘 레코드 (total_asset, daily_return_pct, cumulative_return_pct, kospi_cumulative_pct, alpha_cumulative_pct, net_deposit, cumulative_deposits)
-- 반드시 반영해야 할 사실:
-  - 추종 모드(`config.follow.follow_investor_id`)면 "[추종 대상] 배분 그대로 추종" 명시
-  - 일일 수익률 + KOSPI 대비 알파 (양수/음수 포함)
-  - 입금/출금 발생일(`net_deposit != 0`)이면 사실 명시 (TWR이라 수익률에 영향 없다는 점 포함)
-  - 긴급 손절(`decision_type == "emergency_stop_loss"`) / 급락 방어(`decision_type == "emergency_trailing_protect"`) 발생 시 해당 사실
-  - skip(비리밸런싱일)이면 "유지" 정도로 간결하게
-- 분량: 2~3문장, 줄바꿈(`\n`) 포함
+**메타 매니저 일기**: 2026-05-21 메타 매니저 운영 비활성으로 **작성 대상에서 제외**. diaries에 "메타" 키를 넣지 않는다.
 
 **저장**: `scripts/core/daily_pipeline.py`의 `save_stories(date_str, commentary, diaries)` 호출
-- `diaries`는 `{"강돌진": "일기 내용...", "이든든": "...", ..., "정채원": "...", "메타": "..."}` 형태 (시뮬 11명 이름 + "정채원" + "메타" 키 = 총 13개 키)
+- `diaries`는 `{"강돌진": "일기 내용...", "이든든": "...", ..., "정채원": "..."}` 형태 (시뮬 11명 이름 + "정채원" 키 = 총 12개 키, 메타 제외)
 - `notify("✅ *Part B 완료* ({date}) — 코멘터리 & 투자자 일기가 저장되었습니다.")`
 
 ### 주의사항

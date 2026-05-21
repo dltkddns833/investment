@@ -29,7 +29,13 @@ from safety import (
     is_stabilization_period, get_stabilization_tickers,
     enforce_regime_limit, STABILIZATION_LARGE_CAPS,
 )
-from send_telegram import send_telegram
+def send_telegram(message: str, *args, **kwargs) -> None:
+    """메타 매니저 텔레그램 알림 비활성화 (2026-05-21~ 사용자 결정으로 전면 삭제).
+
+    원본: from send_telegram import send_telegram
+    재개하려면 위 라인으로 복구.
+    """
+    return None
 from logger import get_logger
 
 logger = get_logger(__name__)

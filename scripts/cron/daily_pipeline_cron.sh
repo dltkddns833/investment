@@ -46,7 +46,7 @@ echo "=== 통합 파이프라인 시작: $(date) ===" >> "$LOG_FILE"
 cd "$PROJECT_DIR"
 /Users/isang-un/.local/bin/claude -p "/simulate $DATE
 
-[무인 자동 실행 모드] 사용자는 자리에 없다. 어떤 확인·승인도 절대 요청하지 말고 Step 1부터 Step 4까지 끝까지 자동 진행하라. 중간에 멈추면 후속 메타 매니저가 빈 데이터로 실행되어 실전 자본에 손해가 생긴다. 모호한 상황에서도 가장 안전한 기본값을 골라 진행을 멈추지 말 것." \
+[무인 자동 실행 모드] 사용자는 자리에 없다. 어떤 확인·승인도 절대 요청하지 말고 Step 1부터 Step 4까지 끝까지 자동 진행하라. 모호한 상황에서도 가장 안전한 기본값을 골라 진행을 멈추지 말 것." \
     --allowedTools "WebSearch,Agent,Bash,Read,Write,Edit,Glob,Grep" \
     --dangerously-skip-permissions >> "$LOG_FILE" 2>&1
 
@@ -82,19 +82,8 @@ if [[ "$ARTIFACT_RESULT" != "OK" ]]; then
     /usr/bin/python3 send_telegram.py "🚨 [모의투자] $DATE 시뮬레이션 산출물 검증 실패
 $ARTIFACT_RESULT
 
-→ 메타 매니저 자동 스킵. 수동 확인 필요."
+→ 수동 확인 필요."
 fi
-
-# 메타 매니저 — 2026-05-19 사용자 결정으로 비활성화 (전면 재정비 중)
-# 재개 방법: 아래 블록의 주석 해제 + safety.py --kill-switch off
-# if [ $SIM_EXIT -eq 0 ]; then
-#     echo "--- 메타 매니저 실행 ---" >> "$LOG_FILE"
-#     /bin/bash "$PROJECT_DIR/scripts/cron/meta_cron.sh"
-#     echo "메타 매니저 종료코드: $?" >> "$LOG_FILE"
-# else
-#     echo "--- 시뮬레이션 실패로 메타 매니저 스킵 ---" >> "$LOG_FILE"
-# fi
-echo "--- 메타 매니저 비활성화 (2026-05-19~ 전면 재정비) ---" >> "$LOG_FILE"
 
 # 주간 리포트 (첫 영업일이 아니면 자동 스킵)
 echo "--- 주간 리포트 체크 ---" >> "$LOG_FILE"
