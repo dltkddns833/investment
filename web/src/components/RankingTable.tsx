@@ -220,9 +220,12 @@ export default function RankingTable({
   const data = liveRankings.map((r) => {
     const prev = prevRankMap?.[r.investor];
     const prevAsset = prevAssetMap?.[r.investor];
-    const dailyReturn = prevAsset != null ? r.total_asset - prevAsset : null;
-    const dailyReturnPct = prevAsset != null && prevAsset > 0
-      ? +((((r.total_asset - prevAsset) / prevAsset) * 100).toFixed(2))
+    // 시즌 첫 날에는 이전 시즌 데이터가 시즌 필터로 차단되어 prevAsset null
+    // → initialCapital을 baseline으로 사용 (일일 수익률 = 누적 수익률)
+    const baseAsset = prevAsset ?? initialCapital ?? null;
+    const dailyReturn = baseAsset != null ? r.total_asset - baseAsset : null;
+    const dailyReturnPct = baseAsset != null && baseAsset > 0
+      ? +((((r.total_asset - baseAsset) / baseAsset) * 100).toFixed(2))
       : null;
     return {
       ...r,

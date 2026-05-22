@@ -28,6 +28,7 @@ const SIZES = { sm: 24, md: 36, lg: 48 };
  * O 정익절 — Mark Minervini: 슬릭백 다크헤어, 날카로운 눈매
  * P 정삼절 — Mark Minervini 변형: 짧은 머리, 담백한 표정, 리셋 심볼
  * Q 정채원 — 디즈니 모아나풍 동양인 공주님: 긴 흑발 웨이브, 살짝 탄 피부, 큰 눈, 티아라
+ * UF 이상운 — 사용자 본인: 옆가르마 흑발, 차분한 표정, 파란 스웨터, 회사 사원증(QUARTERBACK lanyard)
  */
 
 // Q 정채원 전용 피부톤 (살짝 탄 동양인)
@@ -547,6 +548,43 @@ function FaceQ() {
   );
 }
 
+function FaceUF() {
+  // 이상운 — 옆가르마 흑발, 차분한 동양인 청년, 파란 스웨터 + QUARTERBACK 회사 lanyard
+  return (
+    <>
+      {/* 머리카락 — 옆가르마, 자연스러운 흑발 (오른쪽이 살짝 더 길게 내려옴) */}
+      <path d="M26 40c0-13 9-22 24-22s24 9 24 22" fill="#1a1410" />
+      <path d="M26 40c1-12 7-19 22-19c8 0 14 3 18 8" fill="#2a1f18" />
+      {/* 옆가르마 — 왼쪽 앞머리가 이마 1/3을 덮음 */}
+      <path d="M28 36c2-6 8-10 16-10c3 0 5 1 6 3c-2 4-8 10-14 12c-3 1-6 0-8-5z" fill="#0f0a08" />
+      <path d="M32 32c2-3 6-5 10-5c-1 3-4 6-8 8z" fill="#3a2f24" opacity="0.5" />
+      {/* 얼굴 — 살짝 갸름하고 깔끔 */}
+      <ellipse cx="50" cy="56" rx="21" ry="24" fill={SKIN} />
+      <ellipse cx="50" cy="57" rx="20" ry="23" fill={SKIN_SHADOW} opacity="0.3" />
+      {/* 눈썹 — 짙고 자연스러운 곡선 */}
+      <path d="M36 49 Q41 47 46 49" stroke="#0f0a08" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      <path d="M54 49 Q59 47 64 49" stroke="#0f0a08" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      {/* 눈 — 차분하고 평온한 동양인 눈매 (살짝 가늘게) */}
+      <ellipse cx="41" cy="54" rx="3.2" ry="2.4" fill="white" />
+      <ellipse cx="59" cy="54" rx="3.2" ry="2.4" fill="white" />
+      <circle cx="41.5" cy="54" r="1.8" fill="#1a1410" />
+      <circle cx="59.5" cy="54" r="1.8" fill="#1a1410" />
+      {/* 콧대 — 균형 잡힌 */}
+      <path d="M50 56 L48.5 64 L51.5 64" stroke={SKIN_SHADOW} strokeWidth="1.2" fill="none" strokeLinecap="round" />
+      {/* 입 — 차분한 미소 (살짝 입꼬리 올라감) */}
+      <path d="M43 70 Q50 73 57 70" stroke="#8b4513" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      {/* 파란 스웨터 깃 (목 아래) */}
+      <path d="M28 88 Q50 82 72 88 L72 100 L28 100 Z" fill="#2563eb" />
+      <path d="M30 89 Q50 83 70 89" stroke="#1d4ed8" strokeWidth="1" fill="none" />
+      {/* QUARTERBACK 사원증 lanyard — 검은 끈 (양어깨에서 V자) */}
+      <path d="M36 84 L46 96" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
+      <path d="M64 84 L54 96" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
+      {/* 사원증 카드 — V자 만나는 지점 */}
+      <rect x="46" y="94" width="8" height="6" rx="1" fill="#f5f5f5" stroke="#1a1a1a" strokeWidth="0.5" />
+    </>
+  );
+}
+
 const FACES: Record<string, () => JSX.Element> = {
   A: FaceA,
   B: FaceB,
@@ -565,6 +603,7 @@ const FACES: Record<string, () => JSX.Element> = {
   O: FaceO,
   P: FaceP,
   Q: FaceQ,
+  UF: FaceUF,
 };
 
 export default function InvestorAvatar({

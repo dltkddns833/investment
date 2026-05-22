@@ -144,6 +144,14 @@ const INVESTOR_COLORS: Record<string, InvestorColor> = {
     border: "border-fuchsia-500/30",
     ring: "ring-fuchsia-500/30",
   },
+  UF: {
+    primary: "#2563eb",
+    light: "#60a5fa",
+    bg: "rgba(37, 99, 235, 0.1)",
+    text: "text-blue-400",
+    border: "border-blue-500/30",
+    ring: "ring-blue-500/30",
+  },
 };
 
 /** Get color config by investor ID (A~Q) */
@@ -175,6 +183,7 @@ export const INVESTOR_COLOR_ARRAY = [
   INVESTOR_COLORS.O.primary,
   INVESTOR_COLORS.P.primary,
   INVESTOR_COLORS.Q.primary,
+  INVESTOR_COLORS.UF.primary,
 ];
 
 /** Name → ID lookup */
@@ -196,6 +205,7 @@ const NAME_TO_ID: Record<string, string> = {
   정익절: "O",
   정삼절: "P",
   정채원: "Q",
+  이상운: "UF",
 };
 
 export function investorIdByName(name: string): string | null {
