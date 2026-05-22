@@ -4,12 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-모의 투자 시뮬레이션 대시보드 (시뮬 11명 — A·C·D·E·F·G·H·I·J·K·M). Next.js 15 + TypeScript + Tailwind CSS + Recharts.
+모의 투자 시뮬레이션 대시보드 (시뮬 11명 — A·C·D·E·F·G·H·I·J·K·M — + UF 이상운, 시즌2 시작 2026-05-22). Next.js 15 + TypeScript + Tailwind CSS + Recharts.
 Supabase(PostgreSQL)에서 데이터를 읽어 서버 컴포넌트에서 렌더링한다.
 
 **Q 정채원은 이 앱에서 표시되지 않는다.** Q는 KIS 실전 매매 스캘퍼로 본질이 시뮬과 달라 별도 앱(`../web-q/`)에서 운영 콘솔로 노출된다.
 **B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절도 2026-05-08 정리로 표시되지 않는다.** 컨셉 중복·성과 부진으로 시뮬·대시보드에서 제외되며 DB는 보존된다.
-단일 진실 공급원: `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS = {"Q","B","L","N","O","P"}`, `EXCLUDED_INVESTOR_NAMES = {"정채원","김균형","신장모","전몰빵","정익절","정삼절"}`. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 6명을 자동 제거하고 rankings를 1..n으로 재부여한다. DB와 과거 거래내역은 보존되므로 web-q/와 q_monitor.py는 그대로 동작한다. 백엔드(`scripts/core/portfolio.py`)에도 동일 EXCLUDED 리스트가 있어 Python 파이프라인도 12명만 시뮬한다 (Q 포함, B/L/N/O/P 제외).
+**UF 이상운**(C 옵션 한국 매크로 로테이션 추종, 시즌2 시작과 함께 합류)은 시뮬 11명과 동일선상에 노출된다 (총 12명).
+단일 진실 공급원: `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS = {"Q","B","L","N","O","P"}`, `EXCLUDED_INVESTOR_NAMES = {"정채원","김균형","신장모","전몰빵","정익절","정삼절"}`. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 6명을 자동 제거하고 rankings를 1..n으로 재부여한다. DB와 과거 거래내역은 보존되므로 web-q/와 q_monitor.py는 그대로 동작한다. 백엔드(`scripts/core/portfolio.py`)에도 동일 EXCLUDED 리스트가 있어 Python 파이프라인도 12명만 시뮬한다 (시뮬 11 + UF, Q는 별도 운영, B/L/N/O/P 제외).
+
+**시즌 필터링**: 2026-05-22 시즌2 시작과 함께 `data.ts`에 `getCurrentSeasonId()` 헬퍼 도입. `config.simulation.current_season_id`를 모듈 캐시로 반환하며, 24개 query 지점이 6개 시즌 테이블 (`transactions` / `portfolio_snapshots` / `daily_reports` / `allocations` / `rebalance_history` / `market_regimes`)에 `season_id` 필터를 적용한다. Q 관련 query는 시즌 무관이라 필터를 우회한다. 시즌1(2026-03-10 ~ 2026-05-21) 데이터는 보존되지만 대시보드에서는 보이지 않음 (별도 아카이브 UI 미구현).
 
 ## Commands
 

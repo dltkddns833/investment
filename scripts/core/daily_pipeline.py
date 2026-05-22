@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications"))
 
-from supabase_client import supabase
+from supabase_client import supabase, get_current_season_id
 from send_telegram import send_telegram, send_telegram_monitor
 from logger import get_logger
 
@@ -76,6 +76,8 @@ def save_allocation(investor_id, date_str, allocation, rationale="", sentiment_s
     profile = supabase.table("profiles").select("name, strategy").eq("id", investor_id).single().execute().data
 
     total = sum(allocation.values())
+    # Q는 시즌 무관 (시즌1 누적), 그 외는 현재 시즌
+    season_id = 1 if investor_id == "Q" else get_current_season_id()
     data = {
         "investor_id": investor_id,
         "date": date_str,
@@ -86,6 +88,7 @@ def save_allocation(investor_id, date_str, allocation, rationale="", sentiment_s
         "allocation_sum": round(total, 4),
         "num_stocks": len([v for v in allocation.values() if v > 0]),
         "generated_at": datetime.now().isoformat(),
+        "season_id": season_id,
     }
     if sentiment_scores is not None:
         data["sentiment_scores"] = sentiment_scores
@@ -125,6 +128,8 @@ def save_snapshots(date_str, snapshot_rows):
         date_str: "2026-03-10" 형식
         snapshot_rows: [{"investor_id": "A", "holdings": {...}, "cash": ..., "total_asset": ...}, ...]
     """
+    current_season = get_current_season_id()
+    # Q는 시즌 무관 (시즌1 누적), 그 외는 현재 시즌
     data = [
         {
             "investor_id": row["investor_id"],
@@ -133,6 +138,7 @@ def save_snapshots(date_str, snapshot_rows):
             "cash": row["cash"],
             "total_asset": row["total_asset"],
             "snapshot_at": datetime.now().isoformat(),
+            "season_id": 1 if row["investor_id"] == "Q" else current_season,
         }
         for row in snapshot_rows
     ]
@@ -163,6 +169,7 @@ def save_market_regime(date_str, regime_data):
         "volume_ratio": regime_data.get("volume_ratio", 1.0),
         "volatility_20d": regime_data.get("volatility_20d", 0),
         "details": regime_data.get("details", {}),
+        "season_id": get_current_season_id(),
     }
     try:
         supabase.table("market_regimes").upsert(data).execute()

@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-한국 주식 모의 투자 시뮬레이션. 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. Q 정채원은 KIS 1분봉을 직접 평가해 매분 매매하는 **실시간 분봉 기반 시뮬 스캘퍼**(일봉 기반 11명과 달리 분봉 정밀도)로, 본질이 다른 운영 사이클 때문에 **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다 (`web/` 시뮬 대시보드는 11명만 표시). 매매는 Supabase `transactions`/`portfolios`에만 기록되며 KIS 주문 API는 호출하지 않는다 (KIS는 시세·분봉 조회 전용). DB는 과거 데이터(B·L·N·O·P 포함) 보존.
+한국 주식 모의 투자 시뮬레이션. 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)가 종목 풀(100개, 일반주 85개 + ETF 15개)에서 **서로 다른 투자 성향과 리밸런싱 빈도**로 투자하여 성과를 비교하는 실험. 여기에 UF 이상운(C 옵션 한국 매크로 로테이션 추종)이 사용자 트랙으로 합류해 시뮬 11명과 같은 시드로 동일선상 비교 대상이 된다. Q 정채원은 KIS 1분봉을 직접 평가해 매분 매매하는 **실시간 분봉 기반 시뮬 스캘퍼**(일봉 기반 11명과 달리 분봉 정밀도)로, 본질이 다른 운영 사이클 때문에 **별도 앱 `web-q/`에서 운영 콘솔로 노출**한다. `web/` 시뮬 대시보드는 시뮬 11명 + UF 이상운(12명)만 표시. 매매는 Supabase `transactions`/`portfolios`에 기록되며 시뮬 11명·Q는 KIS 주문 API를 호출하지 않고 시세·분봉 조회 전용으로만 사용한다. **UF 이상운만 KIS 주문 API로 실전 매매**한다. DB는 과거 데이터(B·L·N·O·P 포함) 보존.
+
+**2026-05-22 시즌2 시작 (C 옵션 한국 매크로 로테이션 추종)**: 시뮬 11명 + UF 이상운이 시드 **1,000만원**으로 동일선상 출발. 시즌1(2026-03-10 ~ 2026-05-21, 시드 500만)은 봉인됨 (DB는 `season_id=1`로 보존). 시즌2 데이터는 `season_id=2`로 누적. 6개 테이블에 `season_id` 컬럼 (transactions·portfolio_snapshots·daily_reports·allocations·rebalance_history·market_regimes) — `scripts/core/supabase_client.py`의 `get_current_season_id()` 헬퍼가 단일 진실 공급원이며, 모든 insert/upsert 지점이 자동 주입. **Q 정채원은 시즌 무관** (시즌1 누적 그대로 유지, `season_id=1` 고정).
 
 **2026-05-08 정리**: B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절 5명을 시뮬·대시보드에서 제외(소프트 제외). 코드/DB/과거 거래내역은 보존하며, `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`와 `web/src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES`가 단일 진실 공급원.
 
-**궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. 현재는 전략 검증(R&D) 단계이며, 충분한 데이터 축적과 백테스트를 거친 후 증권사 API 연동을 통한 완전 자동 매매를 목표로 한다.
+**궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. UF 이상운(C 옵션 매크로 추종)이 시즌2 시작과 함께 첫 실전 자동 매매 트랙으로 가동 중. 시뮬 11명은 여전히 R&D 단계.
 
-- 시드머니: 각 500만원 (KRW)
+- 시드머니: 각 1,000만원 (KRW) — 시즌2 시점부터. 시즌1은 500만원으로 봉인
 - 시장: KOSPI + KOSDAQ (yfinance 기반 실시간 시세)
 - A 강돌진: 공격적 모멘텀 / 매일 리밸런싱 / 5~8종목 집중
 - C 이든든: 보수적 우량주 / 매월 리밸런싱 / 5~10종목
@@ -23,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
 - K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
+- **UF 이상운**: C 옵션 한국 매크로 로테이션 추종 / 매일 체크 (회사 비중 변경 시 즉시 추종) / 19종목 (회사 18판+25판 합집합 25 중 affordable 19, 1주 < 시드의 5% 룰) / **KIS API로 실전 매매** / `scripts/core/portfolio_follow.py` + `com.investment.portfolio-follow` launchd 09:10 / 변경 없는 날은 매매 0건 (거래비용 최소화) / 휴장일·장외·킬스위치 가드 / 자세한 컨셉은 `portfolio/c_option_korea_macro_follow.md`
 - Q 정채원: **급락 반등 스캘핑 v2.1** (이슈 #60, 2026-05-18 백지 재설계 + OOS 검증) / 09:30~14:00 1분 간격 풀 199종목(KOSPI200 ∪ stock_universe) 1분봉 직접 평가 → **직전 5분 ≤ -2.5% AND 현재 분봉 양봉 ≥ +0.3%** 시그널 발견 즉시 시장가 매수 → **+2.5% 익절 / -1.5% 손절 / 30분 시간청산** / 1종목 집중 / 당일 재매수 금지 / 일일 매매 한도 8회 / 직전 3사이클 연속 손실 시 60분 쿨다운 / **bear 레짐 신규 진입 차단** / 매매당 max 1,000만원 캡 / 백테스트 18영업일 분할 검증(학습 12일 13건 61.5% +9.02% + 검증 6일 14건 57.1% +7.97%, 통합 27건 ≈+17% MDD -4.67%) — 표본 작아 실전 누적 검증 필요. v5(KOSPI200 정적 + vol/5MA≥3배 + post5 동적 + 트레일링)는 EDA에서 무알파 확인되어 폐기 (백업: `scripts/archive/q_monitor_v5.py`)
 
 **아카이브 (2026-05-08 정리, 시뮬에서 제외)**:
@@ -133,6 +136,21 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - **검증 (이슈 #60)**: 학습 12일 13건 승률 61.5% +9.02% / 검증 6일 14건 승률 57.1% +7.97% / 통합 27건 ≈+17% MDD -4.67%. 표본 작아 실전 1~2주 누적 검증 필요. 누적 손실 -5% 도달 시 즉시 중단 + 재검토.
 - 로그: `logs/q_monitor/q_monitor_YYYY-MM-DD.log`
 
+### 오전 9:10 — UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작)
+- plist: `~/Library/LaunchAgents/com.investment.portfolio-follow.plist`
+- `scripts/cron/portfolio_follow_cron.sh` → `scripts/core/portfolio_follow.py`
+  - BetterWealth FA 18판(`KR2KRFACTR99NKI1`) + 25판(`KR2KRMCROR99NFN0`) 비중 조회
+  - 합집합 25종목 평균 비중 → affordable 필터 (1주 < 시드의 5%) → 100% 재정규화 → 1주 정수화
+  - `portfolio/last_target.json` 캐시와 diff 비교 → **회사 비중 변경 시에만** KIS 시장가 매도/매수 (변경 없는 날 매매 0건)
+  - 매도 먼저 (현금 확보) → 매수 순서
+  - 매매 후 KIS `get_holdings`/`get_balance`로 실잔고 확인 → `portfolios.UF` + `transactions` + `rebalance_history` + `portfolio_snapshots` 갱신
+  - 텔레그램 알림 (변경 감지·매매 실행·오류)
+  - **가드**: 한국 휴장일 (holidays.KR) / 장 운영시간 09:10~14:30 / 킬스위치 (Meta Manager와 공유, ON이면 매매 차단)
+  - dry-run / force 옵션은 킬스위치·게이트 우회
+- 로그: `logs/portfolio_follow/portfolio_follow_YYYY-MM-DD.log`
+- 코드 보존: `scripts/core/portfolio_follow.py`, `scripts/cron/portfolio_follow_cron.sh`
+- 컨셉 문서: `portfolio/c_option_korea_macro_follow.md`
+
 ### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
 - plist: `~/Library/LaunchAgents/com.investment.storytelling.plist`
 - `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행
@@ -144,11 +162,13 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 # 전체 등록 (o/p-monitor는 2026-05-08 정리, meta는 2026-05-21 정리로 unload 유지)
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
+launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 전체 해제
 launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.q-monitor.plist
+launchctl unload ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 상태 확인
@@ -219,6 +239,7 @@ scripts/
     o_monitor.py         O 정익절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
     p_monitor.py         P 정삼절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
     q_monitor.py         Q 정채원 급락 반등 스캘핑 v2.1 (이슈 #60, 09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산, 일일 8회 한도/3연패 60분 쿨다운, bear 진입 차단)
+    portfolio_follow.py  UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, BetterWealth FA 18+25판 합집합 affordable 19종목, 회사 비중 변경 감지 시에만 KIS 자동 매매, 09:10 매일 실행, 휴장일·장외·킬스위치 가드)
     kospi200.py          KOSPI200 정적 종목 코드 리스트 (198개, q_monitor.py v2.1 풀 구성용, 6개월마다 수동 갱신)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프 (L 분할매도 + O 능동 트레이딩 근사 포함)
@@ -243,7 +264,17 @@ scripts/
     quarterly_report.py  분기 성과 리포트 (분기 첫 영업일 자동 생성)
   cron/              # 자동 실행 셸 스크립트
     daily_pipeline_cron.sh   09:05 통합 파이프라인
+    q_monitor_cron.sh        08:45 Q 정채원 스캘핑 (09:30~14:00 진입 윈도우)
+    portfolio_follow_cron.sh 09:10 UF 이상운 C 옵션 매크로 추종
+    storytelling_cron.sh     15:35 종가 반영 + 스토리텔링
 ```
+
+**시즌 메타데이터 (`config.simulation`):**
+- `current_season_id`: 현재 활성 시즌 (2026-05-22 기준 시즌2 → 2)
+- `season1_start_date`: 2026-03-10
+- `season2_start_date`: 2026-05-22
+- `initial_capital`: 10,000,000 (시즌2 시드)
+- 6개 테이블 (`transactions` / `portfolio_snapshots` / `daily_reports` / `allocations` / `rebalance_history` / `market_regimes`)에 `season_id INT DEFAULT 1` 컬럼. 모든 insert/upsert가 `supabase_client.get_current_season_id()`로 자동 주입. **Q 정채원은 시즌 무관**으로 `season_id=1` 명시 (자기 데이터). `daily_reports`는 (date) PK 공유이므로 그날의 메인 시즌으로 저장.
 
 **Supabase 테이블 (18개):**
 
@@ -306,13 +337,15 @@ scripts/
 
 ## Web Dashboard
 
-**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 11명) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
+**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 11명 + UF 이상운) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
 
 레포는 두 개의 Next.js 앱을 포함한다.
-- `web/` — 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 대시보드. **Q 정채원과 B/L/N/O/P(2026-05-08 정리)는 표시되지 않는다.**
+- `web/` — 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) + UF 이상운(C 옵션 한국 매크로 추종, 시즌2부터) 대시보드. **Q 정채원과 B/L/N/O/P(2026-05-08 정리)는 표시되지 않는다.** 시즌2 데이터만 표시 (시즌1은 봉인).
 - `web-q/` — Q 정채원 실시간 1분봉 시뮬 운영 콘솔 (KIS 시세·분봉 조회 전용, 별도 앱·별도 Vercel 프로젝트, 포트 4001).
 
 `web/`에서 Q 제외는 `src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES` 상수가 단일 진실 공급원이다. `getConfig()`/`getDailyReport()`/`getAllDailyReports()`/`getDailyStories()` 등 핵심 함수가 결과에서 Q를 자동 제거하고 rankings를 1..n으로 재부여한다. 명시 분기(투자자 상세 Q 페이지, versus validIds, 종목 상세 스캘핑 뱃지 등)는 모두 제거됨.
+
+**시즌 필터링**: `data.ts`의 `getCurrentSeasonId()` 헬퍼가 `config.simulation.current_season_id`를 모듈 캐시로 반환. 24개 query 지점이 6개 시즌 테이블에 `season_id` 필터를 적용한다. Q 관련 query는 시즌 필터를 우회 (`investor_id === "Q"` 분기). P 정삼절의 `getCashflowHistory`는 시즌1 명시.
 
 `web/` — Next.js (TypeScript + Tailwind) 대시보드. 시뮬레이션 결과를 시각적으로 확인. Vercel로 배포.
 - 메인(`/`): 투자자 순위(일일 수익률/수익금, 누적 수익률, 전일 대비 순위 변동), 오늘의 매매(매수/매도 테이블, 정렬), 주간 MVP/연승, 시장 현황(종목 검색+정렬), 뉴스

@@ -10,7 +10,7 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-from supabase_client import supabase
+from supabase_client import supabase, get_current_season_id
 from market import get_stock_prices
 from portfolio import (
     get_all_investors,
@@ -64,9 +64,16 @@ def run_simulation(date_str=None):
     logger.info(f" 시뮬레이션 실행: {date_str}")
     logger.info(f"{'='*60}")
 
-    # 1. 현재 주가 조회
+    # 1. 현재 주가 조회 — universe + portfolios에 보유된 모든 종목 (UF 매크로 추종 등 universe 밖 종목 평가 보장)
     logger.info(f"\n [주가 조회 중...]")
-    current_prices = get_stock_prices(price_type="open")
+    cfg_row = supabase.table("config").select("stock_universe").eq("id", 1).single().execute().data
+    universe_tickers = {s["ticker"] for s in cfg_row["stock_universe"]}
+    pf_rows = supabase.table("portfolios").select("holdings").execute().data
+    extra_tickers = set()
+    for p in pf_rows:
+        extra_tickers.update((p.get("holdings") or {}).keys())
+    all_tickers = list(universe_tickers | extra_tickers)
+    current_prices = get_stock_prices(tickers=all_tickers, price_type="open")
     if not current_prices:
         logger.error("주가 조회 실패")
         return None
@@ -365,6 +372,7 @@ def generate_daily_report_with_rebalance(current_prices, date_str, rebalance_res
         "market_prices": report["market_prices"],
         "rankings": report["rankings"],
         "investor_details": report["investor_details"],
+        "season_id": get_current_season_id(),
     }).execute()
 
     return report
@@ -391,9 +399,16 @@ def update_closing_prices(date_str=None):
 
     prev_report = existing[0]
 
-    # 종가 조회
+    # 종가 조회 — universe + portfolios 보유 종목 (UF 매크로 추종 등 universe 밖 종목 평가 보장)
     logger.info(f"\n [종가 조회 중...]")
-    closing_prices = get_stock_prices(price_type="close")
+    cfg_row = supabase.table("config").select("stock_universe").eq("id", 1).single().execute().data
+    universe_tickers = {s["ticker"] for s in cfg_row["stock_universe"]}
+    pf_rows = supabase.table("portfolios").select("holdings").execute().data
+    extra_tickers = set()
+    for p in pf_rows:
+        extra_tickers.update((p.get("holdings") or {}).keys())
+    all_tickers = list(universe_tickers | extra_tickers)
+    closing_prices = get_stock_prices(tickers=all_tickers, price_type="close")
     if not closing_prices:
         logger.error("종가 조회 실패")
         return None
@@ -460,6 +475,7 @@ def update_closing_prices(date_str=None):
         "market_prices": report["market_prices"],
         "rankings": report["rankings"],
         "investor_details": report["investor_details"],
+        "season_id": get_current_season_id(),
     }).execute()
 
     # 종가 기준 스냅샷 갱신
@@ -511,6 +527,7 @@ def _settle_p_baseline(date_str, closing_prices):
                 "investor_id": "P", "date": date_str, "type": "sell",
                 "ticker": ticker, "name": h["name"], "shares": h["shares"],
                 "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+                "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
             })
         if pending_transactions:
             supabase.table("transactions").insert(pending_transactions).execute()
@@ -531,6 +548,7 @@ def _settle_p_baseline(date_str, closing_prices):
         "total_asset": total_asset,
         "snapshot_at": datetime.now().isoformat(),
         "cashflow_account": cashflow,
+        "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
     }
     supabase.table("portfolio_snapshots").upsert(snapshot_data).execute()
 
@@ -571,6 +589,7 @@ def _settle_p_baseline(date_str, closing_prices):
                 "market_prices": report["market_prices"],
                 "rankings": rankings,
                 "investor_details": report["investor_details"],
+                "season_id": get_current_season_id(),
             }).execute()
 
     logger.info(f"  [정삼절] 장마감 정산: PnL {pnl:+,}원, cashflow {cashflow:,}원, total_asset {total_asset:,}원")
@@ -612,6 +631,7 @@ def _settle_q_holdings(date_str, closing_prices):
             "investor_id": "Q", "date": date_str, "type": "sell",
             "ticker": ticker, "name": h["name"], "shares": h["shares"],
             "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+            "season_id": 1,  # Q 정채원은 시즌 무관, 시즌1 누적 유지
         })
 
     if not pending:
@@ -662,6 +682,7 @@ def _settle_q_holdings(date_str, closing_prices):
                 "market_prices": report["market_prices"],
                 "rankings": rankings,
                 "investor_details": report["investor_details"],
+                "season_id": get_current_season_id(),
             }).execute()
 
     supabase.table("portfolio_snapshots").upsert({
@@ -671,6 +692,7 @@ def _settle_q_holdings(date_str, closing_prices):
         "cash": portfolio_q["cash"],
         "total_asset": total_asset,
         "snapshot_at": datetime.now().isoformat(),
+        "season_id": 1,  # Q 정채원은 시즌 무관, 시즌1 누적 유지
     }).execute()
 
     logger.info(f"  [정채원] 장마감 정산: 미청산 {len(pending)}건 강제 매도, total_asset {total_asset:,}원")

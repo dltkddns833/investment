@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications"))
 
-from supabase_client import supabase
+from supabase_client import supabase, get_current_season_id
 from market import get_stock_prices, get_stock_prices_parallel
 from portfolio import load_portfolio, load_profile, save_portfolio, evaluate, calc_fees
 from safety import check_kill_switch
@@ -88,14 +88,17 @@ def refresh_daily_report(current_prices, date_str):
                 "total_rebalances": d.get("total_rebalances", 0),
             })
 
+        # daily_reports는 (date) PK라 시뮬 전체와 공유 → 그날의 메인 시즌
         supabase.table("daily_reports").upsert({
             "date": date_str,
             "generated_at": report["generated_at"],
             "market_prices": report["market_prices"],
             "rankings": rankings,
             "investor_details": report["investor_details"],
+            "season_id": get_current_season_id(),
         }).execute()
 
+        # P는 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인 (재개 시 코드 변경 필요)
         portfolio = load_portfolio(INVESTOR_ID)
         snapshot_data = {
             "investor_id": INVESTOR_ID,
@@ -104,6 +107,7 @@ def refresh_daily_report(current_prices, date_str):
             "cash": portfolio["cash"],
             "total_asset": result["total_asset"],
             "snapshot_at": datetime.now().isoformat(),
+            "season_id": 1,
         }
         if "cashflow_account" in portfolio:
             snapshot_data["cashflow_account"] = portfolio["cashflow_account"]
@@ -157,6 +161,7 @@ def sell_all_holdings(portfolio, current_prices, date_str, reason):
             "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
             "ticker": ticker, "name": name, "shares": sell_shares,
             "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+            "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
         })
 
     if pending_transactions:
@@ -198,6 +203,7 @@ def check_stop_loss(portfolio, current_prices, date_str):
                 "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
                 "ticker": ticker, "name": name, "shares": sell_shares,
                 "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+                "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
             })
 
     if pending_transactions:
@@ -321,6 +327,7 @@ def execute_swap(portfolio, sell_ticker, buy_ticker, all_prices, date_str):
             "ticker": sell_ticker, "name": sell_name, "shares": sell_shares,
             "price": sell_exec_price, "amount": sell_revenue, "fee": sell_fee,
             "profit": sell_profit,
+            "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
         }).execute()
         sell_pct = (sell_exec_price / sell_info["avg_price"] - 1) * 100
         return {"sell": sell_ticker, "buy": None, "sell_pct": sell_pct,
@@ -345,12 +352,14 @@ def execute_swap(portfolio, sell_ticker, buy_ticker, all_prices, date_str):
             "ticker": sell_ticker, "name": sell_name, "shares": sell_shares,
             "price": sell_exec_price, "amount": sell_revenue, "fee": sell_fee,
             "profit": sell_profit,
+            "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
         },
         {
             "investor_id": INVESTOR_ID, "date": date_str, "type": "buy",
             "ticker": buy_ticker, "name": buy_name, "shares": buy_shares,
             "price": buy_exec_price, "amount": buy_shares * buy_exec_price,
             "fee": buy_fee, "profit": 0,
+            "season_id": 1,  # P 정삼절: 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인
         },
     ]).execute()
 

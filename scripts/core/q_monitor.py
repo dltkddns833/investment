@@ -322,6 +322,7 @@ def execute_buy(client, code, name_hint, today_str, dry_run=False):
         "ticker": ticker, "name": name, "shares": shares,
         "price": exec_price, "amount": cost, "fee": fee,
         "executed_at": datetime.now(timezone.utc).isoformat(),
+        "season_id": 1,  # Q 정채원은 시즌 무관, 시즌1 누적 유지
     }).execute()
     market = "KOSPI" if ticker.endswith(".KS") else "KOSDAQ"
     supabase.table("stock_names").upsert(
@@ -373,6 +374,7 @@ def execute_sell_all(client, today_str, reason, dry_run=False):
             "ticker": ticker, "name": name, "shares": sell_shares,
             "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
             "executed_at": datetime.now(timezone.utc).isoformat(),
+            "season_id": 1,  # Q 정채원은 시즌 무관, 시즌1 누적 유지
         })
         pct = (exec_price / h["avg_price"] - 1) * 100
         trades.append({"ticker": ticker, "name": name, "shares": sell_shares,
@@ -457,14 +459,18 @@ def refresh_daily_report(date_str):
                 "total_rebalances": d.get("total_rebalances", 0),
             })
 
+        # daily_reports는 (date) PK라 시뮬 11명과 공유 → 그날의 메인 시즌으로 유지
+        from supabase_client import get_current_season_id
         supabase.table("daily_reports").upsert({
             "date": date_str,
             "generated_at": report["generated_at"],
             "market_prices": report["market_prices"],
             "rankings": rankings,
             "investor_details": report["investor_details"],
+            "season_id": get_current_season_id(),
         }).execute()
 
+        # Q의 portfolio_snapshots는 Q 자기 데이터 → 시즌 무관, 시즌1 유지
         supabase.table("portfolio_snapshots").upsert({
             "investor_id": INVESTOR_ID,
             "date": date_str,
@@ -472,6 +478,7 @@ def refresh_daily_report(date_str):
             "cash": portfolio["cash"],
             "total_asset": result["total_asset"],
             "snapshot_at": datetime.now(timezone.utc).isoformat(),
+            "season_id": 1,
         }).execute()
         logger.info(f"  📊 daily_reports 갱신 (자산 {result['total_asset']:,}원)")
     except Exception as e:

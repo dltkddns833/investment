@@ -22,6 +22,14 @@ logger = get_logger(__name__)
 KOSPI_PROXY = "069500.KS"
 
 
+def _season_for_date(date_str, sim_cfg):
+    """과거 날짜에 해당하는 시즌 ID 매핑. 시즌2 시작일 이전은 1, 이후는 2."""
+    s2 = sim_cfg.get("season2_start_date")
+    if s2 and date_str >= s2:
+        return 2
+    return 1
+
+
 def get_snapshot_dates():
     """portfolio_snapshots 테이블에서 고유 날짜 목록 조회"""
     result = supabase.table("portfolio_snapshots").select("date").execute()
@@ -52,6 +60,8 @@ def backfill():
     # KODEX 200 가격 데이터 다운로드
     price_df = load_or_download([KOSPI_PROXY], start_date, end_date, use_cache=False)
 
+    sim_cfg = supabase.table("config").select("simulation").eq("id", 1).single().execute().data["simulation"]
+
     saved = 0
     for date_str in missing_dates:
         try:
@@ -69,6 +79,7 @@ def backfill():
                 "details": {
                     "bull_score": regime_data["bull_score"],
                 },
+                "season_id": _season_for_date(date_str, sim_cfg),
             }
             supabase.table("market_regimes").upsert(data).execute()
             saved += 1

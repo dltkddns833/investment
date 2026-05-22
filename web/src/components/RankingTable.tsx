@@ -180,7 +180,7 @@ export default function RankingTable({
   const liveRankings = useLiveRankings(
     rankings,
     investorDetails ?? {},
-    initialCapital ?? 5_000_000
+    initialCapital ?? 10_000_000
   );
 
   // 순위 변동 추적

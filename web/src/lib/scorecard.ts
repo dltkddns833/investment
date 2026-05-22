@@ -147,7 +147,7 @@ export function computeScorecards(
   txnSummary: Record<string, TransactionSummary>,
   backtestRuns: BacktestRun[],
   investorIds: Record<string, string>,
-  initialCapital: number = 5_000_000
+  initialCapital: number = 10_000_000
 ): InvestorScorecard[] {
   const n = perfStats.length;
   if (n === 0) return [];

@@ -221,6 +221,22 @@ const EXCLUDED_INVESTOR_NAMES = new Set([
   "정삼절",
 ]);
 
+// 현재 시즌 ID (config.simulation.current_season_id). 시즌별 데이터 격리에 사용.
+// transactions / portfolio_snapshots / daily_reports / allocations / rebalance_history / market_regimes에 적용.
+// profiles / config / news / daily_stories / portfolios는 시즌 무관 (필터 없음).
+let _seasonIdCache: number | null = null;
+async function getCurrentSeasonId(): Promise<number> {
+  if (_seasonIdCache !== null) return _seasonIdCache;
+  const { data } = await supabase
+    .from("config")
+    .select("simulation")
+    .eq("id", 1)
+    .single();
+  const sid = (data?.simulation?.current_season_id as number) ?? 1;
+  _seasonIdCache = sid;
+  return sid;
+}
+
 function stripExcludedFromMap<T>(record: Record<string, T>): Record<string, T> {
   const out: Record<string, T> = {};
   for (const [name, value] of Object.entries(record)) {
@@ -280,6 +296,7 @@ export async function getProfileRiskGrades(): Promise<Record<string, string>> {
 export async function getPortfolio(
   investorId: string
 ): Promise<Portfolio | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data: row } = await supabase
     .from("portfolios")
     .select("*")
@@ -287,17 +304,20 @@ export async function getPortfolio(
     .single();
   if (!row) return null;
 
-  const { data: txns } = await supabase
+  // Q는 시즌 무관 (시즌1 누적), 그 외는 현재 시즌 데이터만
+  const txQuery = supabase
     .from("transactions")
     .select("*")
     .eq("investor_id", investorId)
     .order("id");
+  const { data: txns } = investorId === "Q" ? await txQuery : await txQuery.eq("season_id", seasonId);
 
-  const { data: rebs } = await supabase
+  const rebQuery = supabase
     .from("rebalance_history")
     .select("*")
     .eq("investor_id", investorId)
     .order("id");
+  const { data: rebs } = investorId === "Q" ? await rebQuery : await rebQuery.eq("season_id", seasonId);
 
   const transactions: Transaction[] = (txns ?? []).map((t) => {
     const entry: Transaction = {
@@ -336,11 +356,13 @@ export async function getAllocation(
   investorId: string,
   date: string
 ): Promise<Allocation | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("allocations")
     .select("*")
     .eq("investor_id", investorId)
     .eq("date", date)
+    .eq("season_id", seasonId)
     .single();
   if (!data) return null;
   return {
@@ -363,10 +385,12 @@ export interface SentimentHistoryEntry {
 export async function getSentimentHistory(
   investorId: string
 ): Promise<SentimentHistoryEntry[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("allocations")
     .select("date, sentiment_scores")
     .eq("investor_id", investorId)
+    .eq("season_id", seasonId)
     .not("sentiment_scores", "is", null)
     .order("date", { ascending: true });
 
@@ -380,10 +404,12 @@ export async function getSentimentHistory(
 export async function getDailyReport(
   date: string
 ): Promise<DailyReport | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("*")
     .eq("date", date)
+    .eq("season_id", seasonId)
     .single();
   if (!data) return null;
   const rankings = (data.rankings as RankingEntry[])
@@ -402,10 +428,12 @@ export async function getDailyReport(
 export async function getPrevRankMap(
   date: string
 ): Promise<Record<string, number> | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("rankings")
     .lt("date", date)
+    .eq("season_id", seasonId)
     .order("date", { ascending: false })
     .limit(1)
     .single();
@@ -423,10 +451,12 @@ export async function getPrevRankMap(
 export async function getPrevAssetMap(
   date: string
 ): Promise<Record<string, number> | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("rankings")
     .lt("date", date)
+    .eq("season_id", seasonId)
     .order("date", { ascending: false })
     .limit(1)
     .single();
@@ -472,9 +502,11 @@ export async function getDailyStories(
 }
 
 export async function getAvailableReportDates(): Promise<string[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date")
+    .eq("season_id", seasonId)
     .order("date", { ascending: false });
   return (data ?? []).map((r) => r.date);
 }
@@ -491,11 +523,13 @@ export interface AllAssetSnapshot {
 
 export async function getAllAssetHistory(
   investorNames: string[],
-  initialCapital: number = 5_000_000
+  initialCapital: number = 10_000_000
 ): Promise<AllAssetSnapshot[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date, investor_details")
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!data) return [];
@@ -512,9 +546,11 @@ export async function getAllAssetHistory(
 export async function getAssetHistory(
   investorName: string
 ): Promise<AssetSnapshot[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date, investor_details")
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!data) return [];
@@ -534,10 +570,12 @@ export interface CashflowSnapshot {
 }
 
 export async function getCashflowHistory(): Promise<CashflowSnapshot[]> {
+  // P 정삼절은 2026-05-08 시뮬 정리, 시즌1 데이터로 봉인 → season_id=1
   const { data } = await supabase
     .from("portfolio_snapshots")
     .select("date, total_asset, cashflow_account")
     .eq("investor_id", "P")
+    .eq("season_id", 1)
     .order("date", { ascending: true });
 
   if (!data) return [];
@@ -562,11 +600,14 @@ export interface AssetCompositionPoint {
 export async function getAssetComposition(
   investorId: string
 ): Promise<AssetCompositionPoint[]> {
-  const { data } = await supabase
+  const seasonId = await getCurrentSeasonId();
+  // Q는 시즌 무관 (시즌1 누적)
+  const q = supabase
     .from("portfolio_snapshots")
     .select("date, holdings, cash")
     .eq("investor_id", investorId)
     .order("date", { ascending: true });
+  const { data } = investorId === "Q" ? await q : await q.eq("season_id", seasonId);
 
   if (!data) return [];
 
@@ -586,6 +627,7 @@ export async function getDailyReturns(
   year: number,
   month: number
 ): Promise<DailyReturn[]> {
+  const seasonId = await getCurrentSeasonId();
   const startDate = new Date(year, month - 2, 1).toISOString().slice(0, 10);
   const endDate = new Date(year, month, 0).toISOString().slice(0, 10);
 
@@ -594,6 +636,7 @@ export async function getDailyReturns(
     .select("date, investor_details")
     .gte("date", startDate)
     .lte("date", endDate)
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!data || data.length < 2) return [];
@@ -628,11 +671,13 @@ export async function getPeriodSummary(
   startDate: string,
   endDate: string
 ): Promise<PeriodSummary[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date, investor_details")
     .gte("date", startDate)
     .lte("date", endDate)
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!data || data.length === 0) return [];
@@ -688,10 +733,15 @@ export async function getPeriodicReports(
 export async function getStockTransactions(
   ticker: string
 ): Promise<StockTransaction[]> {
+  const seasonId = await getCurrentSeasonId();
+  // Q 거래는 시즌1 유지, 그 외는 현재 시즌. 단일 ticker에 두 시즌 거래가 섞여 있으면 둘 다 가져옴.
+  // Q는 web에 EXCLUDED이지만 종목 상세에서 거래내역만은 보여줄 가치 있음.
+  // 단순화: 현재 시즌 + Q(시즌1) 모두 포함.
   const { data } = await supabase
     .from("transactions")
-    .select("date, investor_id, type, shares, price, amount, profit, fee")
+    .select("date, investor_id, type, shares, price, amount, profit, fee, season_id")
     .eq("ticker", ticker)
+    .or(`season_id.eq.${seasonId},investor_id.eq.Q`)
     .order("id", { ascending: false });
 
   if (!data) return [];
@@ -712,9 +762,11 @@ export async function getStockTransactions(
 }
 
 export async function getLatestReportDate(): Promise<string | null> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date")
+    .eq("season_id", seasonId)
     .order("date", { ascending: false })
     .limit(1);
   return data && data.length > 0 ? data[0].date : null;
@@ -810,9 +862,11 @@ function pearsonCorrelation(x: number[], y: number[]): number {
 }
 
 export async function getAllDailyReports(): Promise<DailyReportRow[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("daily_reports")
     .select("date, rankings, investor_details")
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
   if (!data) return [];
   return (data as DailyReportRow[]).map((row) => {
@@ -994,8 +1048,8 @@ export async function getWeeklyMVPs(): Promise<WeeklyMVP[]> {
     let worst = { investor: "", returnPct: Infinity };
 
     for (const name of names) {
-      const startAsset = first.investor_details[name]?.total_asset ?? 5000000;
-      const endAsset = last.investor_details[name]?.total_asset ?? 5000000;
+      const startAsset = first.investor_details[name]?.total_asset ?? 10000000;
+      const endAsset = last.investor_details[name]?.total_asset ?? 10000000;
       const ret = startAsset > 0 ? ((endAsset - startAsset) / startAsset) * 100 : 0;
       if (ret > mvp.returnPct) mvp = { investor: name, returnPct: ret };
       if (ret < worst.returnPct) worst = { investor: name, returnPct: ret };
@@ -1094,14 +1148,16 @@ export interface PerformanceStats {
 export async function getPerformanceStats(
   investorNames: string[],
   investorIds: string[],
-  initialCapital: number = 5_000_000
+  initialCapital: number = 10_000_000
 ): Promise<PerformanceStats[]> {
+  const seasonId = await getCurrentSeasonId();
   const [assetHistory, sellTxns] = await Promise.all([
     getAllAssetHistory(investorNames, initialCapital),
     supabase
       .from("transactions")
       .select("investor_id, profit")
-      .eq("type", "sell"),
+      .eq("type", "sell")
+      .eq("season_id", seasonId),
   ]);
 
   // 매도 건별 승률 계산
@@ -1192,9 +1248,11 @@ export async function getPerformanceStats(
 export async function getTransactionSummary(
   investorIds: string[]
 ): Promise<Record<string, { totalBuyAmount: number; totalSellAmount: number; totalFees: number; sellCount: number }>> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("transactions")
-    .select("investor_id, type, amount, fee");
+    .select("investor_id, type, amount, fee")
+    .eq("season_id", seasonId);
 
   const result: Record<string, { totalBuyAmount: number; totalSellAmount: number; totalFees: number; sellCount: number }> = {};
   for (const id of investorIds) {
@@ -1221,7 +1279,7 @@ export async function getTransactionSummary(
 export async function getVersusData(
   investorA: string,
   investorB: string,
-  initialCapital: number = 5_000_000
+  initialCapital: number = 10_000_000
 ): Promise<{
   assetHistory: { date: string; [key: string]: number | string }[];
   returnDiff: { date: string; diff: number }[];
@@ -1337,6 +1395,7 @@ export async function getLeagueStandings(seasonLabel?: string): Promise<SeasonSu
   }
 
   // 현재 시즌: daily_reports에서 on-the-fly 계산
+  const seasonId = await getCurrentSeasonId();
   const firstDay = `${currentLabel}-01`;
   const lastDay = dayjs.tz(`${currentLabel}-01`, "Asia/Seoul").endOf("month").format("YYYY-MM-DD");
 
@@ -1345,6 +1404,7 @@ export async function getLeagueStandings(seasonLabel?: string): Promise<SeasonSu
     .select("date, rankings, investor_details")
     .gte("date", firstDay)
     .lte("date", lastDay)
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!reports || reports.length === 0) return null;
@@ -1486,9 +1546,11 @@ export interface MarketRegime {
 }
 
 export async function getMarketRegimes(): Promise<MarketRegime[]> {
+  const seasonId = await getCurrentSeasonId();
   const { data } = await supabase
     .from("market_regimes")
     .select("*")
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
   return (data ?? []) as MarketRegime[];
 }
@@ -1499,11 +1561,13 @@ export async function getDailyLeaguePoints(seasonLabel?: string): Promise<{ date
   const firstDay = `${label}-01`;
   const lastDay = dayjs.tz(`${label}-01`, "Asia/Seoul").endOf("month").format("YYYY-MM-DD");
 
+  const seasonId = await getCurrentSeasonId();
   const { data: reports } = await supabase
     .from("daily_reports")
     .select("date, rankings")
     .gte("date", firstDay)
     .lte("date", lastDay)
+    .eq("season_id", seasonId)
     .order("date", { ascending: true });
 
   if (!reports || reports.length === 0) return [];
@@ -1582,12 +1646,14 @@ export async function getInvestorSnapshots(
   investorId: string,
   fromDate: string
 ): Promise<InvestorSnapshot[]> {
-  const { data } = await supabase
+  const seasonId = await getCurrentSeasonId();
+  const q = supabase
     .from("portfolio_snapshots")
     .select("date, total_asset")
     .eq("investor_id", investorId)
     .gte("date", fromDate)
     .order("date", { ascending: true });
+  const { data } = investorId === "Q" ? await q : await q.eq("season_id", seasonId);
   return (data ?? []) as InvestorSnapshot[];
 }
 
@@ -1595,12 +1661,17 @@ export async function getAllocationByInvestorName(
   investorName: string,
   date: string
 ): Promise<Allocation | null> {
-  const { data } = await supabase
+  const seasonId = await getCurrentSeasonId();
+  // 정채원(Q) 일기는 시즌1 유지, 그 외는 현재 시즌
+  let query = supabase
     .from("allocations")
     .select("*")
     .eq("investor", investorName)
-    .eq("date", date)
-    .maybeSingle();
+    .eq("date", date);
+  if (investorName !== "정채원") {
+    query = query.eq("season_id", seasonId);
+  }
+  const { data } = await query.maybeSingle();
   if (!data) return null;
   return {
     date: data.date,

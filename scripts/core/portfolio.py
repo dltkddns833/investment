@@ -1,7 +1,7 @@
 """포트폴리오 관리 모듈"""
 from datetime import datetime, date, timedelta
 import holidays
-from supabase_client import supabase
+from supabase_client import supabase, get_current_season_id
 
 EXCLUDED_INVESTOR_IDS = {"B", "L", "N", "O", "P"}
 
@@ -146,6 +146,7 @@ def buy(investor_id, ticker, name, shares, price, date_str=None):
         "price": exec_price,
         "amount": cost,
         "fee": fee,
+        "season_id": get_current_season_id(),
     }).execute()
 
     save_portfolio(investor_id, portfolio)
@@ -188,6 +189,7 @@ def sell(investor_id, ticker, shares, price, date_str=None):
         "amount": revenue,
         "fee": fee,
         "profit": profit,
+        "season_id": get_current_season_id(),
     }).execute()
 
     save_portfolio(investor_id, portfolio)
@@ -391,6 +393,7 @@ def check_target_prices(investor_id, current_prices, date_str,
                     "investor_id": investor_id, "date": date_str, "type": "sell",
                     "ticker": ticker, "name": name, "shares": sell_shares,
                     "price": exec_price, "amount": revenue, "fee": fee, "profit": profit,
+                    "season_id": get_current_season_id(),
                 })
 
                 if h["shares"] == 0:
@@ -500,6 +503,7 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                     "amount": revenue,
                     "fee": fee,
                     "profit": profit,
+                    "season_id": get_current_season_id(),
                 })
 
     # 총 자산 재계산 (매도 후)
@@ -562,6 +566,7 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
                     "price": exec_price,
                     "amount": cost,
                     "fee": fee,
+                    "season_id": get_current_season_id(),
                 })
 
     # 3) DB 저장 (배치)
@@ -580,6 +585,7 @@ def rebalance(investor_id, target_allocation, current_prices, current_date):
         "date": date_str,
         "trades": trades,
         "total_asset_after": total_asset_after,
+        "season_id": get_current_season_id(),
     }).execute()
 
     save_portfolio(investor_id, portfolio)
