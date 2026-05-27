@@ -541,6 +541,8 @@ def run_monitor(dry_run=False):
         return
 
     client = KISClient()
+    # ThreadPool 워커들이 동시에 _ensure_token 진입하여 중복 발급하는 race 방지 (08:45 prewarm)
+    client._ensure_token()
     regime_label, block_entry = get_regime_block(today)
     logger.info(f"레짐: {regime_label}")
 

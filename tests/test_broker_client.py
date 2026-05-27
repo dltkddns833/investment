@@ -1,5 +1,7 @@
 """KIS API 클라이언트 단위 테스트"""
 import sys
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -163,6 +165,105 @@ def test_place_order(mock_post):
     assert result["order_no"] == "0001234567"
     assert result["side"] == "buy"
     assert result["qty"] == 5
+
+
+def test_ensure_token_thread_race_single_authenticate(tmp_path, monkeypatch):
+    """ThreadPool 워커 4개가 동시에 _ensure_token 진입해도 authenticate는 1회만 호출되어야 한다.
+
+    2026-05-27 09:30:01 사고 재현: 토큰 없는 상태에서 4 worker가 race로 authenticate × 3 발급 → Supabase PATCH × 3.
+    lock + double-check + 파일 재로드로 1회로 수렴해야 한다.
+    """
+    import broker_client
+
+    # 임시 토큰 파일로 격리 (실전 .kis_token.json 보호)
+    monkeypatch.setattr(broker_client.KISClient, "TOKEN_FILE", tmp_path / ".kis_token.json")
+
+    auth_calls = []
+
+    def fake_authenticate(self):
+        # 다른 워커가 lock 대기 중에 발급이 완료되는 상황 시뮬레이션
+        time.sleep(0.05)
+        self._token = "fresh_token"
+        self._token_expires = time.time() + 86400
+        auth_calls.append(time.time())
+        return self._token
+
+    monkeypatch.setattr(broker_client.KISClient, "authenticate", fake_authenticate)
+    monkeypatch.setattr(broker_client.KISClient, "_save_token", lambda self: None)
+    # Supabase fallback 차단 (테스트 시 외부 의존 제거)
+    monkeypatch.setattr(broker_client.KISClient, "_load_token", lambda self: None)
+
+    client = broker_client.KISClient()
+    # 초기 상태: 토큰 없음
+    assert client._token is None
+
+    barrier = threading.Barrier(4)
+
+    def worker():
+        barrier.wait()
+        client._ensure_token()
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(auth_calls) == 1, f"authenticate 호출 {len(auth_calls)}회 (race 발생)"
+    assert client._token == "fresh_token"
+
+
+def test_load_token_corrupted_file_is_deleted(tmp_path, monkeypatch):
+    """손상된 .kis_token.json은 자동 삭제되어 다음 발급에서 정상 재생성된다."""
+    import broker_client
+
+    bad_path = tmp_path / ".kis_token.json"
+    bad_path.write_text('{"access_token": "x", "expires_at": 999999999}EXTRA_GARBAGE')
+    monkeypatch.setattr(broker_client.KISClient, "TOKEN_FILE", bad_path)
+    monkeypatch.setattr(broker_client.KISClient, "_save_token", lambda self: None)
+
+    # Supabase 호출은 어차피 supabase mock이 필요한데, 여기서는 supabase 호출이 실패해도
+    # _load_token이 손상 파일을 삭제하기만 하면 된다.
+    monkeypatch.setattr(
+        broker_client.supabase,
+        "table",
+        lambda *a, **k: (_ for _ in ()).throw(Exception("supabase off in test")),
+    )
+
+    client = broker_client.KISClient()
+    assert client._token is None
+    assert not bad_path.exists(), "손상된 토큰 파일이 삭제되어야 함"
+
+
+def test_load_token_prefers_newer_source(tmp_path, monkeypatch):
+    """파일과 Supabase 양쪽에 토큰이 있으면 expires_at이 더 큰 쪽을 채택한다."""
+    import broker_client
+
+    file_path = tmp_path / ".kis_token.json"
+    import json as _json
+    # 파일 토큰: 12시간 후 만료
+    file_expires = time.time() + 12 * 3600
+    file_path.write_text(_json.dumps({"access_token": "file_tok", "expires_at": file_expires}))
+    monkeypatch.setattr(broker_client.KISClient, "TOKEN_FILE", file_path)
+    monkeypatch.setattr(broker_client.KISClient, "_save_token", lambda self: None)
+
+    # Supabase 토큰: 23시간 후 만료 (더 새것)
+    sb_expires = time.time() + 23 * 3600
+
+    class FakeQuery:
+        def select(self, *a, **k):
+            return self
+        def eq(self, *a, **k):
+            return self
+        def single(self):
+            return self
+        def execute(self):
+            return MagicMock(data={"kis_token": {"access_token": "sb_tok", "expires_at": sb_expires}})
+
+    monkeypatch.setattr(broker_client.supabase, "table", lambda *a, **k: FakeQuery())
+
+    client = broker_client.KISClient()
+    assert client._token == "sb_tok", "더 만료가 늦은 supabase 토큰이 채택되어야 함"
 
 
 def test_is_market_open():

@@ -6,6 +6,7 @@ import sys
 import os
 import time
 import json
+import threading
 import requests
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -98,38 +99,57 @@ class KISClient:
         self.acnt_prdt_cd = self.account_no.split("-")[1]  # 2자리
         self._token = None
         self._token_expires = 0
+        self._token_lock = threading.Lock()
         self._load_token()
 
     def _load_token(self):
-        """파일 → Supabase 순서로 저장된 토큰 로드"""
-        # 1) 파일에서 로드
-        try:
-            if self.TOKEN_FILE.exists():
+        """파일·Supabase 양쪽에서 토큰 후보를 모아 expires_at 큰 쪽을 채택."""
+        candidates = []
+
+        def _coerce(token, expires):
+            try:
+                return str(token), float(expires)
+            except (TypeError, ValueError):
+                return None, None
+
+        # 1) 파일 후보 (손상 시 즉시 삭제하여 다음 발급에서 정상 재생성되도록 한다)
+        if self.TOKEN_FILE.exists():
+            try:
                 with open(self.TOKEN_FILE) as f:
                     data = json.load(f)
-                token = data.get("access_token", "")
-                expires = data.get("expires_at", 0)
-                if token and time.time() < expires - 3600:
-                    self._token = token
-                    self._token_expires = expires
-                    logger.info("KIS 토큰 파일에서 로드 (재사용)")
-                    return
-        except Exception as e:
-            logger.warning(f"KIS 토큰 파일 로드 실패 (무시): {e}")
+                token, expires = _coerce(data.get("access_token", ""), data.get("expires_at", 0))
+                if token and expires is not None:
+                    candidates.append(("file", token, expires))
+            except json.JSONDecodeError as e:
+                logger.warning(f"KIS 토큰 파일 손상 감지, 삭제: {e}")
+                try:
+                    self.TOKEN_FILE.unlink()
+                except Exception as ue:
+                    logger.warning(f"KIS 토큰 파일 삭제 실패 (무시): {ue}")
+            except Exception as e:
+                logger.warning(f"KIS 토큰 파일 로드 실패 (무시): {e}")
 
-        # 2) Supabase에서 로드 (파일 없거나 만료 시)
+        # 2) Supabase 후보
         try:
             row = supabase.table("config").select("kis_token").eq("id", 1).single().execute().data
             data = row.get("kis_token") if row else None
             if data:
-                token = data.get("access_token", "")
-                expires = data.get("expires_at", 0)
-                if token and time.time() < expires - 3600:
-                    self._token = token
-                    self._token_expires = expires
-                    logger.info("KIS 토큰 Supabase에서 로드 (재사용)")
+                token, expires = _coerce(data.get("access_token", ""), data.get("expires_at", 0))
+                if token and expires is not None:
+                    candidates.append(("supabase", token, expires))
         except Exception as e:
             logger.warning(f"KIS 토큰 Supabase 로드 실패 (무시): {e}")
+
+        # 3) 더 만료가 늦은 후보 채택 (멀티 프로세스 정합성)
+        now = time.time()
+        valid = [c for c in candidates if c[2] - 3600 > now]
+        if not valid:
+            return
+        valid.sort(key=lambda c: c[2], reverse=True)
+        src, token, expires = valid[0]
+        self._token = token
+        self._token_expires = expires
+        logger.info(f"KIS 토큰 {src}에서 로드 (재사용)")
 
     def _save_token(self):
         """토큰을 파일 + Supabase에 저장 (프로세스/서비스 간 공유)"""
@@ -153,10 +173,18 @@ class KISClient:
             logger.warning(f"KIS 토큰 Supabase 저장 실패 (무시): {e}")
 
     def _ensure_token(self):
-        """토큰이 없거나 만료 1시간 전이면 재발급"""
+        """토큰이 없거나 만료 1시간 전이면 재발급. 동시 호출은 lock + double-check + 파일 재로드로 중복 발급 방지."""
         if self._token and time.time() < self._token_expires - 3600:
             return
-        self.authenticate()
+        with self._token_lock:
+            # double-check: 다른 스레드가 이미 발급했을 수 있음
+            if self._token and time.time() < self._token_expires - 3600:
+                return
+            # 디스크/Supabase에 더 새로운 토큰이 떨어졌는지 한 번 더 확인 (멀티 프로세스 케이스)
+            self._load_token()
+            if self._token and time.time() < self._token_expires - 3600:
+                return
+            self.authenticate()
 
     def _headers(self, tr_id):
         """공통 요청 헤더"""
