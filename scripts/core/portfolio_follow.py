@@ -1,8 +1,8 @@
 """C 옵션 한국 매크로 추종 — 매일 회사 비중 변경 감지 + KIS 자동 매매
 
 - launchd 09:10 매일 실행 (스토리텔링 충돌 회피)
-- BetterWealth FA 18판(KR2KRFACTR99NKI1) + 25판(KR2KRMCROR99NFN0) 비중 조회
-- 합집합 평균 → affordable 필터(1주<자산5%) → 재정규화 → 1주 정수화
+- BetterWealth FA 18판(KR2KRFACTR99NKI1) "한국 매크로 로테이션" 단일 추종
+- 비중 순 정렬 → qty = round(시드×비중/가격) → 위에서부터 누적, 남은 현금 초과 시 컷
 - portfolio/last_target.json과 diff → 변경 시 KIS 시장가 매도/매수
 - 매매 후 DB(portfolios.UF + transactions + rebalance_history + portfolio_snapshots) 갱신
 - 텔레그램 알림
@@ -43,9 +43,7 @@ FA_TOKEN_FILE = PROJECT_ROOT / "portfolio" / ".fa_token.json"
 FA_BASE_URL = "https://fa.betterwealth.co.kr"
 FA_USERNAME = "qb.test@qbgroup.co.kr"
 FA_PASSWORD = "qbgroup@01"
-PRODUCT_18 = "KR2KRFACTR99NKI1"
-PRODUCT_25 = "KR2KRMCROR99NFN0"
-AFFORDABLE_THRESHOLD_PCT = 0.05  # 1주 가격 < 자산의 5%
+PRODUCT_18 = "KR2KRFACTR99NKI1"  # 한국 매크로 로테이션 [국내상장 주식]
 BUY_FEE_RATE = 0.00015
 SELL_FEE_RATE = 0.00015
 SELL_TAX_RATE = 0.0018
@@ -85,63 +83,78 @@ def fetch_fa_token():
 
 
 def fetch_company_weights():
+    """18판(KR2KRFACTR99NKI1) "한국 매크로 로테이션" 비중 조회.
+
+    Returns: {"weights": {code: pct, ...}, "names": {code: name, ...}}
+    """
     token = fetch_fa_token()
     headers = {"Authorization": f"Bearer {token}"}
-    weights = {}
-    for product_code, label in [(PRODUCT_18, "18"), (PRODUCT_25, "25")]:
-        r = requests.get(f"{FA_BASE_URL}/api/main/model/portfolio/{product_code}", headers=headers, timeout=10)
-        if r.status_code == 401:
-            FA_TOKEN_FILE.unlink(missing_ok=True)
-            token = fetch_fa_token()
-            headers = {"Authorization": f"Bearer {token}"}
-            r = requests.get(f"{FA_BASE_URL}/api/main/model/portfolio/{product_code}", headers=headers, timeout=10)
-        r.raise_for_status()
-        d = r.json()
-        weights[label] = {p["stockShortCode"]: float(p["weight"]) for p in d["products"]}
-        weights[f"{label}_names"] = {p["stockShortCode"]: p["stockName"] for p in d["products"]}
-    return weights
+    r = requests.get(f"{FA_BASE_URL}/api/main/model/portfolio/{PRODUCT_18}", headers=headers, timeout=10)
+    if r.status_code == 401:
+        FA_TOKEN_FILE.unlink(missing_ok=True)
+        token = fetch_fa_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(f"{FA_BASE_URL}/api/main/model/portfolio/{PRODUCT_18}", headers=headers, timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    return {
+        "weights": {p["stockShortCode"]: float(p["weight"]) for p in d["products"]},
+        "names": {p["stockShortCode"]: p["stockName"] for p in d["products"]},
+    }
 
 
 # ========== 비중 계산 ==========
 
-def compute_target_qty(weights, prices, total_asset):
-    w18 = weights["18"]
-    w25 = weights["25"]
-    names = {**weights["18_names"], **weights["25_names"]}
-    union = sorted(set(w18) | set(w25))
-    avg = {}
-    for code in union:
-        if code in w18 and code in w25:
-            avg[code] = (w18[code] + w25[code]) / 2
-        elif code in w25:
-            avg[code] = w25[code]
-        else:
-            avg[code] = w18[code]
+def compute_target_qty(weights_data, prices, total_asset):
+    """옵션 Y 산식 — 비중 순 정렬 → round(시드×비중/가격) → 위에서부터 누적, 컷.
 
-    threshold = total_asset * AFFORDABLE_THRESHOLD_PCT
-    affordable = [c for c in union if prices.get(c, 0) > 0 and prices[c] < threshold]
-    not_aff = [c for c in union if c not in affordable]
-    sum_aff = sum(avg[c] for c in affordable)
-    factor = 100.0 / sum_aff if sum_aff > 0 else 0.0
+    1. 비중 큰 종목부터 정렬
+    2. 각 종목 qty = round(시드 × 비중% / 100 / 가격) (0.5 이상이면 1주)
+    3. 누적 매수액이 시드를 초과하면 그 종목에서 floor(남은현금/가격)만 사고 이후 컷
+    """
+    weights = weights_data["weights"]
+    names = weights_data["names"]
+    ordered = sorted(weights.items(), key=lambda x: -x[1])
 
     target = {}
-    for code in affordable:
-        renorm_pct = avg[code] * factor
-        target_amt = total_asset * renorm_pct / 100
-        price = prices[code]
-        qty = int(target_amt // price)
+    skipped = []
+    cash = total_asset
+    stopped = False
+
+    for code, w_pct in ordered:
+        price = prices.get(code, 0)
+        if price <= 0:
+            skipped.append({"code": code, "name": names.get(code, ""), "weight": w_pct, "reason": "no_price"})
+            continue
+        if stopped:
+            skipped.append({"code": code, "name": names.get(code, ""), "weight": w_pct, "reason": "cut"})
+            continue
+
+        target_amt = total_asset * w_pct / 100
+        qty = round(target_amt / price)
+        cost = qty * price
+
+        if cost > cash:
+            qty = int(cash // price)
+            stopped = True
+            if qty <= 0:
+                skipped.append({"code": code, "name": names.get(code, ""), "weight": w_pct, "reason": "cut"})
+                continue
+            cost = qty * price
+
+        if qty <= 0:
+            skipped.append({"code": code, "name": names.get(code, ""), "weight": w_pct, "reason": "round=0"})
+            continue
+
         target[code] = {
             "name": names.get(code, ""),
             "shares": qty,
-            "renorm_pct": round(renorm_pct, 4),
+            "weight_pct": w_pct,
             "price_at_calc": price,
         }
-    return {
-        "target": target,
-        "affordable": affordable,
-        "not_affordable": [{"code": c, "name": names.get(c, ""), "weight": avg[c], "price": prices.get(c, 0)} for c in not_aff],
-        "renorm_factor": round(factor, 4),
-    }
+        cash -= cost
+
+    return {"target": target, "skipped": skipped, "remaining_cash": cash}
 
 
 # ========== diff ==========
@@ -158,17 +171,22 @@ def save_last_target(data):
 
 
 def weights_changed(prev, curr):
-    """직전 raw_weights와 현재 비교. 0.005%p 이상 차이면 변경."""
+    """직전 raw_weights(단일 dict)와 현재 비교. 0.005%p 이상 차이면 변경.
+
+    구조 변경 (이전: {"18": {...}, "25": {...}} → 현재: {code: pct})에도 대응:
+    prev의 raw_weights가 dict-of-dicts면 무조건 변경으로 처리.
+    """
     if not prev:
         return True
-    for label in ("18", "25"):
-        a = prev.get("raw_weights", {}).get(label, {})
-        b = curr.get(label, {})
-        if set(a) != set(b):
+    prev_raw = prev.get("raw_weights", {})
+    if prev_raw and any(isinstance(v, dict) for v in prev_raw.values()):
+        # 옛 구조 → 새 구조 첫 진입 → 무조건 리밸런싱
+        return True
+    if set(prev_raw) != set(curr):
+        return True
+    for k in prev_raw:
+        if abs(float(prev_raw[k]) - float(curr[k])) > 0.005:
             return True
-        for k in a:
-            if abs(float(a[k]) - float(b[k])) > 0.005:
-                return True
     return False
 
 
@@ -350,10 +368,10 @@ def main(force=False, dry_run=False):
     if check_kill_switch() and (dry_run or force):
         logger.info("킬스위치 활성화 상태이지만 dry-run/force 모드라 우회")
 
-    # 1. 회사 비중 조회
+    # 1. 회사 비중 조회 (18판 단일)
     try:
-        weights = fetch_company_weights()
-        logger.info(f"회사 비중 조회: 18판 {len(weights['18'])}종목, 25판 {len(weights['25'])}종목")
+        weights_data = fetch_company_weights()
+        logger.info(f"회사 비중 조회: 18판 {len(weights_data['weights'])}종목")
     except Exception as e:
         logger.error(f"회사 비중 조회 실패: {e}")
         send_telegram(f"⚠️ *C 옵션 추종 오류* ({date_str})\n회사 비중 조회 실패: {e}")
@@ -361,7 +379,7 @@ def main(force=False, dry_run=False):
 
     # 2. diff 비교
     prev = load_last_target()
-    changed = weights_changed(prev, {"18": weights["18"], "25": weights["25"]})
+    changed = weights_changed(prev, weights_data["weights"])
     if not changed and not force:
         logger.info("✅ 회사 포트폴리오 변경 없음 — 매매 스킵")
         return
@@ -372,11 +390,10 @@ def main(force=False, dry_run=False):
     # 3. 현재 포트폴리오 + 가격 조회
     pf_row = supabase.table("portfolios").select("*").eq("investor_id", INVESTOR_ID).single().execute().data
     current_holdings = pf_row.get("holdings") or {}
-    cash = int(pf_row.get("cash", 0))
 
     kis = KISClient()
-    # 25종목 가격 일괄 조회
-    all_codes = sorted(set(weights["18"]) | set(weights["25"]))
+    # 18판 종목 가격 일괄 조회
+    all_codes = sorted(weights_data["weights"].keys())
     prices = {}
     for c in all_codes:
         try:
@@ -386,16 +403,14 @@ def main(force=False, dry_run=False):
             prices[c] = 0
         time.sleep(0.1)
 
-    # 총자산 = cash + 보유종목 시가
-    total_asset = cash
-    for tk, h in current_holdings.items():
-        code = tk.split(".")[0]
-        if prices.get(code, 0) > 0:
-            total_asset += h["shares"] * prices[code]
-    logger.info(f"총자산 평가: {total_asset:,}원 (cash {cash:,} + 보유 {total_asset-cash:,})")
+    # 총자산 = KIS get_balance().total_asset (미정산 매도금까지 포함된 정확한 값)
+    balance = kis.get_balance()
+    total_asset = balance["total_asset"]
+    cash = balance["cash"]
+    logger.info(f"총자산 평가(KIS): {total_asset:,}원 (D+0 cash {cash:,})")
 
     # 4. 목표 수량 계산
-    target_info = compute_target_qty(weights, prices, total_asset)
+    target_info = compute_target_qty(weights_data, prices, total_asset)
     target = target_info["target"]
 
     # 5. 매매 주문 생성
@@ -404,7 +419,7 @@ def main(force=False, dry_run=False):
         logger.info("✅ 매매 대상 0건 (현재 보유와 목표 일치)")
         save_last_target({
             "fetched_at": datetime.now(KST).isoformat(),
-            "raw_weights": {"18": weights["18"], "25": weights["25"]},
+            "raw_weights": weights_data["weights"],
             "target_qty": {c: t["shares"] for c, t in target.items()},
             "total_asset_at_calc": total_asset,
         })
@@ -429,7 +444,7 @@ def main(force=False, dry_run=False):
     # 8. 캐시 저장
     save_last_target({
         "fetched_at": datetime.now(KST).isoformat(),
-        "raw_weights": {"18": weights["18"], "25": weights["25"]},
+        "raw_weights": weights_data["weights"],
         "target_qty": {c: t["shares"] for c, t in target.items()},
         "total_asset_at_calc": total_asset,
     })

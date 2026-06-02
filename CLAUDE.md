@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
 - K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
-- **UF 이상운**: C 옵션 한국 매크로 로테이션 추종 / 매일 체크 (회사 비중 변경 시 즉시 추종) / 19종목 (회사 18판+25판 합집합 25 중 affordable 19, 1주 < 시드의 5% 룰) / **KIS API로 실전 매매** / `scripts/core/portfolio_follow.py` + `com.investment.portfolio-follow` launchd 09:10 / 변경 없는 날은 매매 0건 (거래비용 최소화) / 휴장일·장외·킬스위치 가드 / 자세한 컨셉은 `portfolio/c_option_korea_macro_follow.md`
+- **UF 이상운**: C 옵션 한국 매크로 로테이션 추종 / 매일 체크 (회사 비중 변경 시 즉시 추종) / 18판(`KR2KRFACTR99NKI1`) 단일 추종, 17종목 중 옵션 Y 산식(`qty = round(시드×비중/가격)`, 비중 순 위에서부터 누적, 남은 현금 초과 시 컷)으로 매수 (2026-06-02 시점 14종목) / **KIS API로 실전 매매** / `scripts/core/portfolio_follow.py` + `com.investment.portfolio-follow` launchd 09:10 / 변경 없는 날은 매매 0건 (거래비용 최소화) / 휴장일·장외·킬스위치 가드 / 자세한 컨셉은 `portfolio/c_option_korea_macro_follow.md` (10번 섹션이 현재 룰)
 - Q 정채원: **급락 반등 스캘핑 v2.1** (이슈 #60, 2026-05-18 백지 재설계 + OOS 검증) / 09:30~14:00 1분 간격 풀 199종목(KOSPI200 ∪ stock_universe) 1분봉 직접 평가 → **직전 5분 ≤ -2.5% AND 현재 분봉 양봉 ≥ +0.3%** 시그널 발견 즉시 시장가 매수 → **+2.5% 익절 / -1.5% 손절 / 30분 시간청산** / 1종목 집중 / 당일 재매수 금지 / 일일 매매 한도 8회 / 직전 3사이클 연속 손실 시 60분 쿨다운 / **bear 레짐 신규 진입 차단** / 매매당 max 1,000만원 캡 / 백테스트 18영업일 분할 검증(학습 12일 13건 61.5% +9.02% + 검증 6일 14건 57.1% +7.97%, 통합 27건 ≈+17% MDD -4.67%) — 표본 작아 실전 누적 검증 필요. v5(KOSPI200 정적 + vol/5MA≥3배 + post5 동적 + 트레일링)는 EDA에서 무알파 확인되어 폐기 (백업: `scripts/archive/q_monitor_v5.py`)
 
 **아카이브 (2026-05-08 정리, 시뮬에서 제외)**:
@@ -136,12 +136,12 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
   - **검증 (이슈 #60)**: 학습 12일 13건 승률 61.5% +9.02% / 검증 6일 14건 승률 57.1% +7.97% / 통합 27건 ≈+17% MDD -4.67%. 표본 작아 실전 1~2주 누적 검증 필요. 누적 손실 -5% 도달 시 즉시 중단 + 재검토.
 - 로그: `logs/q_monitor/q_monitor_YYYY-MM-DD.log`
 
-### 오전 9:10 — UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작)
+### 오전 9:10 — UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, 2026-06-02 옵션 Y 룰)
 - plist: `~/Library/LaunchAgents/com.investment.portfolio-follow.plist`
 - `scripts/cron/portfolio_follow_cron.sh` → `scripts/core/portfolio_follow.py`
-  - BetterWealth FA 18판(`KR2KRFACTR99NKI1`) + 25판(`KR2KRMCROR99NFN0`) 비중 조회
-  - 합집합 25종목 평균 비중 → affordable 필터 (1주 < 시드의 5%) → 100% 재정규화 → 1주 정수화
-  - `portfolio/last_target.json` 캐시와 diff 비교 → **회사 비중 변경 시에만** KIS 시장가 매도/매수 (변경 없는 날 매매 0건)
+  - BetterWealth FA 18판(`KR2KRFACTR99NKI1`) "한국 매크로 로테이션" 단일 비중 조회 (25판 추종 중단)
+  - 시드 = KIS `total_asset`. 비중 큰 종목부터 정렬 → `qty = round(시드 × 비중% / 가격)` → 위에서부터 누적, 다음 종목 매수가 남은 현금 초과 시 그 종목에서 `floor(남은현금/가격)`만 사고 컷
+  - `portfolio/last_target.json` (raw_weights 단일 dict) 캐시와 diff 비교 → **회사 비중 변경 시에만** KIS 시장가 매도/매수 (변경 없는 날 매매 0건)
   - 매도 먼저 (현금 확보) → 매수 순서
   - 매매 후 KIS `get_holdings`/`get_balance`로 실잔고 확인 → `portfolios.UF` + `transactions` + `rebalance_history` + `portfolio_snapshots` 갱신
   - 텔레그램 알림 (변경 감지·매매 실행·오류)
@@ -239,7 +239,7 @@ scripts/
     o_monitor.py         O 정익절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
     p_monitor.py         P 정삼절 장중 실시간 모니터링 (2026-05-08 정리, launchd unload — 코드 보존)
     q_monitor.py         Q 정채원 급락 반등 스캘핑 v2.1 (이슈 #60, 09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산, 일일 8회 한도/3연패 60분 쿨다운, bear 진입 차단)
-    portfolio_follow.py  UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, BetterWealth FA 18+25판 합집합 affordable 19종목, 회사 비중 변경 감지 시에만 KIS 자동 매매, 09:10 매일 실행, 휴장일·장외·킬스위치 가드)
+    portfolio_follow.py  UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, 2026-06-02 옵션 Y 룰: 18판 단일 + 비중 순 round 누적 + 컷, 회사 비중 변경 감지 시에만 KIS 자동 매매, 09:10 매일 실행, 휴장일·장외·킬스위치 가드)
     kospi200.py          KOSPI200 정적 종목 코드 리스트 (198개, q_monitor.py v2.1 풀 구성용, 6개월마다 수동 갱신)
   backtest/          # 백테스트 엔진 (인메모리, DB 비접근)
     engine.py            InMemoryPortfolio + run_backtest() 루프 (L 분할매도 + O 능동 트레이딩 근사 포함)
