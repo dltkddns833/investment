@@ -66,13 +66,19 @@ STOP_LOSS_PCT = 1.5             # 손절 -1.5%
 HOLD_MIN = 30                   # 시간청산 30분
 MAX_CAPITAL_PER_TRADE = 10_000_000
 
+# near-miss 로깅 임계 (시그널 미달이지만 분포 진단용)
+NEAR_MISS_PREV_5M_PCT = -2.0    # 시그널 -2.5에서 0.5%p 이내
+NEAR_MISS_CANDLE_PCT = 0.1      # 시그널 +0.3에서 0.2%p 이내
+NEAR_MISS_LOG_TOP_N = 5         # 매스캔당 상위 N개만 INFO 출력
+
 # 시간 윈도우 (KST)
 SCAN_START_HH, SCAN_START_MM = 9, 30
 ENTRY_END_HH, ENTRY_END_MM = 14, 0
 HOLD_MAX_END_HH, HOLD_MAX_END_MM = 14, 30   # 14:00 마지막 진입 + 30분 보유
 
-# 스캔 주기 (IDLE: 분봉 마감 후 1분 간격 / HOLDING: 30초 현재가 체크)
-SCAN_INTERVAL_SEC = 60
+# 스캔 주기 (IDLE: 매 분 :20 정렬 / HOLDING: 30초 현재가 체크)
+# 분 경계 :20 정렬 — KIS 분봉 latency(분 마감 후 입수까지 ~수십초) 회피
+SCAN_MINUTE_OFFSET_SEC = 20
 HOLD_INTERVAL_SEC = 30
 
 # === 안전장치 ===
@@ -110,6 +116,31 @@ def wait_until(target_dt, label=""):
         remaining = (target_dt - datetime.now()).total_seconds()
         time.sleep(min(60, max(1, remaining)))
     return True
+
+
+def wait_to_next_scan_slot(entry_end, hold_max_end):
+    """다음 분의 :SCAN_MINUTE_OFFSET_SEC 시각까지 대기.
+
+    분봉 latency 회피용 — 현재 분이 마감된 후 ~수십 초 뒤에야 KIS에 직전 분봉이 입수.
+    스캔 시점을 분 경계 :20으로 고정해 직전 분봉 결손 가능성 최소화.
+
+    early-exit: entry_end / hold_max_end 통과 시 즉시 반환 (메인 루프 종료 조건 빠른 평가).
+    """
+    now = datetime.now()
+    next_slot = (now + timedelta(minutes=1)).replace(
+        second=SCAN_MINUTE_OFFSET_SEC, microsecond=0
+    )
+    # 분이 바뀌었지만 아직 :SCAN_MINUTE_OFFSET_SEC 전이면 같은 분의 슬롯으로
+    same_min_slot = now.replace(second=SCAN_MINUTE_OFFSET_SEC, microsecond=0)
+    if same_min_slot > now:
+        next_slot = same_min_slot
+    cap = min(hold_max_end, entry_end + timedelta(minutes=30))  # 보유 모니터링 한계
+    target = min(next_slot, cap)
+    if target <= now:
+        return
+    while datetime.now() < target:
+        remaining = (target - datetime.now()).total_seconds()
+        time.sleep(min(10, max(0.5, remaining)))
 
 
 # ========== 티커 변환 ==========
@@ -223,7 +254,12 @@ def build_pool() -> list[tuple[str, str]]:
 def _evaluate_one(client, code, today_str):
     """단일 종목 1분봉 6개 호출 → prev_5m, candle 평가.
 
-    Returns: dict {code, prev_5m, candle, close} 시그널 매치 시 / None
+    Returns:
+        dict {code, prev_5m, candle, close, status} —
+            status: "match"     : 시그널 충족
+                    "near_miss" : prev_5m ≤ -2.0% OR candle ≥ +0.1% (분포 진단)
+                    "miss"      : 둘 다 거리 큼
+        None — 데이터 호출 실패 (다음 스캔에서 우선 재시도 대상)
     """
     # worker 동시 시작 시 KIS spike 회피 — 0~50ms jitter
     import random
@@ -248,25 +284,81 @@ def _evaluate_one(client, code, today_str):
         return None
     prev_5m = (c5 / c0 - 1) * 100
     candle = (c5 - o5) / o5 * 100
-    if prev_5m > ENTRY_PREV_5M_PCT:           # -2.5 초과 (절댓값 작음) → 컷
-        return None
-    if candle < ENTRY_MIN_CANDLE_PCT:         # 양봉 강도 부족 → 컷
-        return None
-    return {"code": code, "prev_5m": prev_5m, "candle": candle, "close": c5}
+    if prev_5m <= ENTRY_PREV_5M_PCT and candle >= ENTRY_MIN_CANDLE_PCT:
+        status = "match"
+    elif prev_5m <= NEAR_MISS_PREV_5M_PCT or candle >= NEAR_MISS_CANDLE_PCT:
+        status = "near_miss"
+    else:
+        status = "miss"
+    return {"code": code, "prev_5m": prev_5m, "candle": candle, "close": c5, "status": status}
 
 
-def scan_signal(client, pool_codes: list[str], today_str: str, exclude: set[str]) -> list[dict]:
-    """풀 전 종목 동시 1분봉 호출 → 시그널 매치 종목 반환 (강한 급락 순)."""
+def scan_signal(
+    client,
+    pool_codes: list[str],
+    today_str: str,
+    exclude: set[str],
+    retry_first: set[str] | None = None,
+) -> dict:
+    """풀 1분봉 평가.
+
+    Args:
+        retry_first: 직전 스캔에서 호출 실패한 종목 — 별도 worker로 먼저 시도(공정성 확보).
+
+    Returns:
+        {
+            "matches": [...],         # status=="match", prev_5m 작은 순
+            "near_misses": [...],     # status=="near_miss", prev_5m 작은 순
+            "failed_codes": set,      # 데이터 호출 최종 실패 (다음 스캔 우선 재시도)
+            "eval_count": int,        # 평가 성공 (match+near_miss+miss)
+            "fail_count": int,        # = len(failed_codes)
+        }
+    """
     matches = []
+    near_misses = []
+    failed_codes: set[str] = set()
+    eval_count = 0
     targets = [c for c in pool_codes if c not in exclude]
+
+    def _consume(fut, code):
+        nonlocal eval_count
+        r = fut.result()
+        if r is None:
+            failed_codes.add(code)
+            return
+        eval_count += 1
+        if r["status"] == "match":
+            matches.append(r)
+        elif r["status"] == "near_miss":
+            near_misses.append(r)
+
+    # 1) 직전 실패 종목 우선 재시도 (낮은 동시성 — KIS 부담 최소화)
+    if retry_first:
+        target_set = set(targets)
+        retry_targets = [c for c in retry_first if c in target_set]
+        if retry_targets:
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                futs = {ex.submit(_evaluate_one, client, c, today_str): c for c in retry_targets}
+                for fut in as_completed(futs):
+                    _consume(fut, futs[fut])
+            retry_set = set(retry_targets)
+            targets = [c for c in targets if c not in retry_set]
+
+    # 2) 일반 스캔
     with ThreadPoolExecutor(max_workers=SIGNAL_SCAN_WORKERS) as ex:
         futs = {ex.submit(_evaluate_one, client, c, today_str): c for c in targets}
         for fut in as_completed(futs):
-            r = fut.result()
-            if r:
-                matches.append(r)
-    matches.sort(key=lambda x: x["prev_5m"])  # 가장 큰 급락 (음수가 가장 작음) 우선
-    return matches
+            _consume(fut, futs[fut])
+
+    matches.sort(key=lambda x: x["prev_5m"])
+    near_misses.sort(key=lambda x: x["prev_5m"])
+    return {
+        "matches": matches,
+        "near_misses": near_misses,
+        "failed_codes": failed_codes,
+        "eval_count": eval_count,
+        "fail_count": len(failed_codes),
+    }
 
 
 # ========== 매매 ==========
@@ -569,12 +661,15 @@ def run_monitor(dry_run=False):
         )
 
     base_dt = datetime.combine(today, datetime.min.time())
-    scan_start = base_dt.replace(hour=SCAN_START_HH, minute=SCAN_START_MM)
+    # 분봉 latency 회피: 09:30:00 정각이 아니라 09:30:SCAN_MINUTE_OFFSET_SEC부터 첫 스캔
+    scan_start = base_dt.replace(
+        hour=SCAN_START_HH, minute=SCAN_START_MM, second=SCAN_MINUTE_OFFSET_SEC
+    )
     entry_end = base_dt.replace(hour=ENTRY_END_HH, minute=ENTRY_END_MM)
     hold_max_end = base_dt.replace(hour=HOLD_MAX_END_HH, minute=HOLD_MAX_END_MM)
 
     if datetime.now() < scan_start:
-        logger.info(f"스캔 시작 {scan_start.strftime('%H:%M')}까지 대기")
+        logger.info(f"스캔 시작 {scan_start.strftime('%H:%M:%S')}까지 대기")
         if not wait_until(scan_start, label="scan start"):
             return
 
@@ -624,6 +719,7 @@ def run_monitor(dry_run=False):
         )
 
     summary = []   # 종료 요약용 매매 결과
+    pending_retry: set[str] = set()  # 직전 스캔 호출 실패 종목 — 다음 스캔 우선 재시도
 
     # ========== 메인 루프 ==========
     while datetime.now() < hold_max_end:
@@ -689,18 +785,35 @@ def run_monitor(dry_run=False):
 
         # 쿨다운
         if cooldown_until and now_dt < cooldown_until:
-            time.sleep(SCAN_INTERVAL_SEC)
+            wait_to_next_scan_slot(entry_end, hold_max_end)
             continue
 
         # 시그널 스캔 (풀 전 종목 1분봉)
         t0 = time.time()
-        matches = scan_signal(client, pool_codes, today_str, exclude=traded_codes)
+        result = scan_signal(
+            client, pool_codes, today_str,
+            exclude=traded_codes,
+            retry_first=pending_retry,
+        )
+        matches = result["matches"]
+        near_misses = result["near_misses"]
         elapsed = time.time() - t0
+        targets_n = len(pool_codes) - len(traded_codes)
         logger.info(
             f"  [스캔 {now_dt.strftime('%H:%M:%S')}] "
-            f"풀 {len(pool_codes) - len(traded_codes)}개 평가 → 매치 {len(matches)}개 "
-            f"({elapsed:.1f}s)"
+            f"풀 {targets_n}개 → 평가 {result['eval_count']} / 실패 {result['fail_count']} "
+            f"/ 매치 {len(matches)} / near-miss {len(near_misses)} ({elapsed:.1f}s)"
         )
+
+        # near-miss 분포 — 상위 N개 prev_5m / candle 노출 (튜닝 근거)
+        for nm in near_misses[:NEAR_MISS_LOG_TOP_N]:
+            logger.info(
+                f"    near-miss: {nm['code']} prev_5m={nm['prev_5m']:+.2f}% "
+                f"candle={nm['candle']:+.2f}%"
+            )
+
+        # 실패 종목 보관 → 다음 스캔 우선 재시도
+        pending_retry = result["failed_codes"]
 
         if matches:
             best = matches[0]
@@ -708,9 +821,9 @@ def run_monitor(dry_run=False):
                 f"  → BEST: {best['code']} prev_5m={best['prev_5m']:+.2f}% "
                 f"candle={best['candle']:+.2f}% close={best['close']:,}원"
             )
-            result = execute_buy(client, best["code"], "", today_str, dry_run=dry_run)
-            if result:
-                ticker, name, exec_price, shares = result
+            buy_result = execute_buy(client, best["code"], "", today_str, dry_run=dry_run)
+            if buy_result:
+                ticker, name, exec_price, shares = buy_result
                 holding = {
                     "ticker": ticker, "name": name, "code": best["code"],
                     "avg_price": exec_price, "buy_dt": datetime.now(),
@@ -730,7 +843,7 @@ def run_monitor(dry_run=False):
                     f"시그널: 직전 5분 {best['prev_5m']:+.2f}%, 양봉 {best['candle']:+.2f}%"
                 )
                 continue
-        time.sleep(SCAN_INTERVAL_SEC)
+        wait_to_next_scan_slot(entry_end, hold_max_end)
 
     # ========== 종료 처리 ==========
     if holding:
