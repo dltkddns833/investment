@@ -61,6 +61,10 @@ INVESTOR_ID = "Q"
 # === v2.1 시그널 / 청산 파라미터 ===
 ENTRY_PREV_5M_PCT = -2.5        # 직전 5분 변화율 ≤ -2.5%
 ENTRY_MIN_CANDLE_PCT = 0.3      # 현재 분봉 양봉 강도 ≥ +0.3%
+# float precision 보정 — 표시상 임계 정확히 일치(+0.30%, -2.50%)하지만 부동소수점에서
+# 0.2998 / -2.4998로 계산되어 미달 분류되는 경계를 살림. 2026-06-05 454910 케이스에서
+# candle +0.30% 표시값이 실제 0.2998xx로 미달 처리된 사례 확인.
+ENTRY_THRESHOLD_EPSILON = 1e-3
 TAKE_PROFIT_PCT = 2.5           # 익절 +2.5%
 STOP_LOSS_PCT = 1.5             # 손절 -1.5%
 HOLD_MIN = 30                   # 시간청산 30분
@@ -288,7 +292,10 @@ def _evaluate_one(client, code, today_str):
         return None
     prev_5m = (c5 / c0 - 1) * 100
     candle = (c5 - o5) / o5 * 100
-    if prev_5m <= ENTRY_PREV_5M_PCT and candle >= ENTRY_MIN_CANDLE_PCT:
+    # float precision 보정: 표시상 임계 일치하는 경계를 ε(=1e-3) 마진으로 살림
+    entry_prev_pass = prev_5m <= ENTRY_PREV_5M_PCT + ENTRY_THRESHOLD_EPSILON
+    entry_candle_pass = candle >= ENTRY_MIN_CANDLE_PCT - ENTRY_THRESHOLD_EPSILON
+    if entry_prev_pass and entry_candle_pass:
         status = "match"
     elif prev_5m <= NEAR_MISS_PREV_5M_PCT or candle >= NEAR_MISS_CANDLE_PCT:
         status = "near_miss"
