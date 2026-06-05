@@ -223,6 +223,8 @@ def build_pool() -> list[tuple[str, str]]:
     base_tickers = su_tickers | kp200_tickers   # 299종목
 
     # universe.csv 교집합 (유동성 통과)
+    # KIS는 6자리 종목코드 요구 — universe.csv가 leading zero 손실 상태로 저장된 케이스 다수
+    # (예: 011170 → 11170, 000240 → 240). zfill(6)로 정규화하여 KIS 500 에러 방지.
     universe_csv = Path(__file__).resolve().parents[1] / "q_v2" / "cache" / "universe.csv"
     if universe_csv.exists():
         import csv
@@ -231,18 +233,20 @@ def build_pool() -> list[tuple[str, str]]:
             for row in csv.DictReader(f):
                 ticker = row["ticker"]
                 if ticker in base_tickers:
-                    pool[row["code"]] = row["market"]
+                    code = (row["code"] or "").zfill(6)
+                    if len(code) == 6:
+                        pool[code] = row["market"]
         if len(pool) >= 100:   # 정상 로드 (백테스트는 199)
             logger.info(f"build_pool: universe.csv에서 {len(pool)}종목 로드 (유동성 통과 ∩ 베이스)")
             return list(pool.items())
         logger.warning(f"build_pool: universe.csv 결과가 적음({len(pool)}) — fallback")
 
-    # fallback
+    # fallback (KOSPI200_CODES는 이미 6자리)
     pool = {}
     for code in KOSPI200_CODES:
-        pool[code] = "KOSPI"
+        pool[code.zfill(6)] = "KOSPI"
     for ticker in su_tickers:
-        code = ticker.split(".")[0]
+        code = ticker.split(".")[0].zfill(6)
         if code not in pool:
             pool[code] = "KOSPI" if ticker.endswith(".KS") else "KOSDAQ"
     logger.warning(f"build_pool: universe.csv 없음 — fallback {len(pool)}종목 (유동성 미검증)")
