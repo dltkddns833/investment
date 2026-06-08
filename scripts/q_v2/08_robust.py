@@ -69,13 +69,22 @@ def load_data(tickers: set[str]) -> dict[str, pd.DataFrame]:
 
 
 def precompute(data, lookback: int, hm_start: str, hm_end: str) -> pd.DataFrame:
+    """prev_5m·candle 사전계산.
+
+    영업일 경계 처리: prev_5m은 **같은 날 내**에서만 계산. 종목별로 date.groupby
+    후 shift(lookback) → 전일 마지막 close 참조로 인한 갭다운 가짜 시그널 차단.
+    영업일 첫 lookback 분봉(09:00~09:04)은 prev_5m이 NaN.
+    """
     parts = []
     for t, df in data.items():
         d = df.copy()
-        d["prev_5m"] = (d["close"] / d["close"].shift(lookback) - 1) * 100
+        d["prev_5m"] = d.groupby("date")["close"].transform(
+            lambda s: (s / s.shift(lookback) - 1) * 100
+        )
         d["candle"] = (d["close"] - d["open"]) / d["open"] * 100
         d["ticker"] = t
         d = d[(d["hm"] >= hm_start) & (d["hm"] <= hm_end)]
+        d = d.dropna(subset=["prev_5m"])
         parts.append(d[["ticker", "date", "hm", "open", "high", "low", "close",
                         "prev_5m", "candle"]])
     out = pd.concat(parts)

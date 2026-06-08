@@ -283,9 +283,16 @@ def _evaluate_one(client, code, today_str):
         return None
     if not bars or len(bars) < 6:
         return None
-    bars.sort(key=lambda b: b.get("time", ""))
-    recent6 = bars[-6:]
-    c0 = float(recent6[0].get("close", 0))    # 5분 전 종가
+    # date+time 결합 정렬 — time 문자열만 쓰면 전일 14:59("145900")가 오늘 09:30("093000")보다
+    # 뒤로 정렬되어 recent6가 전일 마지막 6봉을 잡는 버그가 있었음 (2026-06-08 발견).
+    today_yyyymmdd = today_str.replace("-", "")
+    bars.sort(key=lambda b: (b.get("date", ""), b.get("time", "")))
+    # 영업일 경계: recent6가 모두 오늘 분봉인 경우에만 평가 (영업일 첫 5분은 평가 대상 외)
+    today_bars = [b for b in bars if b.get("date", "") == today_yyyymmdd]
+    if len(today_bars) < 6:
+        return None
+    recent6 = today_bars[-6:]
+    c0 = float(recent6[0].get("close", 0))    # 5분 전 종가 (같은 날)
     c5 = float(recent6[-1].get("close", 0))   # 직전 1분 종가
     o5 = float(recent6[-1].get("open", 0))    # 직전 1분 시가
     if c0 <= 0 or o5 <= 0:
