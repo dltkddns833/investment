@@ -10,6 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2026-05-08 정리**: B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절 5명을 시뮬·대시보드에서 제외(소프트 제외). 코드/DB/과거 거래내역은 보존하며, `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`와 `web/src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES`가 단일 진실 공급원.
 
+**2026-06-29 시뮬·스토리텔링 운영 중단**: 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 일일 파이프라인(`com.investment.pipeline` 09:05)과 스토리텔링(`com.investment.storytelling` 15:35) launchd unload. **Q 정채원(`com.investment.q-monitor`)과 UF 이상운 실전 매매(`com.investment.portfolio-follow`)만 유지**. plist/스크립트/코드/DB 전부 보존 — 재개 시 `launchctl load`만 다시 실행하면 됨. 스토리텔링은 사실상 2026-05-29 이후 자동 실행이 멈춰 있었음(daily_stories 미생성). 시뮬 13명 daily_reports/daily_stories 신규 생성은 본 시점부터 0건.
+
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. UF 이상운(C 옵션 매크로 추종)이 시즌2 시작과 함께 첫 실전 자동 매매 트랙으로 가동 중. 시뮬 11명은 여전히 R&D 단계.
 
 - 시드머니: 각 1,000만원 (KRW) — 시즌2 시점부터. 시즌1은 500만원으로 봉인
@@ -94,15 +96,16 @@ pip3 install -r requirements.txt
 
 macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사용).
 
-### 오전 9:05 — 시뮬레이션 (시가 체결)
-- plist: `~/Library/LaunchAgents/com.investment.pipeline.plist`
-- `scripts/cron/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행
+### 오전 9:05 — 시뮬레이션 (시가 체결) — **2026-06-29 unload (운영 중단)**
+- plist: `~/Library/LaunchAgents/com.investment.pipeline.plist` (보존)
+- `scripts/cron/daily_pipeline_cron.sh` — Claude CLI로 파이프라인 실행 (코드 보존)
   - 뉴스 수집 → 11명 배분 결정 (A·C·D·E·F·G·H·I·J·K·M, Q는 q_monitor가 직접 매매) → 시뮬레이션(시가 체결) → 텔레그램 발송
 - `scripts/reports/weekly_report.py` — 첫 영업일이면 지난주 성과 텔레그램 발송 (holidays 패키지로 공휴일 대응)
 - `scripts/reports/monthly_report.py` — 월 첫 영업일이면 지난달 성과 텔레그램 발송 + Supabase 저장
 - `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
 - 로그: `logs/pipeline/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
+- 재개 절차: `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
 
 ### O 정익절 / P 정삼절 장중 모니터링 (2026-05-14 실제 unload 완료)
 - 2026-05-08 시뮬 제외 후에도 launchd에서 unload가 실행되지 않아 09:10에 매일 자동 실행되고 있었음. **2026-05-14 `launchctl unload` 실행하여 실제 정리 완료** (이전 09:10~10:10 동안 살아있던 PID 68537/68540 등 잔여 프로세스 kill).
@@ -145,6 +148,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
     - **2026-06-25**: 1사이클 (금호타이어 073240 12:11→12:16 -1.62% 손절 4분 39초만에 -72,000원). 일일 -1.83% / Net -81,166원 / 누적 **-12.88%**. **6연패 연속** (06-17·06-18·06-22×2·06-24·06-25). **13일 누적 (06-09~06-25): 12사이클 4승 8패 / 승률 33.3% / Net -219,436원** — 백테스트 OOS(35.7%)보다 더 낮은 승률 / 손절 종목 다양(LG전자·후성×2·SKC·두산로보틱스·금호타이어)으로 룰 자체 문제. 사용자 장기 관찰 결정 유지 중
     - **2026-06-26**: 1사이클 (금호타이어 073240 12:41→12:45 -1.93% 손절 4분 11초만에 -83,790원). **이틀 연속 금호타이어 손절** — 영업일 넘어가면 재매수 가드 무력화. 7연패 연속. 일일 -2.13% / Net -92,762원 / 누적 **-14.74%**
     - **2026-06-29**: 2사이클 2승 0패 (원익IPS 240810 09:32→09:54 **+2.82% 익절** 22분만 +119,907원 / 솔브레인 357780 11:34→12:04 +0.28% 시간청산 +11,947원 — 손실 없는 시간청산). 일일 **+2.67%** / Net +113,649원 / 누적 -14.74% → **-12.47% 회복**. **7연패 종료**, 6/11 이후 첫 흑자 영업일. **15일 누적 (06-09~06-29): 14사이클 6승 9패 / 승률 42.9% / Net -198,549원** — 승률 33→**42.9% 큰 폭 반등** (백테스트 학습/검증 50%에 근접). 운영 점검 누적: (1) 레짐 unknown 갱신 안 됨 / (2) 쿨다운 영업일 내 한정 / (3) **재매수 가드 영업일 내 한정** (금호타이어 06-25→06-26 반복)
+    - **2026-06-30**: 1사이클 (이오테크닉스 039030 10:02→10:04 -1.85% 손절 1분 10초만에 -71,856원). 일일 -1.83% / Net -79,893원 / 누적 -12.47% → **-14.06%** 재악화 — 어제 흑자 반등이 일시적. **16일 누적 (06-09~06-30): 15사이클 6승 10패 / 승률 37.5% / Net -278,442원** — 승률 42.9% → 37.5% 하락, 백테스트 OOS(35.7%) 방향 재수렴. 손절 종목 7종(LG전자·후성×2·SKC·두산로보틱스·금호타이어×2·이오테크닉스)
   - **단순 청산** (트레일링/post5_vol 폐기):
     · 익절: 매수가 대비 +2.5% 도달 → 즉시 청산
     · 손절: 매수가 대비 -1.5% 도달 → 즉시 청산
@@ -173,18 +177,25 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - 코드 보존: `scripts/core/portfolio_follow.py`, `scripts/cron/portfolio_follow_cron.sh`
 - 컨셉 문서: `portfolio/c_option_korea_macro_follow.md`
 
-### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리)
-- plist: `~/Library/LaunchAgents/com.investment.storytelling.plist`
-- `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행
+### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리) — **2026-06-29 unload (운영 중단)**
+- plist: `~/Library/LaunchAgents/com.investment.storytelling.plist` (보존)
+- `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행 (코드 보존)
   - 종가 반영 → 코멘터리 → 투자자 일기
 - 로그: `logs/storytelling/storytelling_YYYY-MM-DD.log`
+- 실제 자동 실행은 2026-05-29 이후 이미 동작 정지 (daily_stories 미생성) → 2026-06-29 명시적 unload로 정리
+- 재개 절차: `launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist` (사전 점검 필요 — 5/29 이후 trigger 실패 원인 미확인)
 
 ### launchd 관리 명령
 ```bash
-# 전체 등록 (o/p-monitor는 2026-05-08 정리, meta는 2026-05-21 정리로 unload 유지)
-launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
+# 현재 운영 중 (2026-06-29 기준): q-monitor + portfolio-follow 만 active
+# pipeline·storytelling은 2026-06-29 unload, o/p-monitor는 2026-05-08 정리, meta는 2026-05-21 정리로 unload 유지
+
+# 현재 active 등록
 launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
+
+# 시뮬·스토리텔링 재개 시 (선택)
+launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 전체 해제
