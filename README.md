@@ -28,7 +28,7 @@ Q 정채원은 KIS 1분봉으로 매분 평가해 매매하는 **실시간 분�
 | M | 오판단 | 마켓 타이밍 | 적극투자형 | 매일 | 3~10 | `market_regime.py` |
 | **UF** | **이상운** | **C 옵션 한국 매크로 로테이션 추종** | 공격투자형 | 매일 체크 | 11~14 | BetterWealth FA API (`portfolio_follow.py`) |
 
-**UF 이상운** (시즌2 시작, 2026-05-22 / 옵션 Y 룰 적용 2026-06-02): BetterWealth FA 한국 매크로 로테이션 18판(`KR2KRFACTR99NKI1`) 단일 추종. 17종목을 비중 큰 순으로 정렬 → `qty = round(시드 × 비중 / 가격)` (0.5 이상이면 1주) → 위에서부터 누적, 남은 현금 초과 시 그 종목에서 `floor(남은현금/가격)`만 사고 컷. 가격이 비싸 `round=0`인 종목은 자연 제외(현재 삼성전기·SK스퀘어·LG이노텍 3종목 미보유). 회사 비중 변경 시에만 KIS 시장가로 자동 매도/매수 (변경 없는 날 매매 0건). 매일 09:10 launchd cron으로 실행. 휴장일/장외/킬스위치 가드. 자세한 컨셉: `portfolio/c_option_korea_macro_follow.md` (10번 섹션이 현재 룰). **사용자 트랙으로 실전 자금 1,000만원이 들어가는 첫 자동 매매 실험**.
+**UF 이상운** (시즌2 시작, 2026-05-22 / 옵션 Y 룰 적용 2026-06-02): BetterWealth FA 한국 매크로 로테이션 18판(`KR2KRMCROR99NKI1`, 2026-08-03 회사 리네이밍 전 `KR2KRFACTR99NKI1`) 단일 추종. 종목을 비중 큰 순으로 정렬 → `qty = round(시드 × 비중 / 가격)` (0.5 이상이면 1주) → 위에서부터 누적, 남은 현금 초과 시 그 종목에서 `floor(남은현금/가격)`만 사고 컷. 가격이 비싸 `round=0`인 종목은 자연 제외(현재 삼성전기·SK스퀘어·LG이노텍 3종목 미보유). 회사 비중 변경 시에만 KIS 시장가로 자동 매도/매수 (변경 없는 날 매매 0건). 매일 09:10 launchd cron으로 실행. 휴장일/장외/킬스위치 가드. 자세한 컨셉: `portfolio/c_option_korea_macro_follow.md` (10번 섹션이 현재 룰). **사용자 트랙으로 실전 자금 1,000만원이 들어가는 첫 자동 매매 실험**.
 
 **Q 정채원** (별도 운영 콘솔 `web-q/`): **급락 반등 스캘핑 v2.1** (이슈 #60, 2026-05-18 백지 재설계 + OOS 검증) / **09:30~14:00 진입 윈도우** / 1종목 집중 / 풀 199종목(KOSPI200 ∪ stock_universe) 1분봉 직접 평가 → **직전 5분 ≤ -2.5% AND 현재 분봉 양봉 ≥ +0.3%** 시그널 매치 시 시장가 매수 / **+2.5% 익절 / -1.5% 손절 / 30분 시간청산** (단순 청산) / 일일 매매 한도 8회 / 3사이클 연속 손실 시 60분 쿨다운 / **bear 레짐 신규 진입 차단** / 동시 보유 1종목 / 당일 재매수 금지 / max 1,000만원 캡 / 백테스트 18영업일 학습 13건 61.5% +9.02% + 검증 14건 57.1% +7.97% (통합 27건 ≈+17% MDD -4.67%). 이전 v5 코드는 `scripts/archive/q_monitor_v5.py`에 보존.
 
@@ -112,8 +112,8 @@ cd web-q && pnpm install && pnpm dev    # localhost:4001
 │   │   ├── meta_manager.py             메타 매니저 (A 강돌진 추종, 시뮬 데이터 기반 실전 배분)
 │   │   ├── scorecard.py                전략 스코어카드 엔진 (6카테고리)
 │   │   ├── safety.py                   실전 투자 안전 장치
-│   │   ├── o_monitor.py                O 정익절 장중 모니터링 (2026-05-14 launchd 실제 unload 완료 — 코드 보존)
-│   │   ├── p_monitor.py                P 정삼절 장중 모니터링 (2026-05-14 launchd 실제 unload 완료 — 코드 보존)
+│   │   ├── o_monitor.py                O 정익절 장중 모니터링 (2026-05-14 unload / 07-06 재부팅 부활 / 07-07 plist Disabled — 코드 보존)
+│   │   ├── p_monitor.py                P 정삼절 장중 모니터링 (2026-05-14 unload / 07-06 재부팅 부활 / 07-07 plist Disabled — 코드 보존)
 │   │   ├── q_monitor.py                Q 정채원 급락 반등 스캘핑 v2.1 (이슈 #60, 09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산, bear 진입 차단, 일 8회 한도, 3연패 60분 쿨다운, 분 경계 +20초 정렬·near-miss 로깅·실패 종목 우선 재시도·universe code 6자리 정규화·ε=1e-3 보정·(date,time) 결합 정렬+오늘 분봉 검증)
 │   │   ├── portfolio_follow.py         UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, 2026-06-02 옵션 Y 룰: 18판 단일 + 비중 순 round 누적 + 컷, 회사 비중 변경 감지 시 KIS 자동 매매, 09:10 매일 실행)
 │   │   └── kospi200.py                 KOSPI200 정적 종목 코드 리스트 (198개, q_monitor.py v2.1 풀 구성용, 6개월마다 수동 갱신)
@@ -257,14 +257,16 @@ A 강돌진 추종 모드(`follow_investor_id: "A"`)로 운영되는 실전 매�
 
 ## 자동 실행 (launchd)
 
-macOS launchd로 평일 자동 실행. **2026-06-29 시점 active = Q 정채원 + UF 이상운 실전 매매 2개만**. 시뮬레이션(09:05)·스토리텔링(15:35)은 2026-06-29 unload (plist/스크립트/코드 보존, 재개 시 `launchctl load`만 다시 실행). O/P-monitor는 2026-05-08 시뮬 제외 후 2026-05-14 launchd 실제 unload 완료, plist 보존.
+macOS launchd로 평일 자동 실행. **2026-07-07 시점 active = Q 정채원 + UF 이상운 실전 매매 2개만**. 시뮬레이션(09:05)·스토리텔링(15:35)·O/P-monitor(09:10)는 plist 내부에 `<key>Disabled</key><true/>` 세팅되어 재부팅해도 로드되지 않음. plist/스크립트/코드/DB 전부 보존. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
+
+> **2026-07-07 재부팅 부활 대응**: 2026-07-06 14:26 Mac 재부팅 시 `~/Library/LaunchAgents/` plist가 자동 재로드되어 pipeline·storytelling·o-monitor·p-monitor 4개가 부활 (당일 O 계좌 손절 4건 -11% 실행 후 DB 반영). 원인: `launchctl unload`는 재부팅 전까지만 유효. 대응: 4개 plist에 `Disabled` 키 추가로 영구 차단.
 
 | 시간 | 작업 | 실행 방식 | 상태 |
 |------|------|----------|------|
 | **08:45** | Q 정채원 급락 반등 스캘핑 v2.1 (09:30~14:00 진입, 풀 199 1분봉 직접 평가 → 직전 5분 ≤ -2.5% + 양봉 ≥ +0.3% 시그널 → +2.5/-1.5/30m 단순 청산, bear 진입 차단, 일 8회 한도, 3연패 60분 쿨다운, 분 경계 +20초 정렬·near-miss 로깅·실패 종목 우선 재시도) | Python | ✅ active |
 | **09:10** | UF 이상운 C 옵션 한국 매크로 추종 (18판 단일 추종, 회사 비중 변경 시 KIS 실전 매매) | Python | ✅ active |
-| **09:05** | 시뮬레이션 (뉴스 수집 → 11명 배분 → 시가 체결) | Claude CLI | ⏸ 2026-06-29 unload |
-| **15:35** | 스토리텔링 (종가 반영 → 코멘터리 → 투자자 일기) | Claude CLI | ⏸ 2026-06-29 unload (실제론 2026-05-29 이후 trigger 멈춤) |
+| **09:05** | 시뮬레이션 (뉴스 수집 → 11명 배분 → 시가 체결) | Claude CLI | ⏸ 2026-06-29 unload / 07-07 Disabled |
+| **15:35** | 스토리텔링 (종가 반영 → 코멘터리 → 투자자 일기) | Claude CLI | ⏸ 2026-06-29 unload / 07-07 Disabled (실제론 2026-05-29 이후 trigger 멈춤) |
 
 - 로그: `logs/{pipeline,q_monitor,portfolio_follow,meta,storytelling}/` 종류별 폴더 + `launchd/` (launchd stdout/stderr)
 - Claude Code 자동 업데이트 비활성화: `~/.claude/settings.json`에 `"env": {"DISABLE_AUTOUPDATER": "1"}` 설정 (수동 업그레이드: `claude update`)

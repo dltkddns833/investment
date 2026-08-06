@@ -10,7 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2026-05-08 정리**: B 김균형 / L 신장모 / N 전몰빵 / O 정익절 / P 정삼절 5명을 시뮬·대시보드에서 제외(소프트 제외). 코드/DB/과거 거래내역은 보존하며, `scripts/core/portfolio.py`의 `EXCLUDED_INVESTOR_IDS`와 `web/src/lib/data.ts`의 `EXCLUDED_INVESTOR_IDS`/`EXCLUDED_INVESTOR_NAMES`가 단일 진실 공급원.
 
-**2026-06-29 시뮬·스토리텔링 운영 중단**: 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 일일 파이프라인(`com.investment.pipeline` 09:05)과 스토리텔링(`com.investment.storytelling` 15:35) launchd unload. **Q 정채원(`com.investment.q-monitor`)과 UF 이상운 실전 매매(`com.investment.portfolio-follow`)만 유지**. plist/스크립트/코드/DB 전부 보존 — 재개 시 `launchctl load`만 다시 실행하면 됨. 스토리텔링은 사실상 2026-05-29 이후 자동 실행이 멈춰 있었음(daily_stories 미생성). 시뮬 13명 daily_reports/daily_stories 신규 생성은 본 시점부터 0건.
+**2026-06-29 시뮬·스토리텔링 운영 중단**: 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) 일일 파이프라인(`com.investment.pipeline` 09:05)과 스토리텔링(`com.investment.storytelling` 15:35) launchd unload. **Q 정채원(`com.investment.q-monitor`)과 UF 이상운 실전 매매(`com.investment.portfolio-follow`)만 유지**. plist/스크립트/코드/DB 전부 보존. 스토리텔링은 사실상 2026-05-29 이후 자동 실행이 멈춰 있었음(daily_stories 미생성). 시뮬 13명 daily_reports/daily_stories 신규 생성은 본 시점부터 0건.
+
+**2026-07-07 재부팅 부활 대응**: 2026-07-06 14:26 Mac 재부팅 후 `~/Library/LaunchAgents/`의 plist가 자동 재로드되어 pipeline·storytelling·o-monitor·p-monitor 4개가 모두 부활 (07-07 09:05 pipeline 완주, 09:10 o-monitor가 O 계좌 손절 4건 -11% 실행 후 DB 반영). 원인: `launchctl unload`는 재부팅 전까지만 유효. 대응: **4개 plist에 `<key>Disabled</key><true/>` 추가** — 재부팅해도 자동 로드되지 않음. 오늘 O 매매는 그대로 유지(EXCLUDED로 web/ 미표시). 재개 시 **plist에서 `Disabled` 두 줄 제거 후 `launchctl load` 실행** 필요.
 
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. UF 이상운(C 옵션 매크로 추종)이 시즌2 시작과 함께 첫 실전 자동 매매 트랙으로 가동 중. 시뮬 11명은 여전히 R&D 단계.
 
@@ -27,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - J 한따라: 스마트머니 추종 / 매주 리밸런싱 / 5~8종목 (외국인/기관 수급 추종)
 - K 로로캅: 글로벌 자산배분 로보어드바이저 / 매월 리밸런싱 / ETF 전용 4~8종목 (지수·섹터·해외·채권·배당 ETF 조합)
 - M 오판단: 마켓 타이밍 / 매일 체크 / 3~10종목 (KOSPI 레짐 판단, 강세장 90%+투자 / 약세장 70%+현금)
-- **UF 이상운**: C 옵션 한국 매크로 로테이션 추종 / 매일 체크 (회사 비중 변경 시 즉시 추종) / 18판(`KR2KRFACTR99NKI1`) 단일 추종, 17종목 중 옵션 Y 산식(`qty = round(시드×비중/가격)`, 비중 순 위에서부터 누적, 남은 현금 초과 시 컷)으로 매수 (2026-06-02 시점 14종목) / **KIS API로 실전 매매** / `scripts/core/portfolio_follow.py` + `com.investment.portfolio-follow` launchd 09:10 / 변경 없는 날은 매매 0건 (거래비용 최소화) / 휴장일·장외·킬스위치 가드 / 자세한 컨셉은 `portfolio/c_option_korea_macro_follow.md` (10번 섹션이 현재 룰)
+- **UF 이상운**: C 옵션 한국 매크로 로테이션 추종 / 매일 체크 (회사 비중 변경 시 즉시 추종) / 18판(`KR2KRMCROR99NKI1`, 2026-08-03 회사 리네이밍 전 `KR2KRFACTR99NKI1`) 단일 추종, 옵션 Y 산식(`qty = round(시드×비중/가격)`, 비중 순 위에서부터 누적, 남은 현금 초과 시 컷)으로 매수 (2026-08-04 리네이밍 대응 리밸런싱 후 27종목판) / **KIS API로 실전 매매** / `scripts/core/portfolio_follow.py` + `com.investment.portfolio-follow` launchd 09:10 / 변경 없는 날은 매매 0건 (거래비용 최소화) / 휴장일·장외·킬스위치 가드 / 자세한 컨셉은 `portfolio/c_option_korea_macro_follow.md` (10번 섹션이 현재 룰)
 - Q 정채원: **급락 반등 스캘핑 v2.1** (이슈 #60, 2026-05-18 백지 재설계 + OOS 검증) / 09:30~14:00 1분 간격 풀 199종목(KOSPI200 ∪ stock_universe) 1분봉 직접 평가 → **직전 5분 ≤ -2.5% AND 현재 분봉 양봉 ≥ +0.3%** 시그널 발견 즉시 시장가 매수 → **+2.5% 익절 / -1.5% 손절 / 30분 시간청산** / 1종목 집중 / 당일 재매수 금지 / 일일 매매 한도 8회 / 직전 3사이클 연속 손실 시 60분 쿨다운 / **bear 레짐 신규 진입 차단** / 매매당 max 1,000만원 캡 / 백테스트 18영업일 분할 검증(학습 12일 13건 61.5% +9.02% + 검증 6일 14건 57.1% +7.97%, 통합 27건 ≈+17% MDD -4.67%) — 표본 작아 실전 누적 검증 필요. v5(KOSPI200 정적 + vol/5MA≥3배 + post5 동적 + 트레일링)는 EDA에서 무알파 확인되어 폐기 (백업: `scripts/archive/q_monitor_v5.py`)
 
 **아카이브 (2026-05-08 정리, 시뮬에서 제외)**:
@@ -105,13 +107,14 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/reports/quarterly_report.py` — 분기 첫 영업일이면 지난 분기 성과 텔레그램 발송 + Supabase 저장
 - 로그: `logs/pipeline/pipeline_YYYY-MM-DD.log`
 - 환경변수: `.env`에 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 필요
-- 재개 절차: `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
+- 재개 절차: plist에서 `<key>Disabled</key><true/>` 두 줄 제거 후 `launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist`
 
-### O 정익절 / P 정삼절 장중 모니터링 (2026-05-14 실제 unload 완료)
+### O 정익절 / P 정삼절 장중 모니터링 (2026-05-14 unload / 2026-07-07 Disabled)
 - 2026-05-08 시뮬 제외 후에도 launchd에서 unload가 실행되지 않아 09:10에 매일 자동 실행되고 있었음. **2026-05-14 `launchctl unload` 실행하여 실제 정리 완료** (이전 09:10~10:10 동안 살아있던 PID 68537/68540 등 잔여 프로세스 kill).
-- plist 파일은 보존 (`~/Library/LaunchAgents/com.investment.o-monitor.plist`, `com.investment.p-monitor.plist`) — 향후 재개 시 `launchctl load`로 부활 가능
+- **2026-07-06 재부팅으로 자동 부활 → 07-07 Disabled 키 추가**로 재발 방지 (o-monitor는 부활 당일 O 계좌 손절 4건 실행하고 DB 반영됨).
+- plist 파일은 보존 (`~/Library/LaunchAgents/com.investment.o-monitor.plist`, `com.investment.p-monitor.plist`) — Disabled 상태로 대기
 - `scripts/core/o_monitor.py`, `scripts/core/p_monitor.py`, `scripts/cron/o_monitor_cron.sh`, `scripts/cron/p_monitor_cron.sh` 코드도 보존
-- 향후 재개 시 `launchctl load` + `EXCLUDED_INVESTOR_IDS`에서 O/P 제거 + `web/data.ts`의 EXCLUDED 갱신 필요
+- 향후 재개 시 plist에서 `Disabled` 두 줄 제거 + `launchctl load` + `EXCLUDED_INVESTOR_IDS`에서 O/P 제거 + `web/data.ts`의 EXCLUDED 갱신 필요
 
 ### 오전 8:45 — Q 정채원 급락 반등 스캘핑 v2.1 (2026-05-18 백지 재설계, 이슈 #60)
 - plist: `~/Library/LaunchAgents/com.investment.q-monitor.plist`
@@ -168,7 +171,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 ### 오전 9:10 — UF 이상운 C 옵션 한국 매크로 추종 (2026-05-22 시즌2 시작, 2026-06-02 옵션 Y 룰)
 - plist: `~/Library/LaunchAgents/com.investment.portfolio-follow.plist`
 - `scripts/cron/portfolio_follow_cron.sh` → `scripts/core/portfolio_follow.py`
-  - BetterWealth FA 18판(`KR2KRFACTR99NKI1`) "한국 매크로 로테이션" 단일 비중 조회 (25판 추종 중단)
+  - BetterWealth FA 18판(`KR2KRMCROR99NKI1`, 2026-08-03 회사 리네이밍 전 `KR2KRFACTR99NKI1`) "한국 매크로 로테이션" 단일 비중 조회 (25판 추종 중단)
   - 시드 = KIS `total_asset`. 비중 큰 종목부터 정렬 → `qty = round(시드 × 비중% / 가격)` → 위에서부터 누적, 다음 종목 매수가 남은 현금 초과 시 그 종목에서 `floor(남은현금/가격)`만 사고 컷
   - `portfolio/last_target.json` (raw_weights 단일 dict) 캐시와 diff 비교 → **회사 비중 변경 시에만** KIS 시장가 매도/매수 (변경 없는 날 매매 0건)
   - 매도 먼저 (현금 확보) → 매수 순서
@@ -180,24 +183,42 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - 코드 보존: `scripts/core/portfolio_follow.py`, `scripts/cron/portfolio_follow_cron.sh`
 - 컨셉 문서: `portfolio/c_option_korea_macro_follow.md`
 
-### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리) — **2026-06-29 unload (운영 중단)**
-- plist: `~/Library/LaunchAgents/com.investment.storytelling.plist` (보존)
+### 오전 9:15 — 개인 포트폴리오 추종 알림 (KR1GBDYNAM99IKI0 / ISA, 500만 시드, 2026-08-06 시작)
+- plist: `~/Library/LaunchAgents/com.investment.portfolio-follow-personal.plist`
+- `scripts/cron/portfolio_follow_personal_cron.sh` → `scripts/core/portfolio_follow_personal.py`
+  - BetterWealth FA 상품 `KR1GBDYNAM99IKI0` (글로벌자산배분 주식100 [국내상장 ETF] ISA, KB증권 위탁) 비중 조회. 일반계좌 버전 `KR1GBRSERI99NKI1`과 종목·비중 완전 동일한 ISA 랩핑 상품 (알고리즘 `KR-PORT_R8`)
+  - 시드 = **고정 5,000,000원** (사용자 개인 ISA 자금, KIS API 계좌 미연결). 비중 순 정렬 → `qty = round(시드×비중/가격)` 위에서부터 누적 → 시드 초과 시 컷 (portfolio_follow.py와 동일 산식)
+  - KIS API는 시세 조회만 사용 (매매 없음, 계좌 조회 없음)
+  - `portfolio/personal_last_target.json`과 target qty diff 비교 → **수량 변경 시에만** 텔레그램 알림
+  - 초기 실행(캐시 없음) 시 "최초 매수 안내" 발송, 이후는 리밸런싱 신호만
+  - **자동 매매 없음, DB 갱신 없음** — 사용자가 본인 신한투자증권 ISA (270-80-031639) 계좌에서 수동 매수
+  - 웹 대시보드 미노출 (사용자 개인 자산, 회사 트랙과 분리)
+  - **가드**: 한국 휴장일 (holidays.KR)만. 장 운영시간·킬스위치 체크 없음 (알림 전용이라 안전 이슈 없음)
+  - dry-run: 텔레그램/캐시 저장 없이 메시지 미리보기만 stdout 출력
+  - **ISA 세제 이점**: 비과세 한도 내 매매차익·배당 세금 0 (일반형 200만/서민형 400만), 초과분 9.9% 저율 분리과세. 국내상장 ETF 일반계좌 15.4% 대비 압도적. 단 3년 만기 필수·중도해지 시 혜택 소급 소멸
+- 로그: `logs/portfolio_follow_personal/portfolio_follow_personal_YYYY-MM-DD.log`
+- 시드 조정: 필요 시 `scripts/core/portfolio_follow_personal.py`의 `SEED` 상수 수정 후 `portfolio/personal_last_target.json` 삭제하면 다음 실행 시 새 시드로 재초기화
+
+### 오후 3:35 — 스토리텔링 (종가 반영 + 코멘터리) — **2026-06-29 unload / 2026-07-07 Disabled**
+- plist: `~/Library/LaunchAgents/com.investment.storytelling.plist` (보존, Disabled)
 - `scripts/cron/storytelling_cron.sh` — Claude CLI로 스토리텔링 실행 (코드 보존)
   - 종가 반영 → 코멘터리 → 투자자 일기
 - 로그: `logs/storytelling/storytelling_YYYY-MM-DD.log`
-- 실제 자동 실행은 2026-05-29 이후 이미 동작 정지 (daily_stories 미생성) → 2026-06-29 명시적 unload로 정리
-- 재개 절차: `launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist` (사전 점검 필요 — 5/29 이후 trigger 실패 원인 미확인)
+- 실제 자동 실행은 2026-05-29 이후 이미 동작 정지 (daily_stories 미생성) → 2026-06-29 명시적 unload → 2026-07-06 재부팅으로 부활(당일 storytelling_2026-07-06.log 3.2KB) → 2026-07-07 Disabled 키로 재발 방지
+- 재개 절차: plist에서 `Disabled` 두 줄 제거 후 `launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist` (사전 점검 필요 — 5/29 이후 trigger 실패 원인 미확인)
 
 ### launchd 관리 명령
 ```bash
-# 현재 운영 중 (2026-06-29 기준): q-monitor + portfolio-follow 만 active
-# pipeline·storytelling은 2026-06-29 unload, o/p-monitor는 2026-05-08 정리, meta는 2026-05-21 정리로 unload 유지
+# 현재 운영 중 (2026-08-05 기준): q-monitor + portfolio-follow + portfolio-follow-personal 만 active
+# pipeline·storytelling·o-monitor·p-monitor는 plist에 <key>Disabled</key><true/> 세팅으로 재부팅 후에도 자동 로드 방지
+# meta는 2026-05-21 정리로 unload 유지
 
 # 현재 active 등록
 launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
+launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow-personal.plist
 
-# 시뮬·스토리텔링 재개 시 (선택)
+# 시뮬·스토리텔링 재개 시 (선택) — plist에서 Disabled 두 줄 먼저 제거해야 로드됨
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 
@@ -205,11 +226,14 @@ launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
+launchctl unload ~/Library/LaunchAgents/com.investment.portfolio-follow-personal.plist
 launchctl unload ~/Library/LaunchAgents/com.investment.storytelling.plist
 
 # 상태 확인
 launchctl list | grep com.investment
 ```
+
+**⚠️ 재부팅 부활 방지**: macOS는 로그인 시 `~/Library/LaunchAgents/`의 모든 plist를 자동 로드하므로 `launchctl unload`만으로는 재부팅 후 다시 살아난다. 영구 중단하려면 plist 내부에 `<key>Disabled</key><true/>` 두 줄을 넣어야 한다 (Label 아래 권장). 재개 시 두 줄 제거 후 `launchctl load`.
 
 ### Claude Code 자동 업데이트 비활성화
 파이프라인 안정성을 위해 자동 업데이트를 끄고 수동으로 관리한다.
