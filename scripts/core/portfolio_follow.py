@@ -1,16 +1,18 @@
-"""C 옵션 한국 매크로 추종 — 매일 회사 비중 변경 감지 + KIS 자동 매매
+"""C 옵션 한국 매크로 추종 — 매일 회사 비중 변경 감지 + 사용자 요청 시 KIS 매매
+
+- 기본 실행(cron): 변경 감지 시 텔레그램 알림만, 매매 없음
+- --execute: 사용자가 직접 실행 → 변경된 비중대로 매매
+- DB(Supabase) 미사용 — 보유/잔고는 KIS 기준
 
 - launchd 09:10 매일 실행 (스토리텔링 충돌 회피)
 - BetterWealth FA 18판(KR2KRFACTR99NKI1) "한국 매크로 로테이션" 단일 추종
 - 비중 순 정렬 → qty = round(시드×비중/가격) → 위에서부터 누적, 남은 현금 초과 시 컷
-- portfolio/last_target.json과 diff → 변경 시 KIS 시장가 매도/매수
-- 매매 후 DB(portfolios.UF + transactions + rebalance_history + portfolio_snapshots) 갱신
+- portfolio/last_target.json과 diff → 변경 시 알림 / --execute 시 KIS 시장가 매도/매수
 - 텔레그램 알림
 
 가드:
 - 한국 휴장일 스킵 (holidays.KR)
 - 장 운영시간 09:10~14:30 외 스킵
-- 킬스위치 활성화 시 매매 스킵 (Meta Manager 자동매매와 동일 가드)
 """
 import sys
 import json
@@ -25,16 +27,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notifications")
 
 import holidays
 
-from supabase_client import supabase, get_current_season_id
 from broker_client import KISClient
-from safety import check_kill_switch
 from logger import get_logger
 from send_telegram import send_telegram
 
 logger = get_logger(__name__)
 
 KST = timezone(timedelta(hours=9))
-INVESTOR_ID = "UF"
 INVESTOR_NAME = "이상운"
 STRATEGY = "한국 매크로 로테이션 추종"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,9 +43,6 @@ FA_BASE_URL = "https://fa.betterwealth.co.kr"
 FA_USERNAME = "qb.test@qbgroup.co.kr"
 FA_PASSWORD = "qbgroup@01"
 PRODUCT_18 = "KR2KRMCROR99NKI1"  # 한국 매크로 로테이션 [국내상장 주식] (2026-08-03 상품코드 변경: KR2KRFACTR99NKI1 → KR2KRMCROR99NKI1)
-BUY_FEE_RATE = 0.00015
-SELL_FEE_RATE = 0.00015
-SELL_TAX_RATE = 0.0018
 TRADE_WINDOW_START = (9, 10)
 TRADE_WINDOW_END = (14, 30)
 
@@ -196,7 +192,7 @@ def compute_orders(current_holdings, target_qty):
     """현재 holdings vs 목표 → 매도/매수 주문 리스트."""
     sells, buys = [], []
     target_codes = set(target_qty.keys())
-    held_codes = {tk.split(".")[0] for tk in current_holdings.keys()}
+    held_by_code = {tk.split(".")[0]: h for tk, h in current_holdings.items()}
 
     # 매도: 보유 중인데 목표에 없거나 수량 초과
     for ticker, h in current_holdings.items():
@@ -211,7 +207,7 @@ def compute_orders(current_holdings, target_qty):
     # 매수: 목표에 있는데 보유가 부족
     for code, t in target_qty.items():
         ticker = f"{code}.KS"
-        current_share = current_holdings.get(ticker, {}).get("shares", 0)
+        current_share = held_by_code.get(code, {}).get("shares", 0)
         diff = t["shares"] - current_share
         if diff > 0:
             buys.append({
@@ -257,95 +253,33 @@ def execute_orders(kis, sells, buys, dry_run=False):
     return results
 
 
-# ========== DB 갱신 ==========
+# ========== 매매 후 잔고 ==========
 
-def reconcile_from_kis_and_update_db(kis, date_str, trades_summary):
-    """매매 후 KIS 실잔고로 portfolios.UF + transactions 갱신.
-
-    KIS get_holdings() 결과를 source of truth로 사용.
-    """
+def fetch_final_balance(kis):
+    """매매 후 KIS 실잔고 조회."""
     time.sleep(3)
-    kis_holdings = kis.get_holdings()
     kis_balance = kis.get_balance()
-
-    # holdings dict 구성
-    new_holdings = {}
-    for h in kis_holdings:
-        ticker = h["ticker"]  # .KS 형식
-        new_holdings[ticker] = {
-            "name": h["name"],
-            "shares": h["shares"],
-            "avg_price": h["avg_price"],
-        }
-    new_cash = kis_balance["cash_d2"]  # D+2 정산 반영 예수금
-    total_asset_after = kis_balance["total_asset"]
-
-    # portfolios.UF 갱신
-    supabase.table("portfolios").update({
-        "cash": new_cash,
-        "holdings": new_holdings,
-        "last_rebalanced": date_str,
-    }).eq("investor_id", INVESTOR_ID).execute()
-
-    # transactions insert (매도/매수 각각)
-    season_id = get_current_season_id()
-    now_iso = datetime.now(KST).isoformat()
-    tx_rows = []
-    for s in trades_summary.get("sells", []):
-        # KIS get_current_price 안 쓰고 holdings에서 매도 후 평균 추출 어려움 → 별도 조회
-        try:
-            cp = kis.get_current_price(s["code"])
-            exec_price = cp["price"]
-        except Exception:
-            exec_price = s.get("price_at_calc", 0)
-        amount = s["qty"] * exec_price
-        fee = round(amount * SELL_FEE_RATE) + round(amount * SELL_TAX_RATE)
-        tx_rows.append({
-            "investor_id": INVESTOR_ID, "date": date_str, "type": "sell",
-            "ticker": s["ticker"], "name": s["name"], "shares": s["qty"],
-            "price": exec_price, "amount": amount, "fee": fee, "profit": None,
-            "executed_at": now_iso, "season_id": season_id,
-        })
-    for b in trades_summary.get("buys", []):
-        try:
-            cp = kis.get_current_price(b["code"])
-            exec_price = cp["price"]
-        except Exception:
-            exec_price = b.get("price_at_calc", 0)
-        amount = b["qty"] * exec_price
-        fee = round(amount * BUY_FEE_RATE)
-        tx_rows.append({
-            "investor_id": INVESTOR_ID, "date": date_str, "type": "buy",
-            "ticker": b["ticker"], "name": b["name"], "shares": b["qty"],
-            "price": exec_price, "amount": amount, "fee": fee, "profit": None,
-            "executed_at": now_iso, "season_id": season_id,
-        })
-    if tx_rows:
-        supabase.table("transactions").insert(tx_rows).execute()
-
-    # rebalance_history insert
-    trade_log = [{"type": "sell", "ticker": s["ticker"], "shares": s["qty"]} for s in trades_summary.get("sells", [])] + \
-                [{"type": "buy", "ticker": b["ticker"], "shares": b["qty"]} for b in trades_summary.get("buys", [])]
-    supabase.table("rebalance_history").insert({
-        "investor_id": INVESTOR_ID, "date": date_str,
-        "trades": trade_log, "total_asset_after": total_asset_after,
-        "season_id": season_id,
-    }).execute()
-
-    # portfolio_snapshots upsert
-    supabase.table("portfolio_snapshots").upsert({
-        "investor_id": INVESTOR_ID, "date": date_str,
-        "holdings": new_holdings, "cash": new_cash,
-        "total_asset": total_asset_after, "snapshot_at": now_iso,
-        "season_id": season_id,
-    }).execute()
-
-    return {"cash": new_cash, "holdings": new_holdings, "total_asset": total_asset_after}
+    return {"cash": kis_balance["cash_d2"], "total_asset": kis_balance["total_asset"]}
 
 
 # ========== 메인 ==========
 
-def main(force=False, dry_run=False):
+def format_weight_changes(prev, weights_data):
+    """직전 비중 대비 변경 내역 텍스트"""
+    prev_raw = (prev or {}).get("raw_weights", {})
+    if any(isinstance(v, dict) for v in prev_raw.values()):
+        prev_raw = {}
+    curr = weights_data["weights"]
+    names = weights_data["names"]
+    lines = []
+    for code in sorted(set(prev_raw) | set(curr), key=lambda c: -curr.get(c, 0)):
+        a, b = float(prev_raw.get(code, 0)), float(curr.get(code, 0))
+        if abs(a - b) > 0.005:
+            lines.append(f"• {names.get(code, code)}: {a:.2f}% → {b:.2f}%")
+    return "\n".join(lines)
+
+
+def main(force=False, dry_run=False, execute=False):
     today = datetime.now(KST).date()
     date_str = today.isoformat()
     logger.info(f"=== C 옵션 한국 매크로 추종 cron 시작 ({date_str}) ===")
@@ -359,14 +293,6 @@ def main(force=False, dry_run=False):
     if not is_trading_window() and not dry_run and not force:
         logger.info("장 운영시간(09:10~14:30) 외 — 스킵")
         return
-
-    # 가드 3: 킬스위치 (dry-run/force는 우회)
-    if check_kill_switch() and not (dry_run or force):
-        logger.warning("킬스위치 활성화 — 매매 차단")
-        send_telegram(f"⚠️ *C 옵션 추종 차단* ({date_str})\n킬스위치가 활성화되어 매매를 건너뛰었습니다.")
-        return
-    if check_kill_switch() and (dry_run or force):
-        logger.info("킬스위치 활성화 상태이지만 dry-run/force 모드라 우회")
 
     # 1. 회사 비중 조회 (18판 단일)
     try:
@@ -385,13 +311,26 @@ def main(force=False, dry_run=False):
         return
 
     if changed and prev is not None:
-        logger.info("🔔 회사 포트폴리오 변경 감지 — 리밸런싱 진행")
+        logger.info("🔔 회사 포트폴리오 변경 감지")
 
-    # 3. 현재 포트폴리오 + 가격 조회
-    pf_row = supabase.table("portfolios").select("*").eq("investor_id", INVESTOR_ID).single().execute().data
-    current_holdings = pf_row.get("holdings") or {}
+    # 기본 실행(cron)은 감지 알림만 — 매매는 사용자가 --execute로 요청
+    if not (execute or dry_run):
+        logger.info("감지 전용 모드 — 알림 후 종료 (매매하려면 --execute)")
+        send_telegram(
+            f"🔔 *C 옵션 포트폴리오 변경 감지* ({date_str})\n"
+            f"{format_weight_changes(prev, weights_data)}\n\n"
+            f"매매하려면 장중(09:10~14:30)에 실행:\n"
+            f"`portfolio_follow.py --execute`"
+        )
+        return
 
+    # 3. 현재 보유(KIS 기준) + 가격 조회
     kis = KISClient()
+    current_holdings = {
+        h["ticker"]: {"name": h["name"], "shares": h["shares"]}
+        for h in kis.get_holdings()
+    }
+
     # 18판 종목 가격 일괄 조회
     all_codes = sorted(weights_data["weights"].keys())
     prices = {}
@@ -435,11 +374,11 @@ def main(force=False, dry_run=False):
     trades_summary = execute_orders(kis, sells, buys, dry_run=dry_run)
 
     if dry_run:
-        logger.info("dry-run 모드 — DB 갱신 / 알림 / 캐시 저장 스킵")
+        logger.info("dry-run 모드 — 알림 / 캐시 저장 스킵")
         return
 
-    # 7. DB 갱신
-    final = reconcile_from_kis_and_update_db(kis, date_str, trades_summary)
+    # 7. 매매 후 잔고
+    final = fetch_final_balance(kis)
 
     # 8. 캐시 저장
     save_last_target({
@@ -467,5 +406,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="매매 없이 시뮬레이션")
     parser.add_argument("--force", action="store_true", help="휴장일/장외 시간/변경 없음 무시")
+    parser.add_argument("--execute", action="store_true", help="변경된 비중대로 실제 매매 (기본은 감지 알림만)")
     args = parser.parse_args()
-    main(force=args.force, dry_run=args.dry_run)
+    main(force=args.force, dry_run=args.dry_run, execute=args.execute)

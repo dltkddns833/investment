@@ -1,7 +1,7 @@
 #!/bin/bash
 # 오전 9:10 — C 옵션 한국 매크로 추종 (이상운 트랙, 시즌2)
-# BetterWealth FA 18판+25판 합집합 비중을 매일 체크 → 변경 시 KIS 자동 매매
-# 가드: 휴장일 스킵 (Python 측), 장 운영시간 09:10~14:30, 킬스위치
+# BetterWealth FA 18판 비중을 매일 체크 → 변경 시 텔레그램 알림만 (매매는 --execute 수동 실행)
+# 가드: 휴장일 스킵 (Python 측), 장 운영시간 09:10~14:30
 
 export HOME="/Users/isang-un"
 export PATH="/Users/isang-un/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"

@@ -47,7 +47,11 @@ def yf_to_kis(ticker):
 
 def kis_to_yf(code):
     """'005930' → '005930.KS' (stock_universe 기반 매칭)"""
-    ticker_map = build_ticker_map()
+    try:
+        ticker_map = build_ticker_map()
+    except Exception as e:
+        logger.warning(f"티커 매핑 로드 실패, 기본 .KS 사용: {e}")
+        ticker_map = {}
     if code in ticker_map:
         return ticker_map[code]
     # 매핑에 없으면 기본 .KS
