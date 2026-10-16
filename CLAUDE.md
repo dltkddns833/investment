@@ -14,6 +14,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2026-07-07 재부팅 부활 대응**: 2026-07-06 14:26 Mac 재부팅 후 `~/Library/LaunchAgents/`의 plist가 자동 재로드되어 pipeline·storytelling·o-monitor·p-monitor 4개가 모두 부활 (07-07 09:05 pipeline 완주, 09:10 o-monitor가 O 계좌 손절 4건 -11% 실행 후 DB 반영). 원인: `launchctl unload`는 재부팅 전까지만 유효. 대응: **4개 plist에 `<key>Disabled</key><true/>` 추가** — 재부팅해도 자동 로드되지 않음. 오늘 O 매매는 그대로 유지(EXCLUDED로 web/ 미표시). 재개 시 **plist에서 `Disabled` 두 줄 제거 후 `launchctl load` 실행** 필요.
 
+**2026-10-16 Q 정채원 운영 중단**: `com.investment.q-monitor` launchd unload + plist에 `<key>Disabled</key><true/>` 추가 (재부팅 후에도 자동 로드 안 됨). 실제로는 **2026-09-10부터 08:45 시작 직후 DNS 실패(`nodename nor servname provided`, KIS·Supabase 호스트 해석 불가)로 매일 즉시 종료**되어 이미 사실상 정지 상태였음(종료 코드 0이라 미감지). 마지막 정상 스캔 2026-09-09, 마지막 매매 2026-08-27. 최종 성적(패치 후 06-09~08-27): **42사이클 12승 31패 / 승률 약 28%**, 시드 500만 대비 약 -37%(로그 기준 추정). 코드/plist/DB 보존. `web-q/` Vercel 콘솔은 별도 결정 대기. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
+
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. UF 이상운(C 옵션 매크로 추종)이 시즌2 시작과 함께 첫 실전 자동 매매 트랙으로 가동 중. 시뮬 11명은 여전히 R&D 단계.
 
 - 시드머니: 각 1,000만원 (KRW) — 시즌2 시점부터. 시즌1은 500만원으로 봉인
@@ -116,7 +118,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 - `scripts/core/o_monitor.py`, `scripts/core/p_monitor.py`, `scripts/cron/o_monitor_cron.sh`, `scripts/cron/p_monitor_cron.sh` 코드도 보존
 - 향후 재개 시 plist에서 `Disabled` 두 줄 제거 + `launchctl load` + `EXCLUDED_INVESTOR_IDS`에서 O/P 제거 + `web/data.ts`의 EXCLUDED 갱신 필요
 
-### 오전 8:45 — Q 정채원 급락 반등 스캘핑 v2.1 (2026-05-18 백지 재설계, 이슈 #60)
+### 오전 8:45 — Q 정채원 급락 반등 스캘핑 v2.1 (2026-05-18 백지 재설계, 이슈 #60) — **2026-10-16 unload + Disabled (운영 중단)**
 - plist: `~/Library/LaunchAgents/com.investment.q-monitor.plist`
 - `scripts/cron/q_monitor_cron.sh` → `scripts/core/q_monitor.py`
   - **09:30 ~ 14:00 진입 윈도우** (첫 스캔은 09:30:20부터 — 분봉 latency 회피), HOLDING은 최대 14:30까지 모니터링 (14:00 마지막 진입 + 30분)
@@ -162,6 +164,10 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
     - **2026-07-30**: 3사이클 0승 3패 (에스피지 058610 09:35→09:43 -1.69% 손절 -69,050원 gross / 금호타이어 073240 09:44→09:45 -2.00% 손절 1분 7초만에 -80,645원 gross / LG생활건강 051900 10:02→10:25 -1.60% 손절 -62,361원 gross). 일일 **-5.76%** (단일일 최악, 06-22 -3.92% 경신) / Net -236,868원 / 누적 -17.80% → **-22.54% 급락**. 금호타이어 06-25·06-26에 이어 3번째 손절. **31사이클 12승 20패 / 승률 37.5%**
     - **2026-07-31**: 1사이클 0승 1패 (HD현대마린엔진 071970 13:58→14:06 -2.16% 손절 -82,792원 gross). 14:00 마감 직전 마지막 시그널. 일일 **-2.34%** / Net -90,697원 / 누적 -22.54% → **-24.36%**. **32사이클 12승 21패 / 승률 36.4%**
     - **2026-08-04**: 1사이클 0승 1패 (에코프로머티 450080 13:55→13:56 -1.91% 손절 1분 11초만에 -72,162원 gross). 매수 1분 11초만에 손절 (false breakout 지속). 일일 **-2.11%** / Net -79,961원 / 누적 -24.36% → **-25.96%**. **33일 누적 (패치 후 06-09~08-04): 33사이클 12승 22패 / 승률 35.3% / Net -872,972원** — 07월 이후 급격 악화, 백테스트 OOS(35.7%)와 정확히 수렴. 07-02(8회 한도 소진 흑자) 외 손절 일변도, 손절 종목 다양(한국카본·현대로템·한미약품·GS건설·에스피지·금호타이어×3·LG생활건강·HD현대마린엔진·에코프로머티)으로 룰 구조적 문제 재확인. 사용자 장기 관찰 결정 유지
+    - **2026-08-05 ~ 08-27**: 9사이클 0승 9패 (한화솔루션·파마리서치 08-07 / 주성엔지니어링·신세계 08-11 / 삼성생명 손절·이마트 -0.36% 시간청산 08-13 / 카카오 08-21 / 한화 08-25 / 에스원 08-27 — 시간청산 1건 외 전부 손절). 레짐 unknown 지속. **42사이클 12승 31패 / 승률 약 28%**, 시드 대비 약 -37% (로그 기준 추정 — 08-05 이후 DB 반영 여부 미확인)
+    - **2026-08-28 ~ 09-09**: 매매 0건 (09-09 마지막 정상 스캔)
+    - **2026-09-10 ~ 10-16**: 매일 08:45 시작 직후 DNS 실패로 즉시 종료 (KIS 토큰 발급 단계 `NameResolutionError`, 종료 코드 0이라 미감지)
+    - **2026-10-16 운영 중단**: launchd unload + plist `Disabled` 키 추가. 코드/DB 보존
   - **단순 청산** (트레일링/post5_vol 폐기):
     · 익절: 매수가 대비 +2.5% 도달 → 즉시 청산
     · 손절: 매수가 대비 -1.5% 도달 → 즉시 청산
@@ -216,18 +222,19 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
 
 ### launchd 관리 명령
 ```bash
-# 현재 운영 중 (2026-08-05 기준): q-monitor + portfolio-follow + portfolio-follow-personal 만 active
+# 현재 운영 중 (2026-10-16 기준): portfolio-follow + portfolio-follow-personal 만 active
+# q-monitor는 2026-10-16 unload + Disabled (Q 정채원 운영 중단)
 # pipeline·storytelling·o-monitor·p-monitor는 plist에 <key>Disabled</key><true/> 세팅으로 재부팅 후에도 자동 로드 방지
 # meta는 2026-05-21 정리로 unload 유지
 
 # 현재 active 등록
-launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow.plist
 launchctl load ~/Library/LaunchAgents/com.investment.portfolio-follow-personal.plist
 
-# 시뮬·스토리텔링 재개 시 (선택) — plist에서 Disabled 두 줄 먼저 제거해야 로드됨
+# 시뮬·스토리텔링·Q 재개 시 (선택) — plist에서 Disabled 두 줄 먼저 제거해야 로드됨
 launchctl load ~/Library/LaunchAgents/com.investment.pipeline.plist
 launchctl load ~/Library/LaunchAgents/com.investment.storytelling.plist
+launchctl load ~/Library/LaunchAgents/com.investment.q-monitor.plist
 
 # 전체 해제
 launchctl unload ~/Library/LaunchAgents/com.investment.pipeline.plist
