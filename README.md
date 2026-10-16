@@ -1,7 +1,8 @@
 # 모의 투자 시뮬레이션
 
-> **시뮬 대시보드 (12명: 시뮬 11 + UF 이상운)**: https://investment-phi-six.vercel.app/
-> **Q 정채원 운영 콘솔**: 별도 Vercel 프로젝트 (`web-q/`)
+> ⚠️ **2026-10 Supabase 프로젝트와 시뮬 대시보드(Vercel) 삭제** — 아래 DB·대시보드 설명은 과거 기록. 현재 운영 중인 것은 UF 이상운 실전 추종(`portfolio_follow.py`)과 개인 포트폴리오 알림(`portfolio_follow_personal.py`)뿐이며 둘 다 Supabase 없이 동작.
+>
+> ~~시뮬 대시보드: https://investment-phi-six.vercel.app/~~ (삭제) / Q 정채원 운영 콘솔: `web-q/` (Vercel `investment-jcw`, 데이터 없음)
 
 11명의 시뮬 투자자(A·C·D·E·F·G·H·I·J·K·M)와 1명의 사용자 트랙(UF 이상운, C 옵션 한국 매크로 로테이션 추종)이 같은 시드로 한국 주식 및 ETF에 투자하여 성과를 비교하는 실험. 시뮬 11명은 전용 데이터 모듈과 AI 에이전트를 통해 독립적으로 배분을 결정하고, UF 이상운은 BetterWealth FA 회사 매크로 로테이션 모델의 비중을 매일 추종한다 (KIS API로 실전 매매).
 
@@ -259,7 +260,7 @@ A 강돌진 추종 모드(`follow_investor_id: "A"`)로 운영되는 실전 매�
 
 ## 자동 실행 (launchd)
 
-macOS launchd로 평일 자동 실행. **2026-10-16 시점 active = UF 이상운 실전 매매 + 개인 포트폴리오 알림만** (Q 정채원 q-monitor는 2026-10-16 unload + Disabled — 09-10부터 08:45 DNS 실패로 이미 사실상 정지 상태였음). 시뮬레이션(09:05)·스토리텔링(15:35)·O/P-monitor(09:10)는 plist 내부에 `<key>Disabled</key><true/>` 세팅되어 재부팅해도 로드되지 않음. plist/스크립트/코드/DB 전부 보존. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
+macOS launchd로 평일 자동 실행. **2026-10-16 시점 active = UF 이상운 실전 매매 + 개인 포트폴리오 알림만** (Q 정채원 q-monitor는 2026-10-16 unload + Disabled — 09-10부터 Supabase 프로젝트 삭제로 08:45 시작 직후 종료되어 이미 사실상 정지 상태였음). 시뮬레이션(09:05)·스토리텔링(15:35)·O/P-monitor(09:10)는 plist 내부에 `<key>Disabled</key><true/>` 세팅되어 재부팅해도 로드되지 않음. plist/스크립트/코드/DB 전부 보존. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
 
 > **2026-07-07 재부팅 부활 대응**: 2026-07-06 14:26 Mac 재부팅 시 `~/Library/LaunchAgents/` plist가 자동 재로드되어 pipeline·storytelling·o-monitor·p-monitor 4개가 부활 (당일 O 계좌 손절 4건 -11% 실행 후 DB 반영). 원인: `launchctl unload`는 재부팅 전까지만 유효. 대응: 4개 plist에 `Disabled` 키 추가로 영구 차단.
 

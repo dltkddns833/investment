@@ -14,7 +14,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **2026-07-07 재부팅 부활 대응**: 2026-07-06 14:26 Mac 재부팅 후 `~/Library/LaunchAgents/`의 plist가 자동 재로드되어 pipeline·storytelling·o-monitor·p-monitor 4개가 모두 부활 (07-07 09:05 pipeline 완주, 09:10 o-monitor가 O 계좌 손절 4건 -11% 실행 후 DB 반영). 원인: `launchctl unload`는 재부팅 전까지만 유효. 대응: **4개 plist에 `<key>Disabled</key><true/>` 추가** — 재부팅해도 자동 로드되지 않음. 오늘 O 매매는 그대로 유지(EXCLUDED로 web/ 미표시). 재개 시 **plist에서 `Disabled` 두 줄 제거 후 `launchctl load` 실행** 필요.
 
-**2026-10-16 Q 정채원 운영 중단**: `com.investment.q-monitor` launchd unload + plist에 `<key>Disabled</key><true/>` 추가 (재부팅 후에도 자동 로드 안 됨). 실제로는 **2026-09-10부터 08:45 시작 직후 DNS 실패(`nodename nor servname provided`, KIS·Supabase 호스트 해석 불가)로 매일 즉시 종료**되어 이미 사실상 정지 상태였음(종료 코드 0이라 미감지). 마지막 정상 스캔 2026-09-09, 마지막 매매 2026-08-27. 최종 성적(패치 후 06-09~08-27): **42사이클 12승 31패 / 승률 약 28%**, 시드 500만 대비 약 -37%(로그 기준 추정). 코드/plist/DB 보존. `web-q/` Vercel 콘솔은 별도 결정 대기. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
+**2026-10-16 Q 정채원 운영 중단**: `com.investment.q-monitor` launchd unload + plist에 `<key>Disabled</key><true/>` 추가 (재부팅 후에도 자동 로드 안 됨). 실제로는 **2026-09-10부터 08:45 시작 직후 Supabase 접속 실패(`nodename nor servname provided` — 사용자가 investment Supabase 프로젝트를 삭제)로 매일 즉시 종료**되어 이미 사실상 정지 상태였음(종료 코드 0이라 미감지). 마지막 정상 스캔 2026-09-09, 마지막 매매 2026-08-27. 최종 성적(패치 후 06-09~08-27): **42사이클 12승 31패 / 승률 약 28%**, 시드 500만 대비 약 -37%(로그 기준 추정). 코드/plist/DB 보존. `web-q/` Vercel 콘솔(`investment-jcw`)은 일시정지 대상. 재개 시 plist에서 `Disabled` 두 줄 제거 후 `launchctl load`.
+
+**2026-10 Supabase·웹 대시보드 삭제**: 사용자가 investment Supabase 프로젝트(`.env`의 `SUPABASE_URL`)와 `web/` Vercel 프로젝트(investment-phi-six)를 삭제. **이 문서의 Supabase 테이블·조회·저장 관련 내용과 웹 대시보드 설명은 과거 기록으로만 유효**하며, 시뮬 파이프라인·스토리텔링·Q 정채원은 DB 없이 재개 불가. 현재 살아있는 `portfolio-follow`(UF)·`portfolio-follow-personal`은 Supabase 없이 동작 (KIS 토큰은 `.kis_token.json` 파일 캐시, Supabase 로드 실패는 무시됨).
 
 **궁극적 목표**: 시뮬레이션에서 검증된 최적 전략을 선별하여 **실전 자동 투자 시스템**으로 발전시키는 것. UF 이상운(C 옵션 매크로 추종)이 시즌2 시작과 함께 첫 실전 자동 매매 트랙으로 가동 중. 시뮬 11명은 여전히 R&D 단계.
 
@@ -42,6 +44,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - P 정삼절: 고정 시드 스윙 / 장중 10분 모니터링 / 5~8종목 (O와 매매 규칙 동일, 자본 운용 실험 종료, launchd unload)
 
 ## Session Start Check
+
+> **2026-10 비활성** — Supabase 프로젝트 삭제로 `daily_reports` 조회 불가. 아래 체크를 수행하지 않는다.
 
 대화 시작 시 Supabase `daily_reports` 테이블에서 오늘 날짜 레코드 존재 여부를 확인한다.
 - 레코드가 **없으면**: 사용자에게 "오늘 시뮬레이션이 아직 진행되지 않았습니다. '시뮬레이션 진행해줘'를 입력해주세요." 라고 안내한다.
@@ -166,7 +170,7 @@ macOS launchd로 스케줄 실행 (OAuth 세션 유지를 위해 cron 대신 사
     - **2026-08-04**: 1사이클 0승 1패 (에코프로머티 450080 13:55→13:56 -1.91% 손절 1분 11초만에 -72,162원 gross). 매수 1분 11초만에 손절 (false breakout 지속). 일일 **-2.11%** / Net -79,961원 / 누적 -24.36% → **-25.96%**. **33일 누적 (패치 후 06-09~08-04): 33사이클 12승 22패 / 승률 35.3% / Net -872,972원** — 07월 이후 급격 악화, 백테스트 OOS(35.7%)와 정확히 수렴. 07-02(8회 한도 소진 흑자) 외 손절 일변도, 손절 종목 다양(한국카본·현대로템·한미약품·GS건설·에스피지·금호타이어×3·LG생활건강·HD현대마린엔진·에코프로머티)으로 룰 구조적 문제 재확인. 사용자 장기 관찰 결정 유지
     - **2026-08-05 ~ 08-27**: 9사이클 0승 9패 (한화솔루션·파마리서치 08-07 / 주성엔지니어링·신세계 08-11 / 삼성생명 손절·이마트 -0.36% 시간청산 08-13 / 카카오 08-21 / 한화 08-25 / 에스원 08-27 — 시간청산 1건 외 전부 손절). 레짐 unknown 지속. **42사이클 12승 31패 / 승률 약 28%**, 시드 대비 약 -37% (로그 기준 추정 — 08-05 이후 DB 반영 여부 미확인)
     - **2026-08-28 ~ 09-09**: 매매 0건 (09-09 마지막 정상 스캔)
-    - **2026-09-10 ~ 10-16**: 매일 08:45 시작 직후 DNS 실패로 즉시 종료 (KIS 토큰 발급 단계 `NameResolutionError`, 종료 코드 0이라 미감지)
+    - **2026-09-10 ~ 10-16**: 매일 08:45 시작 직후 즉시 종료 — Supabase 프로젝트 삭제로 호스트 해석 불가(`nodename nor servname provided`), 종료 코드 0이라 미감지
     - **2026-10-16 운영 중단**: launchd unload + plist `Disabled` 키 추가. 코드/DB 보존
   - **단순 청산** (트레일링/post5_vol 폐기):
     · 익절: 매수가 대비 +2.5% 도달 → 즉시 청산
@@ -269,7 +273,7 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 
 ## Architecture
 
-**데이터 저장소: Supabase (PostgreSQL)**
+**데이터 저장소: Supabase (PostgreSQL)** — ⚠️ 2026-10 프로젝트 삭제됨 (아래는 과거 구조 기록)
 - Python 스크립트가 데이터를 **쓰고**, Next.js가 데이터를 **읽는** 구조
 - `scripts/core/supabase_client.py` — Python용 Supabase 클라이언트 (`.env`에서 인증 정보 로드)
 - `web/src/lib/supabase.ts` — Next.js용 Supabase 클라이언트 (서버 컴포넌트 전용, `SUPABASE_SERVICE_ROLE_KEY` 사용)
@@ -411,7 +415,7 @@ scripts/
 
 ## Web Dashboard
 
-**배포 URL**: https://investment-phi-six.vercel.app/ (시뮬 11명 + UF 이상운) / Q 운영 콘솔은 별도 Vercel 프로젝트 (`web-q/`)
+**배포 URL**: ~~https://investment-phi-six.vercel.app/~~ (2026-10 Vercel 프로젝트 삭제) / Q 운영 콘솔 `web-q/`는 Vercel `investment-jcw` (Supabase 삭제로 데이터 없음, 일시정지 대상). 코드만 보존
 
 레포는 두 개의 Next.js 앱을 포함한다.
 - `web/` — 시뮬 11명(A·C·D·E·F·G·H·I·J·K·M) + UF 이상운(C 옵션 한국 매크로 추종, 시즌2부터) 대시보드. **Q 정채원과 B/L/N/O/P(2026-05-08 정리)는 표시되지 않는다.** 시즌2 데이터만 표시 (시즌1은 봉인).
